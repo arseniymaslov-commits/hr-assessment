@@ -24,7 +24,7 @@ enum PeriodStatus {
 model Department {
   id                         String                  @id @default(cuid())
   name                       String                  @unique
-  shortName                  String
+  shortName                  String                  @default("")
   isActive                   Boolean                 @default(true)
   createdAt                  DateTime                @default(now())
   leaders                    User[]
