@@ -1,7 +1,11 @@
 import { PrismaClient, Role, PeriodStatus } from "@prisma/client";
+import XLSX from "xlsx";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { hashPassword } from "../lib/password";
 
 const prisma = new PrismaClient();
+const seedDir = path.dirname(fileURLToPath(import.meta.url));
 
 const departments = [
   ["Продажи", "Sales"],
@@ -20,6 +24,83 @@ const leaders = [
   ["Роман Ким", "roman@company.test", "IT"],
   ["Максим Волков", "maxim@company.test", "Операции"]
 ] as const;
+
+function cleanCell(value: unknown) {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function cleanEmail(value: unknown) {
+  return String(value ?? "").replace(/\s+/g, "").trim().toLowerCase();
+}
+
+function mapImportedRole(roleName: string) {
+  if (roleName === "Администратор") return Role.ADMIN;
+  if (roleName === "Директор") return Role.DIRECTOR;
+  return Role.LEADER;
+}
+
+async function importOrionUsers() {
+  const workbookPath = path.join(seedDir, "orion-users.xlsx");
+  const workbook = XLSX.readFile(workbookPath);
+  const firstSheetName = workbook.SheetNames[0];
+  const firstSheet = workbook.Sheets[firstSheetName];
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(firstSheet, { header: 1, defval: "" }).slice(1);
+
+  const importedRows = rows
+    .map((row) => {
+      const lastName = cleanCell(row[1]);
+      const firstName = cleanCell(row[2]);
+      const email = cleanEmail(row[3]);
+      const roleName = cleanCell(row[4]);
+      const departmentName = cleanCell(row[5]);
+      return {
+        name: [lastName, firstName].filter(Boolean).join(" "),
+        email,
+        roleName,
+        role: mapImportedRole(roleName),
+        departmentName
+      };
+    })
+    .filter((row) => row.name && row.email);
+
+  const importedDepartmentByName = new Map<string, { id: string; name: string }>();
+  for (const departmentName of new Set(importedRows.map((row) => row.departmentName).filter(Boolean))) {
+    const department = await prisma.department.upsert({
+      where: { name: departmentName },
+      update: { shortName: departmentName, isActive: true },
+      create: { name: departmentName, shortName: departmentName, isActive: true }
+    });
+    importedDepartmentByName.set(departmentName, department);
+  }
+
+  for (const row of importedRows) {
+    const department = row.departmentName ? importedDepartmentByName.get(row.departmentName) : null;
+    const departmentId = row.role === Role.DIRECTOR ? null : department?.id ?? null;
+
+    await prisma.user.upsert({
+      where: { email: row.email },
+      update: {
+        name: row.name,
+        role: row.role,
+        position: row.roleName || null,
+        departmentId,
+        isActive: true
+      },
+      create: {
+        name: row.name,
+        email: row.email,
+        role: row.role,
+        position: row.roleName || null,
+        departmentId,
+        passwordHash: null,
+        mustChangePassword: true,
+        isActive: true
+      }
+    });
+  }
+
+  console.log(`Imported Orion users: ${importedRows.length}, departments: ${importedDepartmentByName.size}`);
+}
 
 async function main() {
   const passwordHash = hashPassword("demo123");
@@ -90,6 +171,8 @@ async function main() {
     });
     userByDepartment.set(departmentName, user);
   }
+
+  await importOrionUsers();
 
   const overallCriterion = await prisma.criterion.upsert({
     where: { name: "Общая оценка взаимодействия" },
