@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/maintenance/finalize-expired",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}

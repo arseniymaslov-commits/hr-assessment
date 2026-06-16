@@ -1,0 +1,132 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  ANALYST
+  LEADER
+  DASHBOARD_VIEWER
+  DIRECTOR
+  VIEWER
+}
+
+enum PeriodStatus {
+  OPEN
+  CLOSED
+}
+
+model Department {
+  id                         String                  @id @default(cuid())
+  name                       String                  @unique
+  shortName                  String
+  isActive                   Boolean                 @default(true)
+  createdAt                  DateTime                @default(now())
+  leaders                    User[]
+  givenEvaluations           Evaluation[]            @relation("EvaluatorDepartment")
+  receivedEvaluations        Evaluation[]            @relation("EvaluateeDepartment")
+  requiredGivenEvaluations   EvaluationRequirement[] @relation("RequiredEvaluatorDepartment")
+  requiredReceivedEvaluations EvaluationRequirement[] @relation("RequiredEvaluateeDepartment")
+  evaluationRequests         EvaluationRequest[]
+}
+
+model User {
+  id            String      @id @default(cuid())
+  name          String
+  email         String      @unique
+  passwordHash  String?
+  mustChangePassword Boolean @default(true)
+  role          Role        @default(LEADER)
+  position      String?
+  isActive      Boolean     @default(true)
+  departmentId  String?
+  department    Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  createdAt     DateTime    @default(now())
+  evaluations   Evaluation[] @relation("EvaluationAuthor")
+  directedEvaluations Evaluation[] @relation("EvaluationDirector")
+  initiatedRequests EvaluationRequest[] @relation("EvaluationRequestInitiator")
+}
+
+model Period {
+  id          String       @id @default(cuid())
+  month       Int
+  year        Int
+  status      PeriodStatus @default(OPEN)
+  createdAt   DateTime     @default(now())
+  evaluations Evaluation[]
+  requests    EvaluationRequest[]
+
+  @@unique([month, year])
+}
+
+model Criterion {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  description String?
+  weight      Int          @default(1)
+  isActive    Boolean      @default(true)
+  evaluations Evaluation[]
+}
+
+model Evaluation {
+  id                    String     @id @default(cuid())
+  periodId              String
+  period                Period     @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  evaluatorDepartmentId String?
+  evaluatorDepartment   Department? @relation("EvaluatorDepartment", fields: [evaluatorDepartmentId], references: [id], onDelete: Cascade)
+  evaluatorUserId       String?
+  evaluatorUser         User?      @relation("EvaluationDirector", fields: [evaluatorUserId], references: [id], onDelete: Cascade)
+  evaluateeDepartmentId String
+  evaluateeDepartment   Department @relation("EvaluateeDepartment", fields: [evaluateeDepartmentId], references: [id], onDelete: Cascade)
+  criterionId           String
+  criterion             Criterion  @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+  score                 Int?
+  noInteraction         Boolean    @default(false)
+  comment               String?
+  authorId              String
+  author                User       @relation("EvaluationAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  @@unique([periodId, evaluatorDepartmentId, evaluateeDepartmentId, criterionId])
+  @@index([periodId, evaluateeDepartmentId])
+  @@index([periodId, evaluatorDepartmentId])
+  @@index([periodId, evaluatorUserId])
+}
+
+model EvaluationRequirement {
+  id                    String     @id @default(cuid())
+  evaluatorDepartmentId String
+  evaluatorDepartment   Department @relation("RequiredEvaluatorDepartment", fields: [evaluatorDepartmentId], references: [id], onDelete: Cascade)
+  evaluateeDepartmentId String
+  evaluateeDepartment   Department @relation("RequiredEvaluateeDepartment", fields: [evaluateeDepartmentId], references: [id], onDelete: Cascade)
+  isActive              Boolean    @default(true)
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  @@unique([evaluatorDepartmentId, evaluateeDepartmentId])
+  @@index([evaluatorDepartmentId])
+  @@index([evaluateeDepartmentId])
+}
+
+model EvaluationRequest {
+  id                    String       @id @default(cuid())
+  periodId              String
+  period                Period       @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  evaluateeDepartmentId String
+  evaluateeDepartment   Department   @relation(fields: [evaluateeDepartmentId], references: [id], onDelete: Cascade)
+  initiatedById         String
+  initiatedBy           User         @relation("EvaluationRequestInitiator", fields: [initiatedById], references: [id], onDelete: Cascade)
+  deadlineAt            DateTime
+  notificationSentAt    DateTime?
+  autoClosedAt          DateTime?
+  createdAt             DateTime     @default(now())
+
+  @@unique([periodId, evaluateeDepartmentId])
+  @@index([deadlineAt])
+}

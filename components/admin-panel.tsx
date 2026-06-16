@@ -1,0 +1,358 @@
+"use client";
+
+import { useState } from "react";
+import { Plus, RefreshCw, RotateCcw, Send } from "lucide-react";
+
+type Department = {
+  id: string;
+  name: string;
+  shortName: string;
+};
+
+type Period = {
+  id: string;
+  month: number;
+  year: number;
+  status: "OPEN" | "CLOSED";
+};
+
+type User = {
+  id: string;
+  name: string;
+  email: string;
+  role: "ADMIN" | "ANALYST" | "LEADER" | "DASHBOARD_VIEWER" | "DIRECTOR" | "VIEWER";
+  position?: string | null;
+  departmentId?: string | null;
+  mustChangePassword?: boolean;
+  isActive?: boolean;
+};
+
+type Criterion = {
+  id: string;
+  name: string;
+  description?: string | null;
+};
+
+type Requirement = {
+  evaluatorDepartmentId: string;
+  evaluateeDepartmentId: string;
+};
+
+const months = [
+  "Январь",
+  "Февраль",
+  "Март",
+  "Апрель",
+  "Май",
+  "Июнь",
+  "Июль",
+  "Август",
+  "Сентябрь",
+  "Октябрь",
+  "Ноябрь",
+  "Декабрь"
+];
+
+const roles = [
+  ["ADMIN", "Администратор"],
+  ["ANALYST", "Аналитик"],
+  ["LEADER", "Руководитель / заместитель"],
+  ["DASHBOARD_VIEWER", "Только просмотр дашборда"],
+  ["DIRECTOR", "Директор"],
+  ["VIEWER", "Просмотр"]
+] as const;
+
+export default function AdminPanel({
+  departments,
+  periods,
+  users,
+  criteria,
+  requirements
+}: {
+  departments: Department[];
+  periods: Period[];
+  users: User[];
+  criteria: Criterion[];
+  requirements: Requirement[];
+}) {
+  const [departmentName, setDepartmentName] = useState("");
+  const [shortName, setShortName] = useState("");
+  const [criterionName, setCriterionName] = useState("");
+  const [criterionDescription, setCriterionDescription] = useState("");
+  const [month, setMonth] = useState(new Date().getMonth() + 1);
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [userName, setUserName] = useState("");
+  const [userEmail, setUserEmail] = useState("");
+  const [userRole, setUserRole] = useState<User["role"]>("LEADER");
+  const [userPosition, setUserPosition] = useState("Руководитель");
+  const [userDepartmentId, setUserDepartmentId] = useState(departments[0]?.id || "");
+  const [requirementEvaluatorId, setRequirementEvaluatorId] = useState(departments[0]?.id || "");
+  const [bulkEvaluateeIds, setBulkEvaluateeIds] = useState<string[]>([]);
+  const [launchDepartmentId, setLaunchDepartmentId] = useState(departments[0]?.id || "");
+  const [launchPeriodId, setLaunchPeriodId] = useState(
+    periods.find((period) => period.status === "OPEN")?.id || periods[0]?.id || ""
+  );
+  const [message, setMessage] = useState("");
+
+  async function request(url: string, options: RequestInit) {
+    setMessage("");
+    const response = await fetch(url, {
+      ...options,
+      headers: { "Content-Type": "application/json", ...(options.headers || {}) }
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setMessage(data.error || "Операция не выполнена.");
+      return;
+    }
+    setMessage(data.message || "Готово.");
+    window.location.reload();
+  }
+
+  function toggleBulkEvaluatee(departmentId: string, checked: boolean) {
+    setBulkEvaluateeIds((current) =>
+      checked
+        ? Array.from(new Set([...current, departmentId]))
+        : current.filter((id) => id !== departmentId)
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {message ? <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm text-slate-700">{message}</div> : null}
+
+      <section className="grid gap-6 xl:grid-cols-2">
+        <form
+          className="rounded-lg border border-line bg-white p-5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            request("/api/admin/departments", {
+              method: "POST",
+              body: JSON.stringify({ name: departmentName, shortName })
+            });
+          }}
+        >
+          <h2 className="font-semibold text-ink">Подразделения</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_140px_auto]">
+            <input className="focus-ring rounded-lg border border-line px-3 py-2" placeholder="Название" value={departmentName} onChange={(event) => setDepartmentName(event.target.value)} />
+            <input className="focus-ring rounded-lg border border-line px-3 py-2" placeholder="Кратко" value={shortName} onChange={(event) => setShortName(event.target.value)} />
+            <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2 font-semibold text-white">
+              <Plus size={18} /> Добавить
+            </button>
+          </div>
+          <div className="mt-5 divide-y divide-line">
+            {departments.map((department) => (
+              <div className="flex items-center justify-between gap-3 py-3" key={department.id}>
+                <div>
+                  <div className="font-medium">{department.name}</div>
+                  <div className="text-sm text-muted">{department.shortName}</div>
+                </div>
+                <button className="focus-ring rounded-lg border border-line px-3 py-2 text-sm text-risk hover:bg-red-50" type="button" onClick={() => request(`/api/admin/departments/${department.id}`, { method: "DELETE" })}>
+                  Удалить
+                </button>
+              </div>
+            ))}
+          </div>
+        </form>
+
+        <form
+          className="rounded-lg border border-line bg-white p-5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            request("/api/admin/criteria", {
+              method: "POST",
+              body: JSON.stringify({ name: criterionName, description: criterionDescription })
+            });
+          }}
+        >
+          <h2 className="font-semibold text-ink">Критерии оценки</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+            <input className="focus-ring rounded-lg border border-line px-3 py-2" placeholder="Название критерия" value={criterionName} onChange={(event) => setCriterionName(event.target.value)} />
+            <input className="focus-ring rounded-lg border border-line px-3 py-2" placeholder="Описание" value={criterionDescription} onChange={(event) => setCriterionDescription(event.target.value)} />
+            <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2 font-semibold text-white">
+              <Plus size={18} /> Добавить
+            </button>
+          </div>
+          <div className="mt-5 divide-y divide-line">
+            {criteria.map((criterion) => (
+              <div className="flex items-center justify-between gap-3 py-3" key={criterion.id}>
+                <div>
+                  <div className="font-medium">{criterion.name}</div>
+                  <div className="text-sm text-muted">{criterion.description || "Без описания"}</div>
+                </div>
+                <button className="focus-ring rounded-lg border border-line px-3 py-2 text-sm text-risk hover:bg-red-50" type="button" onClick={() => request(`/api/admin/criteria/${criterion.id}`, { method: "DELETE" })}>
+                  Удалить
+                </button>
+              </div>
+            ))}
+          </div>
+        </form>
+      </section>
+
+      <section className="rounded-lg border border-line bg-white p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="font-semibold text-ink">Обязательные оценки</h2>
+            <p className="mt-1 text-sm text-muted">Настройте, кто кого обязан оценивать. Если обязательный отдел не оценил, он подсвечивается в контроле заполнения.</p>
+          </div>
+          <select className="focus-ring rounded-lg border border-line px-3 py-2" value={requirementEvaluatorId} onChange={(event) => setRequirementEvaluatorId(event.target.value)}>
+            {departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
+          </select>
+        </div>
+
+        <div className="mt-5 rounded-lg border border-line bg-slate-50 p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="font-semibold text-ink">Массовое назначение</div>
+              <p className="mt-1 text-sm text-muted">Выберите отделы, которые должны оценить все остальные подразделения. Например HR и IT.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button className="focus-ring rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white disabled:opacity-50" type="button" disabled={!bulkEvaluateeIds.length} onClick={() => request("/api/admin/requirements/bulk", { method: "POST", body: JSON.stringify({ evaluateeDepartmentIds: bulkEvaluateeIds, isActive: true }) })}>
+                Назначить всем
+              </button>
+              <button className="focus-ring rounded-lg border border-line bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50" type="button" disabled={!bulkEvaluateeIds.length} onClick={() => request("/api/admin/requirements/bulk", { method: "POST", body: JSON.stringify({ evaluateeDepartmentIds: bulkEvaluateeIds, isActive: false }) })}>
+                Снять для всех
+              </button>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {departments.map((department) => (
+              <label className="flex items-center justify-between gap-3 rounded-lg border border-line bg-white px-3 py-2 text-sm" key={department.id}>
+                <span className="font-medium text-ink">{department.name}</span>
+                <input className="h-5 w-5" type="checkbox" checked={bulkEvaluateeIds.includes(department.id)} onChange={(event) => toggleBulkEvaluatee(department.id, event.target.checked)} />
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {departments.filter((department) => department.id !== requirementEvaluatorId).map((department) => {
+            const checked = requirements.some((requirement) => requirement.evaluatorDepartmentId === requirementEvaluatorId && requirement.evaluateeDepartmentId === department.id);
+            return (
+              <label className="flex items-center justify-between gap-3 rounded-lg border border-line px-3 py-3 text-sm" key={department.id}>
+                <span>
+                  <span className="font-medium text-ink">{department.name}</span>
+                  <span className="block text-muted">Обязать выбранный отдел оценить это подразделение</span>
+                </span>
+                <input className="h-5 w-5" type="checkbox" checked={checked} onChange={(event) => request("/api/admin/requirements", { method: "POST", body: JSON.stringify({ evaluatorDepartmentId: requirementEvaluatorId, evaluateeDepartmentId: department.id, isActive: event.target.checked }) })} />
+              </label>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-2">
+        <form
+          className="rounded-lg border border-line bg-white p-5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            request("/api/admin/periods", { method: "POST", body: JSON.stringify({ month, year }) });
+          }}
+        >
+          <h2 className="font-semibold text-ink">Периоды оценки</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_120px_auto]">
+            <select className="focus-ring rounded-lg border border-line px-3 py-2" value={month} onChange={(event) => setMonth(Number(event.target.value))}>
+              {months.map((label, index) => <option key={label} value={index + 1}>{label}</option>)}
+            </select>
+            <input className="focus-ring rounded-lg border border-line px-3 py-2" type="number" value={year} onChange={(event) => setYear(Number(event.target.value))} />
+            <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2 font-semibold text-white">
+              <Plus size={18} /> Открыть
+            </button>
+          </div>
+          <div className="mt-5 divide-y divide-line">
+            {periods.map((period) => (
+              <div className="flex items-center justify-between gap-3 py-3" key={period.id}>
+                <div>
+                  <div className="font-medium">{months[period.month - 1]} {period.year}</div>
+                  <div className="text-sm text-muted">{period.status === "OPEN" ? "Открыт" : "Закрыт"}</div>
+                </div>
+                <button className="focus-ring inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm hover:bg-slate-50" type="button" onClick={() => request(`/api/admin/periods/${period.id}`, { method: "PATCH", body: JSON.stringify({ status: period.status === "OPEN" ? "CLOSED" : "OPEN" }) })}>
+                  <RefreshCw size={16} /> {period.status === "OPEN" ? "Закрыть" : "Открыть"}
+                </button>
+              </div>
+            ))}
+          </div>
+        </form>
+
+        <section className="rounded-lg border border-line bg-white p-5">
+          <h2 className="font-semibold text-ink">Запуск оценки отдела</h2>
+          <p className="mt-1 text-sm text-muted">Запускает оценку выбранного отдела и отправляет уведомления руководителям обязательных отделов-оценщиков. Дедлайн: 3 дня.</p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto_auto]">
+            <select className="focus-ring rounded-lg border border-line px-3 py-2" value={launchDepartmentId} onChange={(event) => setLaunchDepartmentId(event.target.value)}>
+              {departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
+            </select>
+            <select className="focus-ring rounded-lg border border-line px-3 py-2" value={launchPeriodId} onChange={(event) => setLaunchPeriodId(event.target.value)}>
+              {periods.map((period) => <option key={period.id} value={period.id}>{months[period.month - 1]} {period.year}</option>)}
+            </select>
+            <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2 font-semibold text-white" type="button" onClick={() => request("/api/evaluation-requests", { method: "POST", body: JSON.stringify({ evaluateeDepartmentId: launchDepartmentId, periodId: launchPeriodId }) })}>
+              <Send size={18} /> Запустить
+            </button>
+            <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-line px-4 py-2 font-semibold text-ink" type="button" onClick={() => request("/api/evaluation-requests/bulk", { method: "POST", body: JSON.stringify({ periodId: launchPeriodId }) })}>
+              <Send size={18} /> Все СП
+            </button>
+          </div>
+        </section>
+      </section>
+
+      <section className="rounded-lg border border-line bg-white p-5">
+        <h2 className="font-semibold text-ink">Пользователи и роли</h2>
+        <form className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_1fr_1fr_1fr_auto]" onSubmit={(event) => {
+          event.preventDefault();
+          request("/api/admin/users", {
+            method: "POST",
+            body: JSON.stringify({ name: userName, email: userEmail, role: userRole, position: userPosition, departmentId: userDepartmentId })
+          });
+        }}>
+          <input className="focus-ring rounded-lg border border-line px-3 py-2" placeholder="ФИО" value={userName} onChange={(event) => setUserName(event.target.value)} />
+          <input className="focus-ring rounded-lg border border-line px-3 py-2" placeholder="Email" type="email" value={userEmail} onChange={(event) => setUserEmail(event.target.value)} />
+          <select className="focus-ring rounded-lg border border-line px-3 py-2" value={userRole} onChange={(event) => setUserRole(event.target.value as User["role"])}>
+            {roles.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+          <input className="focus-ring rounded-lg border border-line px-3 py-2" placeholder="Должность" value={userPosition} onChange={(event) => setUserPosition(event.target.value)} disabled={userRole !== "LEADER"} />
+          <select className="focus-ring rounded-lg border border-line px-3 py-2 disabled:bg-slate-100" value={userDepartmentId} onChange={(event) => setUserDepartmentId(event.target.value)} disabled={userRole !== "LEADER"}>
+            {departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
+          </select>
+          <button className="focus-ring rounded-lg bg-brand px-4 py-2 font-semibold text-white">Сохранить</button>
+        </form>
+
+        <div className="mt-5 overflow-x-auto">
+          <table className="w-full min-w-[920px] text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-muted">
+              <tr>
+                <th className="px-4 py-3">Имя</th>
+                <th className="px-4 py-3">Email</th>
+                <th className="px-4 py-3">Роль</th>
+                <th className="px-4 py-3">Должность</th>
+                <th className="px-4 py-3">Подразделение</th>
+                <th className="px-4 py-3">Пароль</th>
+                <th className="px-4 py-3">Действия</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {users.map((user) => (
+                <tr key={user.id} className={user.isActive === false ? "opacity-50" : ""}>
+                  <td className="px-4 py-3 font-medium">{user.name}</td>
+                  <td className="px-4 py-3">{user.email}</td>
+                  <td className="px-4 py-3">{roles.find(([value]) => value === user.role)?.[1] || user.role}</td>
+                  <td className="px-4 py-3">{user.position || "—"}</td>
+                  <td className="px-4 py-3">{departments.find((department) => department.id === user.departmentId)?.name || "—"}</td>
+                  <td className="px-4 py-3">{user.mustChangePassword ? "Нужно задать" : "Задан"}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-2">
+                      <button className="focus-ring inline-flex items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold hover:bg-slate-50" type="button" onClick={() => request(`/api/admin/users/${user.id}/reset-password`, { method: "POST" })}>
+                        <RotateCcw size={14} /> Сбросить пароль
+                      </button>
+                      <button className="focus-ring rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-risk hover:bg-red-50" type="button" onClick={() => request(`/api/admin/users/${user.id}`, { method: "DELETE" })}>
+                        Отключить
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  );
+}
