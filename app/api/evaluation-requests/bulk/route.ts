@@ -44,6 +44,7 @@ export async function POST(request: Request) {
   let notifications = 0;
   let requirements = 0;
   let scheduled = 0;
+  let skippedNotifications = 0;
   for (const department of departments) {
     const result = await launchEvaluationRequest({
       periodId,
@@ -55,11 +56,14 @@ export async function POST(request: Request) {
     notifications += result.recipientsCount;
     requirements += result.requirementsCount;
     if (result.scheduled) scheduled += 1;
+    if (result.mailSkipped) skippedNotifications += 1;
   }
 
   return NextResponse.json({
     message: scheduled
       ? `Оценка запланирована для всех СП: ${departments.length}. Обязательных оценщиков: ${requirements}.`
+      : skippedNotifications
+        ? `Оценка создана для всех СП: ${departments.length}, но часть писем не отправлена из-за настроек SMTP или отсутствия получателей. Обязательных оценщиков: ${requirements}.`
       : `Оценка запущена для всех СП: ${departments.length}. Уведомлений: ${notifications}. Обязательных оценщиков: ${requirements}.`
   });
 }

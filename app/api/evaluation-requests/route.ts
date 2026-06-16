@@ -52,9 +52,11 @@ export async function POST(request: Request) {
     deadlineAt: deadlineAt || undefined
   });
 
-  return NextResponse.json({
-    message: result.scheduled
-      ? `Оценка запланирована. Обязательных оценщиков: ${result.requirementsCount}.`
-      : `Оценка запущена. Уведомлений: ${result.recipientsCount}. Обязательных оценщиков: ${result.requirementsCount}.`
-  });
+  const message = result.scheduled
+    ? `Оценка запланирована. Обязательных оценщиков: ${result.requirementsCount}.`
+    : result.mailSkipped
+      ? `Оценка создана, но письмо не отправлено: не настроен SMTP или нет получателей. Обязательных оценщиков: ${result.requirementsCount}.`
+      : `Оценка запущена. Письмо отправлено руководителям: ${result.recipientsCount}. Обязательных оценщиков: ${result.requirementsCount}.`;
+
+  return NextResponse.json({ message });
 }

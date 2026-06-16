@@ -16,6 +16,20 @@ function defaultDeadline() {
   return new Date(Date.now() + 3 * MS_IN_DAY);
 }
 
+function getAppUrl() {
+  const configuredUrl = process.env.APP_URL;
+  if (configuredUrl) return configuredUrl.replace(/\/$/, "");
+
+  const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+  if (vercelUrl) return `https://${vercelUrl}`.replace(/\/$/, "");
+
+  return "http://localhost:3000";
+}
+
+function formatPeriod(month: number, year: number) {
+  return `${String(month).padStart(2, "0")}.${year}`;
+}
+
 async function notifyEvaluationRequest(requestId: string) {
   const request = await prisma.evaluationRequest.findUnique({
     where: { id: requestId },
@@ -26,7 +40,7 @@ async function notifyEvaluationRequest(requestId: string) {
     }
   });
   if (!request || request.notificationSentAt) {
-    return { recipientsCount: 0, requirementsCount: 0 };
+    return { recipientsCount: 0, requirementsCount: 0, mailSkipped: false };
   }
 
   const requirements = await prisma.evaluationRequirement.findMany({
@@ -37,37 +51,60 @@ async function notifyEvaluationRequest(requestId: string) {
   const recipients = await prisma.user.findMany({
     where: {
       isActive: true,
-      role: Role.LEADER,
+      role: { in: [Role.LEADER, Role.ADMIN] },
       departmentId: { in: evaluatorDepartmentIds }
     },
     include: { department: true }
   });
 
-  const appUrl = process.env.APP_URL || "http://localhost:3000";
-  await sendMail({
+  const appUrl = getAppUrl();
+  const evaluationUrl = `${appUrl}/evaluations`;
+  const deadline = request.deadlineAt.toLocaleString("ru-RU", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  });
+  const recipientDepartments = Array.from(
+    new Set(recipients.map((user) => user.department?.name).filter(Boolean))
+  ).join(", ");
+  const mailResult = await sendMail({
     to: recipients.map((user) => user.email),
-    subject: `Необходимо оценить взаимодействие с ${request.evaluateeDepartment.name}`,
+    subject: `Нужно оценить взаимодействие с ${request.evaluateeDepartment.name}`,
     text: [
       "Здравствуйте.",
       "",
       `Запущена оценка взаимодействия с подразделением: ${request.evaluateeDepartment.name}.`,
-      `Период: ${request.period.month}.${request.period.year}.`,
-      `Дедлайн: ${request.deadlineAt.toLocaleString("ru-RU")}.`,
+      `Период: ${formatPeriod(request.period.month, request.period.year)}.`,
+      `Дедлайн: ${deadline}.`,
+      recipientDepartments ? `Оценку должны заполнить подразделения: ${recipientDepartments}.` : "",
       "",
-      `Перейдите в форму оценки: ${appUrl}/evaluations`,
+      `Перейдите в форму оценки: ${evaluationUrl}`,
       "",
       "Если оценка не будет поставлена до дедлайна, система автоматически отметит \"Нет взаимодействия\"."
-    ].join("\n")
+    ].filter(Boolean).join("\n"),
+    html: [
+      "<p>Здравствуйте.</p>",
+      `<p>Запущена оценка взаимодействия с подразделением: <strong>${request.evaluateeDepartment.name}</strong>.</p>`,
+      "<ul>",
+      `<li>Период: ${formatPeriod(request.period.month, request.period.year)}</li>`,
+      `<li>Дедлайн: ${deadline}</li>`,
+      recipientDepartments ? `<li>Оценку должны заполнить: ${recipientDepartments}</li>` : "",
+      "</ul>",
+      `<p><a href="${evaluationUrl}">Перейти в форму оценки</a></p>`,
+      "<p>Если оценка не будет поставлена до дедлайна, система автоматически отметит «Нет взаимодействия».</p>"
+    ].filter(Boolean).join("")
   });
 
-  await prisma.evaluationRequest.update({
-    where: { id: request.id },
-    data: { notificationSentAt: new Date() }
-  });
+  if (!mailResult.skipped) {
+    await prisma.evaluationRequest.update({
+      where: { id: request.id },
+      data: { notificationSentAt: new Date() }
+    });
+  }
 
   return {
     recipientsCount: recipients.length,
-    requirementsCount: requirements.length
+    requirementsCount: requirements.length,
+    mailSkipped: mailResult.skipped
   };
 }
 
@@ -116,6 +153,7 @@ export async function launchEvaluationRequest({
     request,
     recipientsCount: 0,
     requirementsCount,
+    mailSkipped: false,
     scheduled: true
   };
 }
@@ -132,13 +170,15 @@ export async function notifyDueEvaluationRequests() {
 
   let notifiedRequests = 0;
   let recipientsCount = 0;
+  let skippedRequests = 0;
   for (const request of dueRequests) {
     const result = await notifyEvaluationRequest(request.id);
     notifiedRequests += 1;
     recipientsCount += result.recipientsCount;
+    if (result.mailSkipped) skippedRequests += 1;
   }
 
-  return { notifiedRequests, recipientsCount };
+  return { notifiedRequests, recipientsCount, skippedRequests };
 }
 
 export async function finalizeExpiredEvaluationRequests() {

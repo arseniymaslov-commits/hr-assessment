@@ -67,12 +67,12 @@ export default function LeaderLaunchPanel({
   if (!periods.length) return null;
 
   return (
-    <section className="mb-6 rounded-lg border border-red-100 bg-white p-5 shadow-sm">
+    <section className="mb-6 mt-6 rounded-lg border border-red-100 bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h2 className="font-semibold text-ink">Запуск оценки своего подразделения</h2>
           <p className="mt-1 text-sm text-muted">
-            {departmentName}: выберите дату запуска и дедлайн заполнения для обязательных оценщиков.
+            {departmentName}: выберите дату запуска и дедлайн. В момент запуска руководителям обязательных подразделений уйдет письмо со ссылкой на форму оценки.
           </p>
         </div>
         {message ? <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-brandDark">{message}</div> : null}

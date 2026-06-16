@@ -148,8 +148,22 @@ export default function EvaluationForm({
   }
 
   return (
-    <form className="rounded-lg border border-line bg-white p-5" onSubmit={submit}>
+    <form className="rounded-lg border border-brand/25 bg-white p-5 shadow-sm" onSubmit={submit}>
+      <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-ink">Поставить оценку</h2>
+          <p className="mt-1 text-sm text-muted">Начните с балла, затем выберите подразделение и добавьте комментарий при необходимости.</p>
+        </div>
+        <span className="inline-flex w-fit rounded-full bg-red-50 px-3 py-1 text-sm font-semibold text-brandDark ring-1 ring-red-100">
+          Оценка ниже 9 требует комментарий
+        </span>
+      </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <label className="block rounded-lg border border-red-100 bg-red-50/40 p-4">
+          <span className="text-sm font-semibold text-brandDark">Оценка от 1 до 10</span>
+          <input className="focus-ring mt-2 w-full rounded-lg border border-red-200 bg-white px-4 py-3 text-3xl font-semibold text-ink" type="number" min={1} max={10} value={score} onChange={(event) => setScore(Number(event.target.value))} />
+        </label>
+
         <label className="block">
           <span className="text-sm font-medium text-slate-700">Период оценки</span>
           <select className="focus-ring mt-1 w-full rounded-lg border border-line px-3 py-2" value={periodId} onChange={(event) => setPeriodId(event.target.value)}>
@@ -192,11 +206,6 @@ export default function EvaluationForm({
               <option key={criterion.id} value={criterion.id}>{criterion.name}</option>
             ))}
           </select>
-        </label>
-
-        <label className="block">
-          <span className="text-sm font-medium text-slate-700">Оценка от 1 до 10</span>
-          <input className="focus-ring mt-1 w-full rounded-lg border border-line px-3 py-2" type="number" min={1} max={10} value={score} onChange={(event) => setScore(Number(event.target.value))} />
         </label>
 
         <div className="rounded-lg bg-slate-50 p-3 text-sm text-slate-700">

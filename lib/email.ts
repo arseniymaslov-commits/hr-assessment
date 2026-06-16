@@ -2,6 +2,7 @@ type MailInput = {
   to: string[];
   subject: string;
   text: string;
+  html?: string;
 };
 
 export async function sendMail(input: MailInput) {
@@ -10,9 +11,11 @@ export async function sendMail(input: MailInput) {
   const pass = process.env.SMTP_PASSWORD;
   const from = process.env.SMTP_FROM || "no-reply@example.com";
 
-  if (!host || !user || !pass || !input.to.length) {
+  const recipients = Array.from(new Set(input.to.map((email) => email.trim()).filter(Boolean)));
+
+  if (!host || !user || !pass || !recipients.length) {
     console.log(`[mail skipped] ${input.subject}: ${input.to.join(", ")}`);
-    return { skipped: true };
+    return { skipped: true, recipientsCount: recipients.length };
   }
 
   const nodemailer = await import("nodemailer");
@@ -25,10 +28,11 @@ export async function sendMail(input: MailInput) {
 
   await transporter.sendMail({
     from,
-    to: input.to.join(", "),
+    to: recipients.join(", "),
     subject: input.subject,
-    text: input.text
+    text: input.text,
+    html: input.html
   });
 
-  return { skipped: false };
+  return { skipped: false, recipientsCount: recipients.length };
 }

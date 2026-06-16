@@ -43,10 +43,6 @@ export default async function EvaluationsPage() {
         </p>
       </div>
 
-      {user.role === Role.LEADER && user.departmentId && user.department ? (
-        <LeaderLaunchPanel departmentId={user.departmentId} departmentName={user.department.name} periods={periodOptions} />
-      ) : null}
-
       <EvaluationForm
         departments={departmentOptions}
         periods={periodOptions}
@@ -54,6 +50,10 @@ export default async function EvaluationsPage() {
         requirements={requirementOptions}
         user={{ role: user.role, departmentId: user.departmentId }}
       />
+
+      {user.role === Role.LEADER && user.departmentId && user.department ? (
+        <LeaderLaunchPanel departmentId={user.departmentId} departmentName={user.department.name} periods={periodOptions} />
+      ) : null}
 
       <section className="mt-6 rounded-lg border border-line bg-white">
         <div className="border-b border-line px-5 py-4">

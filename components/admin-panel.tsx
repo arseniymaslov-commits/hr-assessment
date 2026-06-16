@@ -286,7 +286,7 @@ export default function AdminPanel({
 
         <section className="rounded-lg border border-line bg-white p-5">
           <h2 className="font-semibold text-ink">Запуск оценки отдела</h2>
-          <p className="mt-1 text-sm text-muted">Запускает оценку выбранного отдела или планирует ее на календарную дату. После дедлайна незаполненные обязательные оценки станут статусом «Нет взаимодействия».</p>
+          <p className="mt-1 text-sm text-muted">Запускает оценку выбранного отдела или планирует ее на календарную дату. В момент запуска руководителям обязательных подразделений отправляется письмо со ссылкой на форму. После дедлайна незаполненные обязательные оценки станут статусом «Нет взаимодействия».</p>
           <div className="mt-4 grid gap-3 lg:grid-cols-2">
             <select className="focus-ring rounded-lg border border-line px-3 py-2" value={launchDepartmentId} onChange={(event) => setLaunchDepartmentId(event.target.value)}>
               {departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
