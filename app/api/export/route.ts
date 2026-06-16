@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Role } from "@prisma/client";
 import * as XLSX from "xlsx";
 import { getCurrentUser } from "@/lib/auth";
 import { fixed, periodLabel } from "@/lib/format";
@@ -20,14 +21,29 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const metrics = await getPeriodMetrics(searchParams.get("period") || undefined);
+  const leaderDepartmentId = user.role === Role.LEADER ? user.departmentId : null;
   const periodName = metrics.selectedPeriod ? periodLabel(metrics.selectedPeriod) : "period";
   const evaluatorDepartments = metrics.departments;
-  const evaluateeDepartments = metrics.evaluateeDepartments;
+  const evaluateeDepartments = leaderDepartmentId
+    ? metrics.evaluateeDepartments.filter((department) => department.id === leaderDepartmentId)
+    : metrics.evaluateeDepartments;
+  const summaryRows = leaderDepartmentId
+    ? metrics.byEvaluatee.filter((row) => row.department.id === leaderDepartmentId)
+    : metrics.byEvaluatee;
+  const lowScoreRows = leaderDepartmentId
+    ? metrics.lowScores.filter((evaluation) => evaluation.evaluateeDepartmentId === leaderDepartmentId)
+    : metrics.lowScores;
+  const evaluationRows = leaderDepartmentId
+    ? metrics.evaluations.filter((evaluation) => evaluation.evaluateeDepartmentId === leaderDepartmentId)
+    : metrics.evaluations;
+  const completionRows = leaderDepartmentId
+    ? metrics.completion.filter((row) => row.department.id === leaderDepartmentId)
+    : metrics.completion;
   const workbook = XLSX.utils.book_new();
 
   appendSheet(
     workbook,
-    metrics.byEvaluatee.map((row) => ({
+    summaryRows.map((row) => ({
       "Период": periodName,
       "Подразделение": row.department.name,
       "Средний балл": row.average == null ? "" : Number(row.average.toFixed(2)),
@@ -91,7 +107,7 @@ export async function GET(request: Request) {
 
   appendSheet(
     workbook,
-    metrics.lowScores.map((evaluation) => ({
+    lowScoreRows.map((evaluation) => ({
       "Период": periodName,
       "Кто оценивает": evaluation.evaluatorDepartment?.name || evaluation.evaluatorUser?.name || "Директор",
       "Кого оценивают": evaluation.evaluateeDepartment.name,
@@ -105,7 +121,7 @@ export async function GET(request: Request) {
 
   appendSheet(
     workbook,
-    metrics.evaluations.map((evaluation) => ({
+    evaluationRows.map((evaluation) => ({
       "Период": periodName,
       "Кто оценивает": evaluation.evaluatorDepartment?.name || evaluation.evaluatorUser?.name || "Директор",
       "Кого оценивают": evaluation.evaluateeDepartment.name,
@@ -120,7 +136,7 @@ export async function GET(request: Request) {
 
   appendSheet(
     workbook,
-    metrics.completion.map((row) => ({
+    completionRows.map((row) => ({
       "Период": periodName,
       "Подразделение": row.department.name,
       "Заполнено": row.filled,
@@ -137,8 +153,8 @@ export async function GET(request: Request) {
       {
         "Период": periodName,
         "Общий средний балл": fixed(metrics.companyAverage),
-        "Ожидается оценок": metrics.expectedCount,
-        "Отсутствует оценок": metrics.missingCount
+        "Ожидается оценок": completionRows.reduce((sum, row) => sum + row.expected, 0),
+        "Отсутствует оценок": completionRows.reduce((sum, row) => sum + row.missing, 0)
       }
     ],
     "Итого"

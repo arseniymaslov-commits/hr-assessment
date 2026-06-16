@@ -13,6 +13,13 @@ export default async function CompletionPage({
 }) {
   const user = await requireUser([Role.ADMIN, Role.ANALYST, Role.LEADER, Role.DIRECTOR, Role.VIEWER]);
   const metrics = await getPeriodMetrics(searchParams.period);
+  const leaderDepartmentId = user.role === Role.LEADER ? user.departmentId : null;
+  const completionRows = leaderDepartmentId
+    ? metrics.completion.filter((row) => row.department.id === leaderDepartmentId)
+    : metrics.completion;
+  const visibleExpectedCount = completionRows.reduce((sum, row) => sum + row.expected, 0);
+  const visibleFilledCount = completionRows.reduce((sum, row) => sum + row.filled, 0);
+  const visibleMissingCount = completionRows.reduce((sum, row) => sum + row.missing, 0);
   const periodOptions = metrics.periods.map(({ id, month, year, status }) => ({
     id,
     month,
@@ -34,9 +41,9 @@ export default async function CompletionPage({
       </div>
 
       <section className="grid gap-4 md:grid-cols-3">
-        <StatusCard label="Всего ожидается" value={String(metrics.expectedCount)} />
-        <StatusCard label="Заполнено" value={String(metrics.evaluations.length)} />
-        <StatusCard label="Осталось" value={String(metrics.missingCount)} />
+        <StatusCard label="Всего ожидается" value={String(visibleExpectedCount)} />
+        <StatusCard label="Заполнено" value={String(visibleFilledCount)} />
+        <StatusCard label="Осталось" value={String(visibleMissingCount)} />
       </section>
 
       <section className="mt-6 rounded-lg border border-line bg-white">
@@ -55,7 +62,7 @@ export default async function CompletionPage({
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {metrics.completion.map((row) => (
+              {completionRows.map((row) => (
                 <tr key={row.department.id}>
                   <td className="px-5 py-4 font-medium text-ink">{row.department.name}</td>
                   <td className="px-5 py-4">

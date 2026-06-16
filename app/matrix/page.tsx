@@ -14,7 +14,8 @@ export default async function MatrixPage({
 }) {
   const user = await requireUser([Role.ADMIN, Role.ANALYST, Role.LEADER, Role.DIRECTOR, Role.VIEWER]);
   const metrics = await getPeriodMetrics(searchParams.period);
-  const selectedDepartment = searchParams.department;
+  const leaderDepartmentId = user.role === Role.LEADER ? user.departmentId : null;
+  const selectedDepartment = leaderDepartmentId || searchParams.department;
   const columnDepartments = selectedDepartment
     ? metrics.evaluateeDepartments.filter((department) => department.id === selectedDepartment)
     : metrics.evaluateeDepartments;
@@ -56,9 +57,7 @@ export default async function MatrixPage({
       (evaluation) =>
         evaluation.evaluatorDepartment &&
         matrixDepartmentIds.has(evaluation.evaluateeDepartmentId) &&
-        (!selectedDepartment ||
-          evaluation.evaluateeDepartmentId === selectedDepartment ||
-          evaluation.evaluatorDepartmentId === selectedDepartment)
+        (!selectedDepartment || evaluation.evaluateeDepartmentId === selectedDepartment)
     )
     .map((evaluation) => ({
       id: evaluation.id,
@@ -98,7 +97,7 @@ export default async function MatrixPage({
         </div>
         <div className="flex flex-wrap gap-2">
           <PeriodFilter periods={periodOptions} selectedPeriodId={metrics.selectedPeriod?.id} />
-          <DepartmentFilter departments={departmentOptions} />
+          {!leaderDepartmentId ? <DepartmentFilter departments={departmentOptions} /> : null}
         </div>
       </div>
       <MatrixClient rowDepartments={rowDepartmentOptions} columnDepartments={columnDepartmentOptions} evaluations={evaluations} summaries={summaries} lowComments={lowComments} />

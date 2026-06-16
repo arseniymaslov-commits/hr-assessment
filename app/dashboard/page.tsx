@@ -2,6 +2,7 @@ import AppShell from "@/components/app-shell";
 import DepartmentFilter from "@/components/department-filter";
 import PeriodFilter from "@/components/period-filter";
 import ScoreBadge from "@/components/score-badge";
+import { Role } from "@prisma/client";
 import { requireUser } from "@/lib/auth";
 import { fixed, periodLabel, scoreClass } from "@/lib/format";
 import { getPeriodMetrics } from "@/lib/metrics";
@@ -13,18 +14,28 @@ export default async function DashboardPage({
 }) {
   const user = await requireUser();
   const metrics = await getPeriodMetrics(searchParams.period);
-  const selectedDepartment = searchParams.department;
+  const leaderDepartmentId = user.role === Role.LEADER ? user.departmentId : null;
+  const selectedDepartment = leaderDepartmentId || searchParams.department;
 
   const rows = selectedDepartment
     ? metrics.byEvaluatee.filter((row) => row.department.id === selectedDepartment)
     : metrics.byEvaluatee;
-  const lowScores = selectedDepartment
+  const lowScores = leaderDepartmentId
+    ? metrics.lowScores.filter((evaluation) => evaluation.evaluateeDepartmentId === leaderDepartmentId)
+    : selectedDepartment
     ? metrics.lowScores.filter(
         (evaluation) =>
           evaluation.evaluateeDepartmentId === selectedDepartment ||
           evaluation.evaluatorDepartmentId === selectedDepartment
       )
     : metrics.lowScores;
+  const visibleExpectedCount = leaderDepartmentId
+    ? metrics.requirements.filter((requirement) => requirement.evaluateeDepartmentId === leaderDepartmentId).length
+    : metrics.expectedCount;
+  const visibleFilledCount = leaderDepartmentId
+    ? metrics.evaluations.filter((evaluation) => evaluation.evaluateeDepartmentId === leaderDepartmentId).length
+    : metrics.evaluations.length;
+  const visibleMissingCount = Math.max(0, visibleExpectedCount - visibleFilledCount);
   const periodOptions = metrics.periods.map(({ id, month, year, status }) => ({
     id,
     month,
@@ -44,8 +55,8 @@ export default async function DashboardPage({
         </div>
         <div className="flex flex-wrap gap-2">
           <PeriodFilter periods={periodOptions} selectedPeriodId={metrics.selectedPeriod?.id} />
-          <DepartmentFilter departments={departmentOptions} />
-          {metrics.selectedPeriod ? (
+          {!leaderDepartmentId ? <DepartmentFilter departments={departmentOptions} /> : null}
+          {metrics.selectedPeriod && !leaderDepartmentId ? (
             <a
               className="focus-ring rounded-lg border border-line bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
               href={`/api/export?period=${metrics.selectedPeriod.id}`}
@@ -58,8 +69,8 @@ export default async function DashboardPage({
 
       <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Средний балл компании" value={fixed(metrics.companyAverage)} />
-        <MetricCard label="Оценок ниже 9" value={String(metrics.lowScores.length)} />
-        <MetricCard label="Отсутствующих оценок" value={String(metrics.missingCount)} />
+        <MetricCard label={leaderDepartmentId ? "Оценок ниже 9 по вашему отделу" : "Оценок ниже 9"} value={String(lowScores.length)} />
+        <MetricCard label={leaderDepartmentId ? "Осталось оценок по вашему отделу" : "Отсутствующих оценок"} value={String(leaderDepartmentId ? visibleMissingCount : metrics.missingCount)} />
         <MetricCard
           label="Статус периода"
           value={metrics.selectedPeriod?.status === "OPEN" ? "Открыт" : "Закрыт"}
@@ -102,7 +113,7 @@ export default async function DashboardPage({
             <h2 className="font-semibold text-ink">Рейтинг по среднему баллу</h2>
           </div>
           <div className="divide-y divide-line">
-            {metrics.byEvaluatee
+            {rows
               .slice()
               .sort((a, b) => (b.average || 0) - (a.average || 0))
               .map((row, index) => (
