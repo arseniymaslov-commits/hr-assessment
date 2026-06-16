@@ -28,6 +28,7 @@ type Requirement = {
 type UserContext = {
   role: "ADMIN" | "ANALYST" | "LEADER" | "DASHBOARD_VIEWER" | "DIRECTOR" | "VIEWER";
   departmentId?: string | null;
+  departmentName?: string | null;
 };
 
 const monthNames = [
@@ -47,12 +48,14 @@ const monthNames = [
 
 export default function EvaluationForm({
   departments,
+  evaluateeDepartments,
   periods,
   criteria,
   requirements,
   user
 }: {
   departments: Department[];
+  evaluateeDepartments: Department[];
   periods: Period[];
   criteria: Criterion[];
   requirements: Requirement[];
@@ -78,18 +81,18 @@ export default function EvaluationForm({
     [periodId, periods]
   );
   const availableEvaluatees = useMemo(() => {
-    if (isDirector) return departments;
+    if (isDirector) return evaluateeDepartments;
 
     const requiredIds = requirements
       .filter((requirement) => requirement.evaluatorDepartmentId === evaluatorDepartmentId)
       .map((requirement) => requirement.evaluateeDepartmentId);
     const allowedIds = requiredIds.length ? new Set(requiredIds) : null;
 
-    return departments.filter(
+    return evaluateeDepartments.filter(
       (department) =>
         department.id !== evaluatorDepartmentId && (!allowedIds || allowedIds.has(department.id))
     );
-  }, [departments, evaluatorDepartmentId, isDirector, requirements]);
+  }, [evaluateeDepartments, evaluatorDepartmentId, isDirector, requirements]);
 
   useEffect(() => {
     if (!availableEvaluatees.some((department) => department.id === evaluateeDepartmentId)) {
@@ -181,8 +184,12 @@ export default function EvaluationForm({
             <div className="mt-1 rounded-lg border border-line bg-slate-100 px-3 py-2 text-slate-700">
               Директор
             </div>
+          ) : user.role === "LEADER" ? (
+            <div className="mt-1 rounded-lg border border-line bg-slate-100 px-3 py-2 font-medium text-slate-700">
+              {user.departmentName || departments.find((department) => department.id === evaluatorDepartmentId)?.name || "Ваш отдел"}
+            </div>
           ) : (
-            <select className="focus-ring mt-1 w-full rounded-lg border border-line px-3 py-2 disabled:bg-slate-100" value={evaluatorDepartmentId} onChange={(event) => setEvaluatorDepartmentId(event.target.value)} disabled={user.role === "LEADER"}>
+            <select className="focus-ring mt-1 w-full rounded-lg border border-line px-3 py-2 disabled:bg-slate-100" value={evaluatorDepartmentId} onChange={(event) => setEvaluatorDepartmentId(event.target.value)}>
               {departments.map((department) => (
                 <option key={department.id} value={department.id}>{department.name}</option>
               ))}

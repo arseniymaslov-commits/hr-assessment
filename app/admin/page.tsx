@@ -7,11 +7,12 @@ import { getPeriodMetrics, getReferenceData } from "@/lib/metrics";
 
 export default async function AdminPage() {
   const user = await requireUser([Role.ADMIN]);
-  const [{ departments, periods, users, criteria }, metrics] = await Promise.all([
+  const [{ departments, evaluateeDepartments, periods, users, criteria }, metrics] = await Promise.all([
     getReferenceData(),
     getPeriodMetrics()
   ]);
   const departmentOptions = departments.map(({ id, name, shortName }) => ({ id, name, shortName }));
+  const evaluateeDepartmentOptions = evaluateeDepartments.map(({ id, name, shortName }) => ({ id, name, shortName }));
   const periodOptions = periods.map(({ id, month, year, status }) => ({
     id,
     month,
@@ -51,6 +52,7 @@ export default async function AdminPage() {
 
       <AdminPanel
         departments={departmentOptions}
+        evaluateeDepartments={evaluateeDepartmentOptions}
         periods={periodOptions}
         users={userOptions}
         criteria={criterionOptions}

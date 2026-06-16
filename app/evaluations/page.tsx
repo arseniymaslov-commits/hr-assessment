@@ -8,7 +8,7 @@ import { getPeriodMetrics, getReferenceData } from "@/lib/metrics";
 
 export default async function EvaluationsPage() {
   const user = await requireUser([Role.ADMIN, Role.LEADER, Role.DIRECTOR]);
-  const [{ departments, periods, criteria, requirements }, metrics] = await Promise.all([
+  const [{ departments, evaluateeDepartments, periods, criteria, requirements }, metrics] = await Promise.all([
     getReferenceData(),
     getPeriodMetrics()
   ]);
@@ -20,6 +20,7 @@ export default async function EvaluationsPage() {
         ? metrics.evaluations.filter((evaluation) => evaluation.evaluatorUserId === user.id)
         : metrics.evaluations;
   const departmentOptions = departments.map(({ id, name }) => ({ id, name }));
+  const evaluateeDepartmentOptions = evaluateeDepartments.map(({ id, name }) => ({ id, name }));
   const periodOptions = periods.map(({ id, month, year, status }) => ({
     id,
     month,
@@ -27,6 +28,9 @@ export default async function EvaluationsPage() {
     status
   }));
   const criterionOptions = criteria.map(({ id, name }) => ({ id, name }));
+  const canLaunchOwnEvaluation = Boolean(
+    user.departmentId && evaluateeDepartmentOptions.some((department) => department.id === user.departmentId)
+  );
   const requirementOptions = requirements.map(
     ({ evaluatorDepartmentId, evaluateeDepartmentId }) => ({
       evaluatorDepartmentId,
@@ -45,13 +49,14 @@ export default async function EvaluationsPage() {
 
       <EvaluationForm
         departments={departmentOptions}
+        evaluateeDepartments={evaluateeDepartmentOptions}
         periods={periodOptions}
         criteria={criterionOptions}
         requirements={requirementOptions}
-        user={{ role: user.role, departmentId: user.departmentId }}
+        user={{ role: user.role, departmentId: user.departmentId, departmentName: user.department?.name }}
       />
 
-      {user.role === Role.LEADER && user.departmentId && user.department ? (
+      {user.role === Role.LEADER && user.departmentId && user.department && canLaunchOwnEvaluation ? (
         <LeaderLaunchPanel departmentId={user.departmentId} departmentName={user.department.name} periods={periodOptions} />
       ) : null}
 

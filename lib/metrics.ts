@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { processEvaluationRequestSchedule } from "@/lib/evaluation-requests";
+import { isEvaluatableDepartment } from "@/lib/evaluation-scope";
 
 type RequirementPair = {
   evaluatorDepartmentId: string;
@@ -19,7 +20,14 @@ export async function getReferenceData() {
     })
   ]);
 
-  return { departments, periods, criteria, users, requirements };
+  return {
+    departments,
+    evaluateeDepartments: departments.filter(isEvaluatableDepartment),
+    periods,
+    criteria,
+    users,
+    requirements
+  };
 }
 
 export async function getPeriodMetrics(periodId?: string) {
@@ -36,6 +44,7 @@ export async function getPeriodMetrics(periodId?: string) {
     where: { isActive: true },
     orderBy: { name: "asc" }
   });
+  const evaluateeDepartments = departments.filter(isEvaluatableDepartment);
   const criterion =
     (await prisma.criterion.findFirst({ where: { name: "Общая оценка взаимодействия" } })) ||
     (await prisma.criterion.findFirst({ where: { isActive: true } }));
@@ -46,6 +55,7 @@ export async function getPeriodMetrics(periodId?: string) {
       periods,
       selectedPeriod: null,
       departments,
+      evaluateeDepartments,
       requirements,
       evaluations: [],
       byEvaluatee: [],
@@ -60,6 +70,7 @@ export async function getPeriodMetrics(periodId?: string) {
   }
 
   const activeDepartmentIds = new Set(departments.map((department) => department.id));
+  const evaluateeDepartmentIds = new Set(evaluateeDepartments.map((department) => department.id));
   const allEvaluations = await prisma.evaluation.findMany({
     where: { periodId: selectedPeriod.id, criterionId: criterion.id },
     include: {
@@ -76,7 +87,7 @@ export async function getPeriodMetrics(periodId?: string) {
     (evaluation) =>
       (evaluation.evaluatorDepartmentId == null ||
         activeDepartmentIds.has(evaluation.evaluatorDepartmentId)) &&
-      activeDepartmentIds.has(evaluation.evaluateeDepartmentId)
+      evaluateeDepartmentIds.has(evaluation.evaluateeDepartmentId)
   );
   const scoredEvaluations = evaluations.filter(
     (evaluation) => !evaluation.noInteraction && evaluation.score != null
@@ -85,7 +96,7 @@ export async function getPeriodMetrics(periodId?: string) {
   const average = (scores: number[]) =>
     scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : null;
 
-  const byEvaluatee = departments.map((department) => {
+  const byEvaluatee = evaluateeDepartments.map((department) => {
     const relevantEvaluations = scoredEvaluations.filter(
       (evaluation) => evaluation.evaluateeDepartmentId === department.id
     );
@@ -168,6 +179,7 @@ export async function getPeriodMetrics(periodId?: string) {
     periods,
     selectedPeriod,
     departments,
+    evaluateeDepartments,
     requirements,
     evaluations,
     byEvaluatee,
@@ -183,12 +195,20 @@ export async function getPeriodMetrics(periodId?: string) {
 
 async function getRequiredPairs(activeDepartmentIds: string[]): Promise<RequirementPair[]> {
   const activeSet = new Set(activeDepartmentIds);
+  const activeDepartments = await prisma.department.findMany({
+    where: { id: { in: activeDepartmentIds } },
+    select: { id: true, name: true }
+  });
+  const evaluateeSet = new Set(activeDepartments.filter(isEvaluatableDepartment).map((department) => department.id));
   const allRequirements = await prisma.evaluationRequirement.findMany();
 
   if (allRequirements.length === 0) {
     return activeDepartmentIds.flatMap((evaluatorDepartmentId) =>
       activeDepartmentIds
-        .filter((evaluateeDepartmentId) => evaluateeDepartmentId !== evaluatorDepartmentId)
+        .filter(
+          (evaluateeDepartmentId) =>
+            evaluateeSet.has(evaluateeDepartmentId) && evaluateeDepartmentId !== evaluatorDepartmentId
+        )
         .map((evaluateeDepartmentId) => ({ evaluatorDepartmentId, evaluateeDepartmentId }))
     );
   }
@@ -198,7 +218,7 @@ async function getRequiredPairs(activeDepartmentIds: string[]): Promise<Requirem
       (requirement) =>
         requirement.isActive &&
         activeSet.has(requirement.evaluatorDepartmentId) &&
-        activeSet.has(requirement.evaluateeDepartmentId) &&
+        evaluateeSet.has(requirement.evaluateeDepartmentId) &&
         requirement.evaluatorDepartmentId !== requirement.evaluateeDepartmentId
     )
     .map((requirement) => ({

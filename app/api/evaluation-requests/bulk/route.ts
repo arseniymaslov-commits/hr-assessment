@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
+import { isEvaluatableDepartment } from "@/lib/evaluation-scope";
 import { prisma } from "@/lib/prisma";
 import { launchEvaluationRequest } from "@/lib/evaluation-requests";
 
@@ -36,10 +37,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Период закрыт или не найден" }, { status: 400 });
   }
 
-  const departments = await prisma.department.findMany({
+  const departments = (await prisma.department.findMany({
     where: { isActive: true },
     orderBy: { name: "asc" }
-  });
+  })).filter(isEvaluatableDepartment);
 
   let notifications = 0;
   let requirements = 0;

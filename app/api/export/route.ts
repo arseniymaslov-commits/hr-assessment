@@ -21,7 +21,8 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const metrics = await getPeriodMetrics(searchParams.get("period") || undefined);
   const periodName = metrics.selectedPeriod ? periodLabel(metrics.selectedPeriod) : "period";
-  const departments = metrics.departments;
+  const evaluatorDepartments = metrics.departments;
+  const evaluateeDepartments = metrics.evaluateeDepartments;
   const workbook = XLSX.utils.book_new();
 
   appendSheet(
@@ -49,14 +50,14 @@ export async function GET(request: Request) {
   const matrixRows: (string | number)[][] = [
     [
       "Кто оценивает / кого оценивают",
-      ...departments.map((department) => department.shortName || department.name),
+      ...evaluateeDepartments.map((department) => department.shortName || department.name),
       "Средняя оценка от отдела"
     ]
   ];
-  for (const evaluator of departments) {
+  for (const evaluator of evaluatorDepartments) {
     const rowScores: number[] = [];
     const row: (string | number)[] = [evaluator.name];
-    for (const evaluatee of departments) {
+    for (const evaluatee of evaluateeDepartments) {
       if (evaluator.id === evaluatee.id) {
         row.push("—");
         continue;
@@ -78,14 +79,14 @@ export async function GET(request: Request) {
   }
   matrixRows.push([
     "Общая оценка подразделения",
-    ...departments.map((department) => {
+    ...evaluateeDepartments.map((department) => {
       const average = summaryMap.get(department.id)?.average;
       return average == null ? "" : Number(average.toFixed(2));
     }),
     ""
   ]);
   const matrixSheet = XLSX.utils.aoa_to_sheet(matrixRows);
-  matrixSheet["!cols"] = [{ wch: 34 }, ...departments.map(() => ({ wch: 16 })), { wch: 24 }];
+  matrixSheet["!cols"] = [{ wch: 34 }, ...evaluateeDepartments.map(() => ({ wch: 16 })), { wch: 24 }];
   XLSX.utils.book_append_sheet(workbook, matrixSheet, "Матрица");
 
   appendSheet(

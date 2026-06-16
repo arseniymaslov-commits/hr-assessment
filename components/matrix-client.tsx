@@ -41,12 +41,14 @@ type LowComment = {
 };
 
 export default function MatrixClient({
-  departments,
+  rowDepartments,
+  columnDepartments,
   evaluations,
   summaries,
   lowComments
 }: {
-  departments: Department[];
+  rowDepartments: Department[];
+  columnDepartments: Department[];
   evaluations: MatrixEvaluation[];
   summaries: Summary[];
   lowComments: LowComment[];
@@ -72,9 +74,9 @@ export default function MatrixClient({
           {summaries
             .slice()
             .sort((a, b) => (b.average ?? -1) - (a.average ?? -1))
-            .slice(0, 3)
-            .map((summary, index) => {
-              const department = departments.find((item) => item.id === summary.departmentId);
+                .slice(0, 3)
+                .map((summary, index) => {
+              const department = columnDepartments.find((item) => item.id === summary.departmentId);
               return (
                 <div className="rounded-lg border border-line bg-white p-4 shadow-sm" key={summary.departmentId}>
                   <div className="text-xs font-semibold uppercase text-muted">Рейтинг #{index + 1}</div>
@@ -93,7 +95,7 @@ export default function MatrixClient({
                 <th className="sticky left-0 z-10 border-b border-line bg-slate-50 px-4 py-3 text-left">
                   Кто оценивает
                 </th>
-                {departments.map((department) => {
+                {columnDepartments.map((department) => {
                   const summary = summaryByDepartment.get(department.id);
                   return (
                     <th className="border-b border-line px-3 py-3 text-center align-bottom" key={department.id}>
@@ -108,8 +110,8 @@ export default function MatrixClient({
               </tr>
             </thead>
             <tbody>
-              {departments.map((evaluator) => {
-                const rowScores = departments
+              {rowDepartments.map((evaluator) => {
+                const rowScores = columnDepartments
                   .map((evaluatee) => map.get(`${evaluator.id}:${evaluatee.id}`))
                   .filter((evaluation): evaluation is MatrixEvaluation => Boolean(evaluation && !evaluation.noInteraction && evaluation.score != null))
                   .map((evaluation) => evaluation.score as number);
@@ -120,7 +122,7 @@ export default function MatrixClient({
                     <th className="sticky left-0 z-10 border-b border-line bg-white px-4 py-3 text-left font-medium text-ink">
                       {evaluator.name}
                     </th>
-                    {departments.map((evaluatee) => {
+                    {columnDepartments.map((evaluatee) => {
                       const evaluation = map.get(`${evaluator.id}:${evaluatee.id}`);
                       const isSelf = evaluator.id === evaluatee.id;
                       const selectedCell = selected?.id === evaluation?.id;
@@ -169,7 +171,7 @@ export default function MatrixClient({
                 <th className="sticky left-0 z-10 border-t border-line bg-slate-50 px-4 py-3 text-left font-semibold text-ink">
                   Общая оценка подразделения
                 </th>
-                {departments.map((department) => {
+                {columnDepartments.map((department) => {
                   const summary = summaryByDepartment.get(department.id);
                   return (
                     <td className="border-t border-line p-2 text-center" key={department.id}>

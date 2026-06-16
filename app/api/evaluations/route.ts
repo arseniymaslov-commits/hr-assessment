@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
+import { isEvaluatableDepartmentName } from "@/lib/evaluation-scope";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
@@ -20,8 +21,10 @@ export async function POST(request: Request) {
   const scoreToSave = noInteraction ? null : score;
   const comment = String(body?.comment || "").trim();
   const isDirectorEvaluation = user.role === Role.DIRECTOR;
+  const effectiveEvaluatorDepartmentId =
+    user.role === Role.LEADER ? user.departmentId || "" : evaluatorDepartmentId;
 
-  if (!periodId || !evaluateeDepartmentId || !criterionId || (!isDirectorEvaluation && !evaluatorDepartmentId)) {
+  if (!periodId || !evaluateeDepartmentId || !criterionId || (!isDirectorEvaluation && !effectiveEvaluatorDepartmentId)) {
     return NextResponse.json({ error: "Заполните все обязательные поля" }, { status: 400 });
   }
 
@@ -29,7 +32,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Оценка должна быть целым числом от 1 до 10" }, { status: 400 });
   }
 
-  if (!isDirectorEvaluation && evaluatorDepartmentId === evaluateeDepartmentId) {
+  if (!isDirectorEvaluation && effectiveEvaluatorDepartmentId === evaluateeDepartmentId) {
     return NextResponse.json({ error: "Подразделение не оценивает само себя" }, { status: 400 });
   }
 
@@ -37,9 +40,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Для оценки ниже 9 комментарий обязателен" }, { status: 400 });
   }
 
-  if (user.role === Role.LEADER && user.departmentId !== evaluatorDepartmentId) {
+  if (user.role === Role.LEADER && !user.departmentId) {
     return NextResponse.json(
-      { error: "Руководитель или заместитель может заполнять только оценки своего подразделения" },
+      { error: "У пользователя не указан отдел для оценки" },
       { status: 403 }
     );
   }
@@ -49,9 +52,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Период закрыт или не найден" }, { status: 400 });
   }
 
+  const evaluateeDepartment = await prisma.department.findUnique({
+    where: { id: evaluateeDepartmentId },
+    select: { name: true, isActive: true }
+  });
+  if (!evaluateeDepartment?.isActive || !isEvaluatableDepartmentName(evaluateeDepartment.name)) {
+    return NextResponse.json({ error: "Это подразделение исключено из списка оцениваемых" }, { status: 400 });
+  }
+
   const payload = {
     periodId,
-    evaluatorDepartmentId: isDirectorEvaluation ? null : evaluatorDepartmentId,
+    evaluatorDepartmentId: isDirectorEvaluation ? null : effectiveEvaluatorDepartmentId,
     evaluatorUserId: isDirectorEvaluation ? user.id : null,
     evaluateeDepartmentId,
     criterionId,
@@ -71,7 +82,7 @@ export async function POST(request: Request) {
         }
       : {
           periodId,
-          evaluatorDepartmentId,
+          evaluatorDepartmentId: effectiveEvaluatorDepartmentId,
           evaluateeDepartmentId,
           criterionId
         }

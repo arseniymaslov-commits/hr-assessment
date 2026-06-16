@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
+import { isEvaluatableDepartmentName } from "@/lib/evaluation-scope";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
@@ -20,6 +21,17 @@ export async function POST(request: Request) {
 
   if (evaluatorDepartmentId === evaluateeDepartmentId) {
     return NextResponse.json({ error: "Подразделение не оценивает само себя" }, { status: 400 });
+  }
+
+  const [evaluatorDepartment, evaluateeDepartment] = await Promise.all([
+    prisma.department.findUnique({ where: { id: evaluatorDepartmentId }, select: { isActive: true } }),
+    prisma.department.findUnique({ where: { id: evaluateeDepartmentId }, select: { name: true, isActive: true } })
+  ]);
+  if (!evaluatorDepartment?.isActive || !evaluateeDepartment?.isActive) {
+    return NextResponse.json({ error: "Одно из подразделений не найдено или отключено" }, { status: 400 });
+  }
+  if (!isEvaluatableDepartmentName(evaluateeDepartment.name)) {
+    return NextResponse.json({ error: "Это подразделение исключено из списка оцениваемых" }, { status: 400 });
   }
 
   await prisma.evaluationRequirement.upsert({

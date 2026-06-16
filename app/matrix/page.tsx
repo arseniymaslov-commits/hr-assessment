@@ -15,20 +15,19 @@ export default async function MatrixPage({
   const user = await requireUser([Role.ADMIN, Role.ANALYST, Role.LEADER, Role.DIRECTOR, Role.VIEWER]);
   const metrics = await getPeriodMetrics(searchParams.period);
   const selectedDepartment = searchParams.department;
-  const departments = selectedDepartment
-    ? metrics.departments.filter((department) => department.id === selectedDepartment)
-    : metrics.departments;
-  const visibleDepartmentIds = new Set(departments.map((department) => department.id));
+  const columnDepartments = selectedDepartment
+    ? metrics.evaluateeDepartments.filter((department) => department.id === selectedDepartment)
+    : metrics.evaluateeDepartments;
+  const rowDepartments = metrics.departments;
+  const rowDepartmentIds = new Set(rowDepartments.map((department) => department.id));
+  const columnDepartmentIds = new Set(columnDepartments.map((department) => department.id));
   const evaluations = metrics.evaluations
     .filter(
       (evaluation) =>
         evaluation.evaluatorDepartmentId &&
         evaluation.evaluatorDepartment &&
-        (!selectedDepartment ||
-          evaluation.evaluateeDepartmentId === selectedDepartment ||
-          evaluation.evaluatorDepartmentId === selectedDepartment) &&
-        (visibleDepartmentIds.has(evaluation.evaluateeDepartmentId) ||
-          visibleDepartmentIds.has(evaluation.evaluatorDepartmentId))
+        rowDepartmentIds.has(evaluation.evaluatorDepartmentId) &&
+        columnDepartmentIds.has(evaluation.evaluateeDepartmentId)
     )
     .map((evaluation) => ({
       id: evaluation.id,
@@ -43,8 +42,7 @@ export default async function MatrixPage({
       updatedAt: evaluation.updatedAt.toISOString()
     }));
 
-  const matrixDepartments = selectedDepartment ? metrics.departments : departments;
-  const matrixDepartmentIds = new Set(matrixDepartments.map((department) => department.id));
+  const matrixDepartmentIds = new Set(columnDepartments.map((department) => department.id));
   const summaries = metrics.byEvaluatee
     .filter((row) => matrixDepartmentIds.has(row.department.id))
     .map((row) => ({
@@ -77,8 +75,13 @@ export default async function MatrixPage({
     year,
     status
   }));
-  const departmentOptions = metrics.departments.map(({ id, name }) => ({ id, name }));
-  const matrixDepartmentOptions = matrixDepartments.map(({ id, name, shortName }) => ({
+  const departmentOptions = metrics.evaluateeDepartments.map(({ id, name }) => ({ id, name }));
+  const rowDepartmentOptions = rowDepartments.map(({ id, name, shortName }) => ({
+    id,
+    name,
+    shortName
+  }));
+  const columnDepartmentOptions = columnDepartments.map(({ id, name, shortName }) => ({
     id,
     name,
     shortName
@@ -98,7 +101,7 @@ export default async function MatrixPage({
           <DepartmentFilter departments={departmentOptions} />
         </div>
       </div>
-      <MatrixClient departments={matrixDepartmentOptions} evaluations={evaluations} summaries={summaries} lowComments={lowComments} />
+      <MatrixClient rowDepartments={rowDepartmentOptions} columnDepartments={columnDepartmentOptions} evaluations={evaluations} summaries={summaries} lowComments={lowComments} />
     </AppShell>
   );
 }

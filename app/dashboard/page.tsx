@@ -31,7 +31,7 @@ export default async function DashboardPage({
     year,
     status
   }));
-  const departmentOptions = metrics.departments.map(({ id, name }) => ({ id, name }));
+  const departmentOptions = metrics.evaluateeDepartments.map(({ id, name }) => ({ id, name }));
 
   return (
     <AppShell user={user}>

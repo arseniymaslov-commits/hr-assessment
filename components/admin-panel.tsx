@@ -70,12 +70,14 @@ function toDateTimeLocal(date: Date) {
 
 export default function AdminPanel({
   departments,
+  evaluateeDepartments,
   periods,
   users,
   criteria,
   requirements
 }: {
   departments: Department[];
+  evaluateeDepartments: Department[];
   periods: Period[];
   users: User[];
   criteria: Criterion[];
@@ -94,7 +96,7 @@ export default function AdminPanel({
   const [userDepartmentId, setUserDepartmentId] = useState(departments[0]?.id || "");
   const [requirementEvaluatorId, setRequirementEvaluatorId] = useState(departments[0]?.id || "");
   const [bulkEvaluateeIds, setBulkEvaluateeIds] = useState<string[]>([]);
-  const [launchDepartmentId, setLaunchDepartmentId] = useState(departments[0]?.id || "");
+  const [launchDepartmentId, setLaunchDepartmentId] = useState(evaluateeDepartments[0]?.id || "");
   const [launchPeriodId, setLaunchPeriodId] = useState(
     periods.find((period) => period.status === "OPEN")?.id || periods[0]?.id || ""
   );
@@ -226,7 +228,7 @@ export default function AdminPanel({
             </div>
           </div>
           <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-            {departments.map((department) => (
+            {evaluateeDepartments.map((department) => (
               <label className="flex items-center justify-between gap-3 rounded-lg border border-line bg-white px-3 py-2 text-sm" key={department.id}>
                 <span className="font-medium text-ink">{department.name}</span>
                 <input className="h-5 w-5" type="checkbox" checked={bulkEvaluateeIds.includes(department.id)} onChange={(event) => toggleBulkEvaluatee(department.id, event.target.checked)} />
@@ -236,7 +238,7 @@ export default function AdminPanel({
         </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {departments.filter((department) => department.id !== requirementEvaluatorId).map((department) => {
+          {evaluateeDepartments.filter((department) => department.id !== requirementEvaluatorId).map((department) => {
             const checked = requirements.some((requirement) => requirement.evaluatorDepartmentId === requirementEvaluatorId && requirement.evaluateeDepartmentId === department.id);
             return (
               <label className="flex items-center justify-between gap-3 rounded-lg border border-line px-3 py-3 text-sm" key={department.id}>
@@ -289,7 +291,7 @@ export default function AdminPanel({
           <p className="mt-1 text-sm text-muted">Запускает оценку выбранного отдела или планирует ее на календарную дату. В момент запуска руководителям обязательных подразделений отправляется письмо со ссылкой на форму. После дедлайна незаполненные обязательные оценки станут статусом «Нет взаимодействия».</p>
           <div className="mt-4 grid gap-3 lg:grid-cols-2">
             <select className="focus-ring rounded-lg border border-line px-3 py-2" value={launchDepartmentId} onChange={(event) => setLaunchDepartmentId(event.target.value)}>
-              {departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
+              {evaluateeDepartments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
             </select>
             <select className="focus-ring rounded-lg border border-line px-3 py-2" value={launchPeriodId} onChange={(event) => setLaunchPeriodId(event.target.value)}>
               {periods.map((period) => <option key={period.id} value={period.id}>{months[period.month - 1]} {period.year}</option>)}

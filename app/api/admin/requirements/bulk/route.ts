@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
+import { isEvaluatableDepartment } from "@/lib/evaluation-scope";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
@@ -21,10 +22,13 @@ export async function POST(request: Request) {
 
   const departments = await prisma.department.findMany({
     where: { isActive: true },
-    select: { id: true }
+    select: { id: true, name: true }
   });
   const activeDepartmentIds = new Set(departments.map((department) => department.id));
-  const targetIds = evaluateeDepartmentIds.filter((id) => activeDepartmentIds.has(id));
+  const evaluateeDepartmentIdsSet = new Set(
+    departments.filter(isEvaluatableDepartment).map((department) => department.id)
+  );
+  const targetIds = evaluateeDepartmentIds.filter((id) => evaluateeDepartmentIdsSet.has(id));
 
   if (!targetIds.length) {
     return NextResponse.json({ error: "Выбранные отделы не найдены" }, { status: 400 });
