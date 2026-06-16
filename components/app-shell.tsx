@@ -47,14 +47,14 @@ export default function AppShell({ user, children }: AppShellProps) {
   return (
     <div className="min-h-screen bg-surface">
       <header className="sticky top-0 z-20 border-b border-line bg-white/95 shadow-sm backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-red-100 bg-white p-1.5 shadow-sm">
-              <Image src="/rp-logo.svg" alt="Red Petroleum" width={38} height={38} priority />
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="relative h-12 w-48 shrink-0 overflow-hidden">
+              <Image src="/rp-logo.png" alt="Red Petroleum" fill className="object-contain object-left" priority />
             </div>
-            <div>
+            <div className="min-w-0 border-l border-line pl-4">
               <div className="font-semibold text-ink">Оценка взаимодействия</div>
-              <div className="text-sm text-muted">
+              <div className="truncate text-sm text-muted">
                 {user.name} · {roleLabel(user.role)}
                 {user.position ? ` · ${user.position}` : ""}
                 {user.department ? ` · ${user.department.name}` : ""}
