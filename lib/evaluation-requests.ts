@@ -4,43 +4,33 @@ import { sendMail } from "@/lib/email";
 
 const MS_IN_DAY = 1000 * 60 * 60 * 24;
 
-export async function launchEvaluationRequest({
-  periodId,
-  evaluateeDepartmentId,
-  initiatedById
-}: {
+type LaunchEvaluationInput = {
   periodId: string;
   evaluateeDepartmentId: string;
   initiatedById: string;
-}) {
-  const deadlineAt = new Date(Date.now() + 3 * MS_IN_DAY);
-  const request = await prisma.evaluationRequest.upsert({
-    where: {
-      periodId_evaluateeDepartmentId: {
-        periodId,
-        evaluateeDepartmentId
-      }
-    },
-    update: {
-      initiatedById,
-      deadlineAt,
-      autoClosedAt: null
-    },
-    create: {
-      periodId,
-      evaluateeDepartmentId,
-      initiatedById,
-      deadlineAt
-    },
+  scheduledAt?: Date;
+  deadlineAt?: Date;
+};
+
+function defaultDeadline() {
+  return new Date(Date.now() + 3 * MS_IN_DAY);
+}
+
+async function notifyEvaluationRequest(requestId: string) {
+  const request = await prisma.evaluationRequest.findUnique({
+    where: { id: requestId },
     include: {
       period: true,
       evaluateeDepartment: true,
       initiatedBy: true
     }
   });
+  if (!request || request.notificationSentAt) {
+    return { recipientsCount: 0, requirementsCount: 0 };
+  }
 
   const requirements = await prisma.evaluationRequirement.findMany({
-    where: { evaluateeDepartmentId, isActive: true },
+    where: { evaluateeDepartmentId: request.evaluateeDepartmentId, isActive: true },
     include: { evaluatorDepartment: true }
   });
   const evaluatorDepartmentIds = requirements.map((requirement) => requirement.evaluatorDepartmentId);
@@ -58,15 +48,15 @@ export async function launchEvaluationRequest({
     to: recipients.map((user) => user.email),
     subject: `Необходимо оценить взаимодействие с ${request.evaluateeDepartment.name}`,
     text: [
-      `Здравствуйте.`,
-      ``,
+      "Здравствуйте.",
+      "",
       `Запущена оценка взаимодействия с подразделением: ${request.evaluateeDepartment.name}.`,
       `Период: ${request.period.month}.${request.period.year}.`,
       `Дедлайн: ${request.deadlineAt.toLocaleString("ru-RU")}.`,
-      ``,
+      "",
       `Перейдите в форму оценки: ${appUrl}/evaluations`,
-      ``,
-      `Если оценка не будет поставлена в течение 3 дней, система автоматически отметит "Нет взаимодействия".`
+      "",
+      "Если оценка не будет поставлена до дедлайна, система автоматически отметит \"Нет взаимодействия\"."
     ].join("\n")
   });
 
@@ -76,10 +66,79 @@ export async function launchEvaluationRequest({
   });
 
   return {
-    request,
     recipientsCount: recipients.length,
     requirementsCount: requirements.length
   };
+}
+
+export async function launchEvaluationRequest({
+  periodId,
+  evaluateeDepartmentId,
+  initiatedById,
+  scheduledAt,
+  deadlineAt
+}: LaunchEvaluationInput) {
+  const normalizedScheduledAt = scheduledAt || new Date();
+  const normalizedDeadlineAt = deadlineAt || defaultDeadline();
+  const request = await prisma.evaluationRequest.upsert({
+    where: {
+      periodId_evaluateeDepartmentId: {
+        periodId,
+        evaluateeDepartmentId
+      }
+    },
+    update: {
+      initiatedById,
+      scheduledAt: normalizedScheduledAt,
+      deadlineAt: normalizedDeadlineAt,
+      notificationSentAt: null,
+      autoClosedAt: null
+    },
+    create: {
+      periodId,
+      evaluateeDepartmentId,
+      initiatedById,
+      scheduledAt: normalizedScheduledAt,
+      deadlineAt: normalizedDeadlineAt
+    }
+  });
+
+  if (normalizedScheduledAt <= new Date()) {
+    const notification = await notifyEvaluationRequest(request.id);
+    return { request, ...notification, scheduled: false };
+  }
+
+  const requirementsCount = await prisma.evaluationRequirement.count({
+    where: { evaluateeDepartmentId, isActive: true }
+  });
+
+  return {
+    request,
+    recipientsCount: 0,
+    requirementsCount,
+    scheduled: true
+  };
+}
+
+export async function notifyDueEvaluationRequests() {
+  const dueRequests = await prisma.evaluationRequest.findMany({
+    where: {
+      scheduledAt: { lte: new Date() },
+      notificationSentAt: null,
+      autoClosedAt: null
+    },
+    select: { id: true }
+  });
+
+  let notifiedRequests = 0;
+  let recipientsCount = 0;
+  for (const request of dueRequests) {
+    const result = await notifyEvaluationRequest(request.id);
+    notifiedRequests += 1;
+    recipientsCount += result.recipientsCount;
+  }
+
+  return { notifiedRequests, recipientsCount };
 }
 
 export async function finalizeExpiredEvaluationRequests() {
@@ -92,6 +151,7 @@ export async function finalizeExpiredEvaluationRequests() {
   const expiredRequests = await prisma.evaluationRequest.findMany({
     where: {
       deadlineAt: { lt: new Date() },
+      notificationSentAt: { not: null },
       autoClosedAt: null
     }
   });
@@ -124,7 +184,7 @@ export async function finalizeExpiredEvaluationRequests() {
           criterionId: criterion.id,
           noInteraction: true,
           score: null,
-          comment: "Автоматически отмечено: нет оценки в течение 3 дней",
+          comment: "Автоматически отмечено: оценка не заполнена до установленного дедлайна",
           authorId: request.initiatedById
         }
       });
@@ -138,4 +198,10 @@ export async function finalizeExpiredEvaluationRequests() {
   }
 
   return { autoClosed };
+}
+
+export async function processEvaluationRequestSchedule() {
+  const notified = await notifyDueEvaluationRequests();
+  const finalized = await finalizeExpiredEvaluationRequests();
+  return { ...notified, ...finalized };
 }

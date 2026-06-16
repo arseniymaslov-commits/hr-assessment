@@ -1,8 +1,16 @@
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { getCurrentUser } from "@/lib/auth";
+import { fixed, periodLabel } from "@/lib/format";
 import { getPeriodMetrics } from "@/lib/metrics";
-import { periodLabel } from "@/lib/format";
+
+function appendSheet(workbook: XLSX.WorkBook, data: Record<string, unknown>[], name: string) {
+  const sheet = XLSX.utils.json_to_sheet(data);
+  sheet["!cols"] = Object.keys(data[0] || {}).map((key) => ({
+    wch: Math.max(14, Math.min(42, key.length + 8))
+  }));
+  XLSX.utils.book_append_sheet(workbook, sheet, name);
+}
 
 export async function GET(request: Request) {
   const user = await getCurrentUser();
@@ -13,56 +21,136 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const metrics = await getPeriodMetrics(searchParams.get("period") || undefined);
   const periodName = metrics.selectedPeriod ? periodLabel(metrics.selectedPeriod) : "period";
-
+  const departments = metrics.departments;
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(
+
+  appendSheet(
     workbook,
-    XLSX.utils.json_to_sheet(
-      metrics.byEvaluatee.map((row) => ({
-        "Подразделение": row.department.name,
-        "Средний балл": row.average,
-        "Количество оценок": row.count,
-        "Оценок ниже 9": row.lowCount
-      }))
-    ),
-    "Средние баллы"
+    metrics.byEvaluatee.map((row) => ({
+      "Период": periodName,
+      "Подразделение": row.department.name,
+      "Средний балл": row.average == null ? "" : Number(row.average.toFixed(2)),
+      "Количество оценок": row.count,
+      "Нет взаимодействия": row.noInteractionCount,
+      "Оценок ниже 9": row.lowCount
+    })),
+    "Сводка"
   );
-  XLSX.utils.book_append_sheet(
-    workbook,
-    XLSX.utils.json_to_sheet(
-      metrics.evaluations.map((evaluation) => ({
-        "Период": periodName,
-        "Кто оценивает": evaluation.evaluatorDepartment?.name || evaluation.evaluatorUser?.name || "Директор",
-        "Кого оценивают": evaluation.evaluateeDepartment.name,
-        "Оценка": evaluation.noInteraction ? "" : evaluation.score,
-        "Нет взаимодействия": evaluation.noInteraction ? "Да" : "Нет",
-        "Комментарий": evaluation.comment || "",
-        "Автор": evaluation.author.name,
-        "Дата заполнения": evaluation.updatedAt.toISOString()
-      }))
-    ),
-    "Оценки"
+
+  const evaluationMap = new Map(
+    metrics.evaluations
+      .filter((evaluation) => evaluation.evaluatorDepartmentId)
+      .map((evaluation) => [
+        `${evaluation.evaluatorDepartmentId}:${evaluation.evaluateeDepartmentId}`,
+        evaluation
+      ])
   );
-  XLSX.utils.book_append_sheet(
+  const summaryMap = new Map(metrics.byEvaluatee.map((row) => [row.department.id, row]));
+  const matrixRows: (string | number)[][] = [
+    [
+      "Кто оценивает / кого оценивают",
+      ...departments.map((department) => department.shortName || department.name),
+      "Средняя оценка от отдела"
+    ]
+  ];
+  for (const evaluator of departments) {
+    const rowScores: number[] = [];
+    const row: (string | number)[] = [evaluator.name];
+    for (const evaluatee of departments) {
+      if (evaluator.id === evaluatee.id) {
+        row.push("—");
+        continue;
+      }
+      const evaluation = evaluationMap.get(`${evaluator.id}:${evaluatee.id}`);
+      if (!evaluation) {
+        row.push("");
+        continue;
+      }
+      if (evaluation.noInteraction) {
+        row.push("Нет взаимодействия");
+        continue;
+      }
+      row.push(evaluation.score ?? "");
+      if (evaluation.score != null) rowScores.push(evaluation.score);
+    }
+    row.push(rowScores.length ? Number((rowScores.reduce((sum, score) => sum + score, 0) / rowScores.length).toFixed(2)) : "");
+    matrixRows.push(row);
+  }
+  matrixRows.push([
+    "Общая оценка подразделения",
+    ...departments.map((department) => {
+      const average = summaryMap.get(department.id)?.average;
+      return average == null ? "" : Number(average.toFixed(2));
+    }),
+    ""
+  ]);
+  const matrixSheet = XLSX.utils.aoa_to_sheet(matrixRows);
+  matrixSheet["!cols"] = [{ wch: 34 }, ...departments.map(() => ({ wch: 16 })), { wch: 24 }];
+  XLSX.utils.book_append_sheet(workbook, matrixSheet, "Матрица");
+
+  appendSheet(
     workbook,
-    XLSX.utils.json_to_sheet(
-      metrics.completion.map((row) => ({
-        "Подразделение": row.department.name,
-        "Заполнено": row.filled,
-        "Осталось": row.missing,
-        "Статус": row.isComplete ? "Заполнено" : "Не заполнено"
-      }))
-    ),
+    metrics.lowScores.map((evaluation) => ({
+      "Период": periodName,
+      "Кто оценивает": evaluation.evaluatorDepartment?.name || evaluation.evaluatorUser?.name || "Директор",
+      "Кого оценивают": evaluation.evaluateeDepartment.name,
+      "Оценка": evaluation.score,
+      "Комментарий": evaluation.comment || "",
+      "Автор": evaluation.author.name,
+      "Дата": evaluation.updatedAt.toISOString()
+    })),
+    "Комментарии ниже 9"
+  );
+
+  appendSheet(
+    workbook,
+    metrics.evaluations.map((evaluation) => ({
+      "Период": periodName,
+      "Кто оценивает": evaluation.evaluatorDepartment?.name || evaluation.evaluatorUser?.name || "Директор",
+      "Кого оценивают": evaluation.evaluateeDepartment.name,
+      "Оценка": evaluation.noInteraction ? "" : evaluation.score,
+      "Нет взаимодействия": evaluation.noInteraction ? "Да" : "Нет",
+      "Комментарий": evaluation.comment || "",
+      "Автор": evaluation.author.name,
+      "Дата заполнения": evaluation.updatedAt.toISOString()
+    })),
+    "Все оценки"
+  );
+
+  appendSheet(
+    workbook,
+    metrics.completion.map((row) => ({
+      "Период": periodName,
+      "Подразделение": row.department.name,
+      "Заполнено": row.filled,
+      "Ожидается": row.expected,
+      "Осталось": row.missing,
+      "Статус": row.isComplete ? "Заполнено" : "Не заполнено"
+    })),
     "Контроль заполнения"
+  );
+
+  appendSheet(
+    workbook,
+    [
+      {
+        "Период": periodName,
+        "Общий средний балл": fixed(metrics.companyAverage),
+        "Ожидается оценок": metrics.expectedCount,
+        "Отсутствует оценок": metrics.missingCount
+      }
+    ],
+    "Итого"
   );
 
   const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
   const safeName = periodName.replace(/\s+/g, "_");
+  const encodedName = encodeURIComponent(`interaction_${safeName}.xlsx`);
 
   return new NextResponse(buffer, {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="interaction_${safeName}.xlsx"`
+      "Content-Disposition": `attachment; filename="interaction_report.xlsx"; filename*=UTF-8''${encodedName}`
     }
   });
 }

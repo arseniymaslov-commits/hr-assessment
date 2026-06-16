@@ -1,13 +1,34 @@
+import Image from "next/image";
 import Link from "next/link";
-import { BarChart3, ClipboardCheck, Grid3X3, Settings, ShieldCheck, Users, type LucideIcon } from "lucide-react";
+import { BarChart3, ClipboardCheck, Grid3X3, Settings, Users, type LucideIcon } from "lucide-react";
 import { Role } from "@prisma/client";
 import { roleLabel } from "@/lib/auth";
 
 const nav: { href: string; label: string; icon: LucideIcon; roles: Role[] }[] = [
-  { href: "/dashboard", label: "Дашборд", icon: BarChart3, roles: [Role.ADMIN, Role.ANALYST, Role.LEADER, Role.DIRECTOR, Role.VIEWER, Role.DASHBOARD_VIEWER] },
-  { href: "/matrix", label: "Матрица", icon: Grid3X3, roles: [Role.ADMIN, Role.ANALYST, Role.LEADER, Role.DIRECTOR, Role.VIEWER] },
-  { href: "/evaluations", label: "Оценки", icon: ClipboardCheck, roles: [Role.ADMIN, Role.LEADER, Role.DIRECTOR] },
-  { href: "/completion", label: "Заполнение", icon: Users, roles: [Role.ADMIN, Role.ANALYST, Role.LEADER, Role.DIRECTOR, Role.VIEWER] },
+  {
+    href: "/dashboard",
+    label: "Дашборд",
+    icon: BarChart3,
+    roles: [Role.ADMIN, Role.ANALYST, Role.LEADER, Role.DIRECTOR, Role.VIEWER, Role.DASHBOARD_VIEWER]
+  },
+  {
+    href: "/matrix",
+    label: "Матрица",
+    icon: Grid3X3,
+    roles: [Role.ADMIN, Role.ANALYST, Role.LEADER, Role.DIRECTOR, Role.VIEWER]
+  },
+  {
+    href: "/evaluations",
+    label: "Оценки",
+    icon: ClipboardCheck,
+    roles: [Role.ADMIN, Role.LEADER, Role.DIRECTOR]
+  },
+  {
+    href: "/completion",
+    label: "Заполнение",
+    icon: Users,
+    roles: [Role.ADMIN, Role.ANALYST, Role.LEADER, Role.DIRECTOR, Role.VIEWER]
+  },
   { href: "/admin", label: "Админка", icon: Settings, roles: [Role.ADMIN] }
 ];
 
@@ -25,11 +46,11 @@ type AppShellProps = {
 export default function AppShell({ user, children }: AppShellProps) {
   return (
     <div className="min-h-screen bg-surface">
-      <header className="sticky top-0 z-20 border-b border-line bg-white/95 backdrop-blur">
+      <header className="sticky top-0 z-20 border-b border-line bg-white/95 shadow-sm backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand text-white">
-              <ShieldCheck size={21} />
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-red-100 bg-white p-1.5 shadow-sm">
+              <Image src="/rp-logo.svg" alt="Red Petroleum" width={38} height={38} priority />
             </div>
             <div>
               <div className="font-semibold text-ink">Оценка взаимодействия</div>
@@ -47,7 +68,7 @@ export default function AppShell({ user, children }: AppShellProps) {
                 const Icon = item.icon;
                 return (
                   <Link
-                    className="focus-ring inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                    className="focus-ring inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-red-50 hover:text-brand"
                     href={item.href}
                     key={item.href}
                   >

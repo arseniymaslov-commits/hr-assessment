@@ -122,6 +122,7 @@ model EvaluationRequest {
   evaluateeDepartment   Department   @relation(fields: [evaluateeDepartmentId], references: [id], onDelete: Cascade)
   initiatedById         String
   initiatedBy           User         @relation("EvaluationRequestInitiator", fields: [initiatedById], references: [id], onDelete: Cascade)
+  scheduledAt           DateTime     @default(now())
   deadlineAt            DateTime
   notificationSentAt    DateTime?
   autoClosedAt          DateTime?

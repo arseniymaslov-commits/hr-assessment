@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { finalizeExpiredEvaluationRequests } from "@/lib/evaluation-requests";
+import { processEvaluationRequestSchedule } from "@/lib/evaluation-requests";
 
 type RequirementPair = {
   evaluatorDepartmentId: string;
@@ -23,7 +23,7 @@ export async function getReferenceData() {
 }
 
 export async function getPeriodMetrics(periodId?: string) {
-  await finalizeExpiredEvaluationRequests();
+  await processEvaluationRequestSchedule();
 
   const periods = await prisma.period.findMany({
     orderBy: [{ year: "desc" }, { month: "desc" }]

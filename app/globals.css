@@ -4,7 +4,7 @@
 
 :root {
   color-scheme: light;
-  background: #f8fafc;
+  background: #f6f7f9;
 }
 
 * {
@@ -13,8 +13,10 @@
 
 body {
   margin: 0;
-  color: #182230;
-  background: #f8fafc;
+  color: #1f2933;
+  background:
+    linear-gradient(180deg, rgba(227, 0, 22, 0.045), transparent 260px),
+    #f6f7f9;
   font-family:
     Inter,
     ui-sans-serif,

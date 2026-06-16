@@ -38,10 +38,39 @@ export default async function MatrixPage({
       evaluateeName: evaluation.evaluateeDepartment.name,
       score: evaluation.score,
       noInteraction: evaluation.noInteraction,
-      comment: evaluation.comment
+      comment: evaluation.comment,
+      authorName: evaluation.author.name,
+      updatedAt: evaluation.updatedAt.toISOString()
     }));
 
   const matrixDepartments = selectedDepartment ? metrics.departments : departments;
+  const matrixDepartmentIds = new Set(matrixDepartments.map((department) => department.id));
+  const summaries = metrics.byEvaluatee
+    .filter((row) => matrixDepartmentIds.has(row.department.id))
+    .map((row) => ({
+      departmentId: row.department.id,
+      average: row.average,
+      count: row.count,
+      lowCount: row.lowCount
+    }));
+  const lowComments = metrics.lowScores
+    .filter(
+      (evaluation) =>
+        evaluation.evaluatorDepartment &&
+        matrixDepartmentIds.has(evaluation.evaluateeDepartmentId) &&
+        (!selectedDepartment ||
+          evaluation.evaluateeDepartmentId === selectedDepartment ||
+          evaluation.evaluatorDepartmentId === selectedDepartment)
+    )
+    .map((evaluation) => ({
+      id: evaluation.id,
+      evaluatorName: evaluation.evaluatorDepartment?.name || evaluation.evaluatorUser?.name || "Директор",
+      evaluateeName: evaluation.evaluateeDepartment.name,
+      score: evaluation.score,
+      comment: evaluation.comment,
+      authorName: evaluation.author.name,
+      updatedAt: evaluation.updatedAt.toISOString()
+    }));
   const periodOptions = metrics.periods.map(({ id, month, year, status }) => ({
     id,
     month,
@@ -69,7 +98,7 @@ export default async function MatrixPage({
           <DepartmentFilter departments={departmentOptions} />
         </div>
       </div>
-      <MatrixClient departments={matrixDepartmentOptions} evaluations={evaluations} />
+      <MatrixClient departments={matrixDepartmentOptions} evaluations={evaluations} summaries={summaries} lowComments={lowComments} />
     </AppShell>
   );
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
-import { finalizeExpiredEvaluationRequests } from "@/lib/evaluation-requests";
+import { processEvaluationRequestSchedule } from "@/lib/evaluation-requests";
 
 async function canRun(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -19,9 +19,9 @@ async function handler(request: Request) {
     return NextResponse.json({ error: "Недостаточно прав" }, { status: 403 });
   }
 
-  const result = await finalizeExpiredEvaluationRequests();
+  const result = await processEvaluationRequestSchedule();
   return NextResponse.json({
-    message: `Просроченные оценки обработаны. Автоматически отмечено: ${result.autoClosed}.`,
+    message: `Расписание обработано. Уведомленных запусков: ${result.notifiedRequests}. Автоматически отмечено: ${result.autoClosed}.`,
     ...result
   });
 }

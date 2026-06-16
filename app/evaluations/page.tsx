@@ -1,5 +1,6 @@
 import AppShell from "@/components/app-shell";
 import EvaluationForm from "@/components/evaluation-form";
+import LeaderLaunchPanel from "@/components/leader-launch-panel";
 import ScoreBadge from "@/components/score-badge";
 import { Role } from "@prisma/client";
 import { requireUser } from "@/lib/auth";
@@ -41,6 +42,10 @@ export default async function EvaluationsPage() {
           Оцените взаимодействие с другим подразделением. Оценки ниже 9 сохраняются только с комментарием.
         </p>
       </div>
+
+      {user.role === Role.LEADER && user.departmentId && user.department ? (
+        <LeaderLaunchPanel departmentId={user.departmentId} departmentName={user.department.name} periods={periodOptions} />
+      ) : null}
 
       <EvaluationForm
         departments={departmentOptions}

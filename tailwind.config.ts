@@ -9,11 +9,13 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#182230",
+        ink: "#1f2933",
         muted: "#667085",
-        line: "#d0d5dd",
-        surface: "#f8fafc",
-        brand: "#1f6feb",
+        line: "#d9dde5",
+        surface: "#f6f7f9",
+        brand: "#e30016",
+        brandDark: "#9f0010",
+        graphite: "#30343b",
         ok: "#14804a",
         warn: "#b54708",
         risk: "#b42318"
