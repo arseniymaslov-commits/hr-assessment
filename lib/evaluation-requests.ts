@@ -74,23 +74,23 @@ async function notifyEvaluationRequest(requestId: string) {
       "",
       `Запущена оценка взаимодействия с подразделением: ${request.evaluateeDepartment.name}.`,
       `Период: ${formatPeriod(request.period.month, request.period.year)}.`,
-      `Дедлайн: ${deadline}.`,
+      `Срок заполнения: ${deadline}.`,
       recipientDepartments ? `Оценку должны заполнить подразделения: ${recipientDepartments}.` : "",
       "",
       `Перейдите в форму оценки: ${evaluationUrl}`,
       "",
-      "Если оценка не будет поставлена до дедлайна, система автоматически отметит \"Нет взаимодействия\"."
+      "Если оценка не будет поставлена до срока, система автоматически отметит \"Нет взаимодействия\"."
     ].filter(Boolean).join("\n"),
     html: [
       "<p>Здравствуйте.</p>",
       `<p>Запущена оценка взаимодействия с подразделением: <strong>${request.evaluateeDepartment.name}</strong>.</p>`,
       "<ul>",
       `<li>Период: ${formatPeriod(request.period.month, request.period.year)}</li>`,
-      `<li>Дедлайн: ${deadline}</li>`,
+      `<li>Срок заполнения: ${deadline}</li>`,
       recipientDepartments ? `<li>Оценку должны заполнить: ${recipientDepartments}</li>` : "",
       "</ul>",
       `<p><a href="${evaluationUrl}">Перейти в форму оценки</a></p>`,
-      "<p>Если оценка не будет поставлена до дедлайна, система автоматически отметит «Нет взаимодействия».</p>"
+      "<p>Если оценка не будет поставлена до срока, система автоматически отметит «Нет взаимодействия».</p>"
     ].filter(Boolean).join("")
   });
 
@@ -224,7 +224,7 @@ export async function finalizeExpiredEvaluationRequests() {
           criterionId: criterion.id,
           noInteraction: true,
           score: null,
-          comment: "Автоматически отмечено: оценка не заполнена до установленного дедлайна",
+          comment: "Автоматически отмечено: оценка не заполнена до установленного срока",
           authorId: request.initiatedById
         }
       });
