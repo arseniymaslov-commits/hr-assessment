@@ -34,12 +34,12 @@ export default function LoginForm() {
     });
 
     setLoading(false);
+    const data = await response.json().catch(() => ({}));
     if (response.ok) {
-      window.location.href = "/dashboard";
+      window.location.href = data.redirectTo || "/dashboard";
       return;
     }
 
-    const data = await response.json().catch(() => ({}));
     if (response.status === 409 && data.action === "SET_PASSWORD") {
       setNeedsPasswordSetup(true);
       setError("Задайте пароль для входа в систему.");

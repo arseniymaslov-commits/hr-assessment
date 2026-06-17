@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { setSessionCookie } from "@/lib/auth";
+import { defaultPathForRole, setSessionCookie } from "@/lib/auth";
 import { hashPassword, verifyPassword } from "@/lib/password";
 
 export async function POST(request: Request) {
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       }
     });
     setSessionCookie(user.id);
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, redirectTo: defaultPathForRole(user.role) });
   }
 
   if (!password || !verifyPassword(password, user.passwordHash)) {
@@ -45,5 +45,5 @@ export async function POST(request: Request) {
   }
 
   setSessionCookie(user.id);
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, redirectTo: defaultPathForRole(user.role) });
 }

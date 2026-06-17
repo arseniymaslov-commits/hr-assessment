@@ -92,6 +92,10 @@ export function canEvaluate(role: Role) {
   return role === Role.ADMIN || role === Role.LEADER || role === Role.DIRECTOR;
 }
 
+export function defaultPathForRole(role: Role) {
+  return role === Role.LEADER ? "/evaluations" : "/dashboard";
+}
+
 export function canViewAnalytics(role: Role) {
   return (
     role === Role.ADMIN ||
