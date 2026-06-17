@@ -2,10 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Ban, Save } from "lucide-react";
+import DepartmentLabel from "@/components/department-label";
+import { departmentOptionLabel } from "@/lib/department-decodings";
 
 type Department = {
   id: string;
   name: string;
+  shortName?: string | null;
 };
 
 type Period = {
@@ -41,6 +44,7 @@ type UserContext = {
   role: "ADMIN" | "ANALYST" | "LEADER" | "DASHBOARD_VIEWER" | "DIRECTOR" | "VIEWER";
   departmentId?: string | null;
   departmentName?: string | null;
+  departmentFullName?: string | null;
 };
 
 type RowState = {
@@ -270,11 +274,12 @@ export default function EvaluationForm({
           ) : user.role === "LEADER" ? (
             <div className="mt-1 rounded-lg border border-line bg-slate-100 px-3 py-2 font-medium text-slate-700">
               {user.departmentName || departments.find((department) => department.id === evaluatorDepartmentId)?.name || "Ваш отдел"}
+              {user.departmentFullName ? <div className="mt-1 text-xs font-normal text-muted">{user.departmentFullName}</div> : null}
             </div>
           ) : (
             <select className="focus-ring mt-1 w-full rounded-lg border border-line px-3 py-2" value={evaluatorDepartmentId} onChange={(event) => setEvaluatorDepartmentId(event.target.value)}>
               {departments.map((department) => (
-                <option key={department.id} value={department.id}>{department.name}</option>
+                <option key={department.id} value={department.id}>{departmentOptionLabel(department)}</option>
               ))}
             </select>
           )}
@@ -312,7 +317,7 @@ export default function EvaluationForm({
               return (
                 <tr className={required ? "bg-slate-50" : ""} key={department.id}>
                   <td className="px-4 py-4 align-top">
-                    <div className="font-semibold text-ink">{department.name}</div>
+                    <DepartmentLabel department={department} className="font-semibold text-ink" />
                     {required ? <div className="mt-1 text-xs font-semibold text-brandDark">Обязательно оценить</div> : null}
                   </td>
                   <td className="px-4 py-4 align-top">

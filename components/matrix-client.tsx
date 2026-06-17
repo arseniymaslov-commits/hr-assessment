@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { MessageSquareWarning } from "lucide-react";
+import DepartmentLabel from "@/components/department-label";
 import { fixed, scoreClass } from "@/lib/format";
 
 type Department = {
@@ -80,7 +81,11 @@ export default function MatrixClient({
               return (
                 <div className="rounded-lg border border-line bg-white p-4 shadow-sm" key={summary.departmentId}>
                   <div className="text-xs font-semibold uppercase text-muted">Рейтинг #{index + 1}</div>
-                  <div className="mt-1 font-semibold text-ink">{department?.name || "Подразделение"}</div>
+                  {department ? (
+                    <DepartmentLabel department={department} className="mt-1 font-semibold text-ink" />
+                  ) : (
+                    <div className="mt-1 font-semibold text-ink">Подразделение</div>
+                  )}
                   <div className="mt-3 text-3xl font-semibold text-brand">{fixed(summary.average)}</div>
                   <div className="mt-1 text-sm text-muted">Оценок: {summary.count}, ниже 9: {summary.lowCount}</div>
                 </div>
@@ -99,7 +104,9 @@ export default function MatrixClient({
                   const summary = summaryByDepartment.get(department.id);
                   return (
                     <th className="border-b border-line px-3 py-3 text-center align-bottom" key={department.id}>
-                      <span className="block font-semibold text-ink">{department.shortName || department.name}</span>
+                      <span className="block font-semibold text-ink" title={department.shortName || undefined}>
+                        {department.name}
+                      </span>
                       <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${scoreClass(summary?.average)}`}>
                         {fixed(summary?.average)}
                       </span>
@@ -120,7 +127,11 @@ export default function MatrixClient({
                 return (
                   <tr key={evaluator.id}>
                     <th className="sticky left-0 z-10 border-b border-line bg-white px-4 py-3 text-left font-medium text-ink">
-                      {evaluator.name}
+                      <DepartmentLabel
+                        department={evaluator}
+                        className="font-medium text-ink"
+                        mutedClassName="mt-0.5 max-w-44 text-xs leading-4 text-muted"
+                      />
                     </th>
                     {columnDepartments.map((evaluatee) => {
                       const evaluation = map.get(`${evaluator.id}:${evaluatee.id}`);

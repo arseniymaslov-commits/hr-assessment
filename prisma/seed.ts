@@ -2,6 +2,7 @@ import { PrismaClient, Role, PeriodStatus } from "@prisma/client";
 import XLSX from "xlsx";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { getDepartmentFullName } from "../lib/department-decodings";
 import { hashPassword } from "../lib/password";
 
 const prisma = new PrismaClient();
@@ -67,8 +68,8 @@ async function importOrionUsers() {
   for (const departmentName of new Set(importedRows.map((row) => row.departmentName).filter(Boolean))) {
     const department = await prisma.department.upsert({
       where: { name: departmentName },
-      update: { shortName: departmentName, isActive: true },
-      create: { name: departmentName, shortName: departmentName, isActive: true }
+      update: { shortName: getDepartmentFullName(departmentName) || departmentName, isActive: true },
+      create: { name: departmentName, shortName: getDepartmentFullName(departmentName) || departmentName, isActive: true }
     });
     importedDepartmentByName.set(departmentName, department);
   }
@@ -109,8 +110,8 @@ async function main() {
   for (const [name, shortName] of departments) {
     const department = await prisma.department.upsert({
       where: { name },
-      update: { shortName, isActive: true },
-      create: { name, shortName }
+      update: { shortName: getDepartmentFullName(name, shortName) || shortName, isActive: true },
+      create: { name, shortName: getDepartmentFullName(name, shortName) || shortName }
     });
     departmentByName.set(name, department);
   }

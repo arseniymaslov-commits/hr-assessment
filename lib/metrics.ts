@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { departmentOptionLabel } from "@/lib/department-decodings";
 import { processEvaluationRequestSchedule } from "@/lib/evaluation-requests";
 import {
   DEFAULT_FULL_COVERAGE_EVALUATEE_NAMES,
@@ -128,7 +129,10 @@ export async function getPeriodMetrics(periodId?: string) {
             requirement.evaluateeDepartmentId === department.id &&
             !evaluationKeys.has(`${requirement.evaluatorDepartmentId}:${requirement.evaluateeDepartmentId}`)
         )
-        .map((requirement) => departmentById.get(requirement.evaluatorDepartmentId)?.name)
+        .map((requirement) => {
+          const department = departmentById.get(requirement.evaluatorDepartmentId);
+          return department ? departmentOptionLabel(department) : null;
+        })
         .filter((name): name is string => Boolean(name))
     };
   });

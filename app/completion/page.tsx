@@ -1,6 +1,7 @@
 import { CheckCircle2, CircleAlert } from "lucide-react";
 import { Role } from "@prisma/client";
 import AppShell from "@/components/app-shell";
+import DepartmentLabel from "@/components/department-label";
 import PeriodFilter from "@/components/period-filter";
 import { requireUser } from "@/lib/auth";
 import { periodLabel } from "@/lib/format";
@@ -64,7 +65,9 @@ export default async function CompletionPage({
             <tbody className="divide-y divide-line">
               {completionRows.map((row) => (
                 <tr key={row.department.id}>
-                  <td className="px-5 py-4 font-medium text-ink">{row.department.name}</td>
+                  <td className="px-5 py-4">
+                    <DepartmentLabel department={row.department} />
+                  </td>
                   <td className="px-5 py-4">
                     <span
                       className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-sm font-semibold ${

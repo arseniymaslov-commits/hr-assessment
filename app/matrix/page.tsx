@@ -4,6 +4,7 @@ import MatrixClient from "@/components/matrix-client";
 import PeriodFilter from "@/components/period-filter";
 import { Role } from "@prisma/client";
 import { requireUser } from "@/lib/auth";
+import { departmentOptionLabel } from "@/lib/department-decodings";
 import { periodLabel } from "@/lib/format";
 import { getPeriodMetrics } from "@/lib/metrics";
 
@@ -34,8 +35,8 @@ export default async function MatrixPage({
       id: evaluation.id,
       evaluatorDepartmentId: evaluation.evaluatorDepartmentId as string,
       evaluateeDepartmentId: evaluation.evaluateeDepartmentId,
-      evaluatorName: evaluation.evaluatorDepartment!.name,
-      evaluateeName: evaluation.evaluateeDepartment.name,
+      evaluatorName: departmentOptionLabel(evaluation.evaluatorDepartment!),
+      evaluateeName: departmentOptionLabel(evaluation.evaluateeDepartment),
       score: evaluation.score,
       noInteraction: evaluation.noInteraction,
       comment: evaluation.comment,
@@ -61,8 +62,10 @@ export default async function MatrixPage({
     )
     .map((evaluation) => ({
       id: evaluation.id,
-      evaluatorName: evaluation.evaluatorDepartment?.name || evaluation.evaluatorUser?.name || "Директор",
-      evaluateeName: evaluation.evaluateeDepartment.name,
+      evaluatorName: evaluation.evaluatorDepartment
+        ? departmentOptionLabel(evaluation.evaluatorDepartment)
+        : evaluation.evaluatorUser?.name || "Директор",
+      evaluateeName: departmentOptionLabel(evaluation.evaluateeDepartment),
       score: evaluation.score,
       comment: evaluation.comment,
       authorName: evaluation.author.name,
@@ -74,7 +77,7 @@ export default async function MatrixPage({
     year,
     status
   }));
-  const departmentOptions = metrics.evaluateeDepartments.map(({ id, name }) => ({ id, name }));
+  const departmentOptions = metrics.evaluateeDepartments.map(({ id, name, shortName }) => ({ id, name, shortName }));
   const rowDepartmentOptions = rowDepartments.map(({ id, name, shortName }) => ({
     id,
     name,

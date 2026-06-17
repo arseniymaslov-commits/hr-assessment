@@ -1,9 +1,11 @@
 import AppShell from "@/components/app-shell";
+import DepartmentLabel from "@/components/department-label";
 import EvaluationForm from "@/components/evaluation-form";
 import LeaderLaunchPanel from "@/components/leader-launch-panel";
 import ScoreBadge from "@/components/score-badge";
 import { Role } from "@prisma/client";
 import { requireUser } from "@/lib/auth";
+import { getDepartmentFullName } from "@/lib/department-decodings";
 import { getPeriodMetrics, getReferenceData } from "@/lib/metrics";
 
 export default async function EvaluationsPage() {
@@ -19,8 +21,8 @@ export default async function EvaluationsPage() {
       : user.role === "DIRECTOR"
         ? metrics.evaluations.filter((evaluation) => evaluation.evaluatorUserId === user.id)
         : metrics.evaluations;
-  const departmentOptions = departments.map(({ id, name }) => ({ id, name }));
-  const evaluateeDepartmentOptions = evaluateeDepartments.map(({ id, name }) => ({ id, name }));
+  const departmentOptions = departments.map(({ id, name, shortName }) => ({ id, name, shortName }));
+  const evaluateeDepartmentOptions = evaluateeDepartments.map(({ id, name, shortName }) => ({ id, name, shortName }));
   const periodOptions = periods.map(({ id, month, year, status }) => ({
     id,
     month,
@@ -63,7 +65,15 @@ export default async function EvaluationsPage() {
           comment: evaluation.comment,
           noInteraction: evaluation.noInteraction
         }))}
-        user={{ id: user.id, role: user.role, departmentId: user.departmentId, departmentName: user.department?.name }}
+        user={{
+          id: user.id,
+          role: user.role,
+          departmentId: user.departmentId,
+          departmentName: user.department?.name,
+          departmentFullName: user.department
+            ? getDepartmentFullName(user.department.name, user.department.shortName)
+            : null
+        }}
       />
 
       {user.role === Role.LEADER && user.departmentId && user.department && canLaunchOwnEvaluation ? (
@@ -89,9 +99,15 @@ export default async function EvaluationsPage() {
               {visibleEvaluations.map((evaluation) => (
                 <tr key={evaluation.id}>
                   <td className="px-5 py-4 font-medium text-ink">
-                    {evaluation.evaluatorDepartment?.name || evaluation.evaluatorUser?.name || "Директор"}
+                    {evaluation.evaluatorDepartment ? (
+                      <DepartmentLabel department={evaluation.evaluatorDepartment} />
+                    ) : (
+                      evaluation.evaluatorUser?.name || "Директор"
+                    )}
                   </td>
-                  <td className="px-5 py-4">{evaluation.evaluateeDepartment.name}</td>
+                  <td className="px-5 py-4">
+                    <DepartmentLabel department={evaluation.evaluateeDepartment} />
+                  </td>
                   <td className="px-5 py-4">
                     {evaluation.noInteraction ? (
                       <span className="inline-flex rounded-full bg-slate-50 px-2.5 py-1 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">

@@ -1,10 +1,12 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { departmentOptionLabel } from "@/lib/department-decodings";
 
 type Department = {
   id: string;
   name: string;
+  shortName?: string | null;
 };
 
 export default function DepartmentFilter({ departments }: { departments: Department[] }) {
@@ -28,7 +30,7 @@ export default function DepartmentFilter({ departments }: { departments: Departm
       <option value="">Все подразделения</option>
       {departments.map((department) => (
         <option key={department.id} value={department.id}>
-          {department.name}
+          {departmentOptionLabel(department)}
         </option>
       ))}
     </select>

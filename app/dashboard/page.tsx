@@ -1,10 +1,12 @@
 import AppShell from "@/components/app-shell";
 import DashboardSlideExport from "@/components/dashboard-slide-export";
+import DepartmentLabel from "@/components/department-label";
 import DepartmentFilter from "@/components/department-filter";
 import PeriodFilter from "@/components/period-filter";
 import ScoreBadge from "@/components/score-badge";
 import { Role } from "@prisma/client";
 import { requireUser } from "@/lib/auth";
+import { departmentOptionLabel } from "@/lib/department-decodings";
 import { fixed, periodLabel, scoreClass } from "@/lib/format";
 import { getPeriodMetrics } from "@/lib/metrics";
 
@@ -58,8 +60,10 @@ export default async function DashboardPage({
           id: evaluation.id,
           score: evaluation.score,
           comment: evaluation.comment,
-          evaluatorName: evaluation.evaluatorDepartment?.name || evaluation.evaluatorUser?.name || "Директор",
-          evaluateeName: evaluation.evaluateeDepartment.name
+          evaluatorName: evaluation.evaluatorDepartment
+            ? departmentOptionLabel(evaluation.evaluatorDepartment)
+            : evaluation.evaluatorUser?.name || "Директор",
+          evaluateeName: departmentOptionLabel(evaluation.evaluateeDepartment)
         }))
     : [];
   const periodOptions = metrics.periods.map(({ id, month, year, status }) => ({
@@ -68,7 +72,7 @@ export default async function DashboardPage({
     year,
     status
   }));
-  const departmentOptions = metrics.evaluateeDepartments.map(({ id, name }) => ({ id, name }));
+  const departmentOptions = metrics.evaluateeDepartments.map(({ id, name, shortName }) => ({ id, name, shortName }));
 
   return (
     <AppShell user={user}>
@@ -134,7 +138,9 @@ export default async function DashboardPage({
               <tbody className="divide-y divide-line">
                 {rows.map((row) => (
                   <tr key={row.department.id}>
-                    <td className="px-5 py-4 font-medium text-ink">{row.department.name}</td>
+                    <td className="px-5 py-4">
+                      <DepartmentLabel department={row.department} />
+                    </td>
                     <td className="px-5 py-4">
                       <ScoreBadge score={row.average} />
                       {row.missingRequiredEvaluatorNames.length ? (
@@ -167,7 +173,11 @@ export default async function DashboardPage({
                     <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-sm font-semibold text-slate-700">
                       {index + 1}
                     </span>
-                    <span className="truncate font-medium">{row.department.name}</span>
+                    <DepartmentLabel
+                      department={row.department}
+                      className="truncate font-medium text-ink"
+                      mutedClassName="mt-0 truncate text-xs text-muted"
+                    />
                   </div>
                   <ScoreBadge score={row.average} />
                 </div>
@@ -191,7 +201,10 @@ export default async function DashboardPage({
                         {evaluation.score}
                       </span>
                       <span className="font-medium">
-                        {evaluation.evaluatorDepartment?.name || evaluation.evaluatorUser?.name || "Директор"} → {evaluation.evaluateeDepartment.name}
+                        {evaluation.evaluatorDepartment
+                          ? departmentOptionLabel(evaluation.evaluatorDepartment)
+                          : evaluation.evaluatorUser?.name || "Директор"}{" "}
+                        → {departmentOptionLabel(evaluation.evaluateeDepartment)}
                       </span>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-slate-700">{evaluation.comment}</p>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import * as XLSX from "xlsx";
 import { getCurrentUser } from "@/lib/auth";
+import { departmentOptionLabel, getDepartmentFullName } from "@/lib/department-decodings";
 import { fixed, periodLabel } from "@/lib/format";
 import { getPeriodMetrics } from "@/lib/metrics";
 
@@ -46,6 +47,7 @@ export async function GET(request: Request) {
     summaryRows.map((row) => ({
       "Период": periodName,
       "Подразделение": row.department.name,
+      "Расшифровка": getDepartmentFullName(row.department.name, row.department.shortName),
       "Средний балл": row.average == null ? "" : Number(row.average.toFixed(2)),
       "Количество оценок": row.count,
       "Нет взаимодействия": row.noInteractionCount,
@@ -66,13 +68,13 @@ export async function GET(request: Request) {
   const matrixRows: (string | number)[][] = [
     [
       "Кто оценивает / кого оценивают",
-      ...evaluateeDepartments.map((department) => department.shortName || department.name),
+      ...evaluateeDepartments.map((department) => department.name),
       "Средняя оценка от отдела"
     ]
   ];
   for (const evaluator of evaluatorDepartments) {
     const rowScores: number[] = [];
-    const row: (string | number)[] = [evaluator.name];
+    const row: (string | number)[] = [departmentOptionLabel(evaluator)];
     for (const evaluatee of evaluateeDepartments) {
       if (evaluator.id === evaluatee.id) {
         row.push("—");
@@ -109,8 +111,10 @@ export async function GET(request: Request) {
     workbook,
     lowScoreRows.map((evaluation) => ({
       "Период": periodName,
-      "Кто оценивает": evaluation.evaluatorDepartment?.name || evaluation.evaluatorUser?.name || "Директор",
-      "Кого оценивают": evaluation.evaluateeDepartment.name,
+      "Кто оценивает": evaluation.evaluatorDepartment
+        ? departmentOptionLabel(evaluation.evaluatorDepartment)
+        : evaluation.evaluatorUser?.name || "Директор",
+      "Кого оценивают": departmentOptionLabel(evaluation.evaluateeDepartment),
       "Оценка": evaluation.score,
       "Комментарий": evaluation.comment || "",
       "Автор": evaluation.author.name,
@@ -123,8 +127,10 @@ export async function GET(request: Request) {
     workbook,
     evaluationRows.map((evaluation) => ({
       "Период": periodName,
-      "Кто оценивает": evaluation.evaluatorDepartment?.name || evaluation.evaluatorUser?.name || "Директор",
-      "Кого оценивают": evaluation.evaluateeDepartment.name,
+      "Кто оценивает": evaluation.evaluatorDepartment
+        ? departmentOptionLabel(evaluation.evaluatorDepartment)
+        : evaluation.evaluatorUser?.name || "Директор",
+      "Кого оценивают": departmentOptionLabel(evaluation.evaluateeDepartment),
       "Оценка": evaluation.noInteraction ? "" : evaluation.score,
       "Нет взаимодействия": evaluation.noInteraction ? "Да" : "Нет",
       "Комментарий": evaluation.comment || "",
@@ -139,12 +145,22 @@ export async function GET(request: Request) {
     completionRows.map((row) => ({
       "Период": periodName,
       "Подразделение": row.department.name,
+      "Расшифровка": getDepartmentFullName(row.department.name, row.department.shortName),
       "Заполнено": row.filled,
       "Ожидается": row.expected,
       "Осталось": row.missing,
       "Статус": row.isComplete ? "Заполнено" : "Не заполнено"
     })),
     "Контроль заполнения"
+  );
+
+  appendSheet(
+    workbook,
+    metrics.departments.map((department) => ({
+      "Код": department.name,
+      "Расшифровка": getDepartmentFullName(department.name, department.shortName)
+    })),
+    "Расшифровка отделов"
   );
 
   appendSheet(

@@ -1,6 +1,7 @@
 import { Role } from "@prisma/client";
 import AdminPanel from "@/components/admin-panel";
 import AppShell from "@/components/app-shell";
+import DepartmentLabel from "@/components/department-label";
 import ScoreBadge from "@/components/score-badge";
 import { requireUser } from "@/lib/auth";
 import { getPeriodMetrics, getReferenceData } from "@/lib/metrics";
@@ -89,9 +90,15 @@ export default async function AdminPage() {
                 .map((evaluation) => (
                   <tr key={evaluation.id}>
                     <td className="px-5 py-4 font-medium">
-                      {evaluation.evaluatorDepartment?.name || evaluation.evaluatorUser?.name || "Директор"}
+                      {evaluation.evaluatorDepartment ? (
+                        <DepartmentLabel department={evaluation.evaluatorDepartment} />
+                      ) : (
+                        evaluation.evaluatorUser?.name || "Директор"
+                      )}
                     </td>
-                    <td className="px-5 py-4">{evaluation.evaluateeDepartment.name}</td>
+                    <td className="px-5 py-4">
+                      <DepartmentLabel department={evaluation.evaluateeDepartment} />
+                    </td>
                     <td className="px-5 py-4">
                       {evaluation.noInteraction ? (
                         <span className="inline-flex rounded-full bg-slate-50 px-2.5 py-1 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">

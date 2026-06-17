@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Plus, RefreshCw, RotateCcw, Send, Settings2 } from "lucide-react";
+import DepartmentLabel from "@/components/department-label";
+import { departmentOptionLabel } from "@/lib/department-decodings";
 
 type Department = {
   id: string;
@@ -170,10 +172,7 @@ export default function AdminPanel({
           <div className="mt-5 divide-y divide-line">
             {departments.map((department) => (
               <div className="flex items-center justify-between gap-3 py-3" key={department.id}>
-                <div>
-                  <div className="font-medium">{department.name}</div>
-                  <div className="text-sm text-muted">{department.shortName}</div>
-                </div>
+                <DepartmentLabel department={department} />
                 <button className="focus-ring rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-risk transition hover:bg-red-50/60" type="button" onClick={() => request(`/api/admin/departments/${department.id}`, { method: "DELETE" })}>
                   Удалить
                 </button>
@@ -223,7 +222,11 @@ export default function AdminPanel({
             <p className="mt-1 text-sm text-muted">Выберите оцениваемый отдел и отметьте подразделения, которые обязаны его оценить.</p>
           </div>
           <select className="focus-ring rounded-lg border border-line px-3 py-2" value={requirementEvaluateeId} onChange={(event) => setRequirementEvaluateeId(event.target.value)}>
-            {evaluateeDepartments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
+            {evaluateeDepartments.map((department) => (
+              <option key={department.id} value={department.id}>
+                {departmentOptionLabel(department)}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -251,7 +254,11 @@ export default function AdminPanel({
           <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
             {evaluatorOptions.map((department) => (
               <label className="flex items-center justify-between gap-3 rounded-lg border border-line bg-white px-3 py-2 text-sm" key={department.id}>
-                <span className="font-medium text-ink">{department.name}</span>
+                <DepartmentLabel
+                  department={department}
+                  className="font-medium text-ink"
+                  mutedClassName="mt-0.5 text-xs leading-4 text-muted"
+                />
                 <input className="h-5 w-5" type="checkbox" checked={requiredEvaluatorIds.includes(department.id)} onChange={(event) => toggleRequiredEvaluator(department.id, event.target.checked)} />
               </label>
             ))}
@@ -297,7 +304,11 @@ export default function AdminPanel({
           <p className="mt-1 text-sm text-muted">Запускает оценку выбранного отдела или планирует ее на календарную дату. В момент запуска руководителям обязательных подразделений отправляется письмо со ссылкой на форму. После дедлайна незаполненные обязательные оценки станут статусом «Нет взаимодействия».</p>
           <div className="mt-4 grid gap-3 lg:grid-cols-2">
             <select className="focus-ring rounded-lg border border-line px-3 py-2" value={launchDepartmentId} onChange={(event) => setLaunchDepartmentId(event.target.value)}>
-              {evaluateeDepartments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
+              {evaluateeDepartments.map((department) => (
+                <option key={department.id} value={department.id}>
+                  {departmentOptionLabel(department)}
+                </option>
+              ))}
             </select>
             <select className="focus-ring rounded-lg border border-line px-3 py-2" value={launchPeriodId} onChange={(event) => setLaunchPeriodId(event.target.value)}>
               {periods.map((period) => <option key={period.id} value={period.id}>{months[period.month - 1]} {period.year}</option>)}
@@ -341,7 +352,11 @@ export default function AdminPanel({
           </select>
           <input className="focus-ring min-w-[180px] flex-1 rounded-lg border border-line px-3 py-2" placeholder="Должность" value={userPosition} onChange={(event) => setUserPosition(event.target.value)} disabled={userRole !== "LEADER"} />
           <select className="focus-ring min-w-[190px] flex-1 rounded-lg border border-line px-3 py-2 disabled:bg-slate-100" value={userDepartmentId} onChange={(event) => setUserDepartmentId(event.target.value)} disabled={userRole !== "LEADER"}>
-            {departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
+            {departments.map((department) => (
+              <option key={department.id} value={department.id}>
+                {departmentOptionLabel(department)}
+              </option>
+            ))}
           </select>
           <label className="flex shrink-0 items-center justify-center gap-2 rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink">
             <input className="h-4 w-4" type="checkbox" checked={userReceivesNotifications} onChange={(event) => setUserReceivesNotifications(event.target.checked)} />
@@ -371,7 +386,13 @@ export default function AdminPanel({
                   <td className="px-4 py-3">{user.email}</td>
                   <td className="px-4 py-3">{roles.find(([value]) => value === user.role)?.[1] || user.role}</td>
                   <td className="px-4 py-3">{user.position || "—"}</td>
-                  <td className="px-4 py-3">{departments.find((department) => department.id === user.departmentId)?.name || "—"}</td>
+                  <td className="px-4 py-3">
+                    {departments.find((department) => department.id === user.departmentId) ? (
+                      <DepartmentLabel department={departments.find((department) => department.id === user.departmentId)!} />
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <button
                       className={`focus-ring rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${
