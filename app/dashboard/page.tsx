@@ -1,4 +1,5 @@
 import AppShell from "@/components/app-shell";
+import DashboardSlideExport from "@/components/dashboard-slide-export";
 import DepartmentFilter from "@/components/department-filter";
 import PeriodFilter from "@/components/period-filter";
 import ScoreBadge from "@/components/score-badge";
@@ -36,6 +37,31 @@ export default async function DashboardPage({
     ? metrics.evaluations.filter((evaluation) => evaluation.evaluateeDepartmentId === leaderDepartmentId).length
     : metrics.evaluations.length;
   const visibleMissingCount = Math.max(0, visibleExpectedCount - visibleFilledCount);
+  const slideDepartmentRow = selectedDepartment
+    ? metrics.byEvaluatee.find((row) => row.department.id === selectedDepartment) || null
+    : null;
+  const rankedDepartments = metrics.byEvaluatee
+    .slice()
+    .sort((a, b) => {
+      if (a.average == null && b.average == null) return a.department.name.localeCompare(b.department.name);
+      if (a.average == null) return 1;
+      if (b.average == null) return -1;
+      return b.average - a.average;
+    });
+  const slideRank = slideDepartmentRow
+    ? rankedDepartments.findIndex((row) => row.department.id === slideDepartmentRow.department.id) + 1
+    : null;
+  const slideLowScores = selectedDepartment
+    ? metrics.lowScores
+        .filter((evaluation) => evaluation.evaluateeDepartmentId === selectedDepartment)
+        .map((evaluation) => ({
+          id: evaluation.id,
+          score: evaluation.score,
+          comment: evaluation.comment,
+          evaluatorName: evaluation.evaluatorDepartment?.name || evaluation.evaluatorUser?.name || "Директор",
+          evaluateeName: evaluation.evaluateeDepartment.name
+        }))
+    : [];
   const periodOptions = metrics.periods.map(({ id, month, year, status }) => ({
     id,
     month,
@@ -76,6 +102,18 @@ export default async function DashboardPage({
           value={metrics.selectedPeriod?.status === "OPEN" ? "Открыт" : "Закрыт"}
         />
       </section>
+
+      {slideDepartmentRow && metrics.selectedPeriod ? (
+        <DashboardSlideExport
+          departmentName={slideDepartmentRow.department.name}
+          periodLabel={periodLabel(metrics.selectedPeriod)}
+          average={slideDepartmentRow.average}
+          companyAverage={metrics.companyAverage}
+          rank={slideRank}
+          totalDepartments={rankedDepartments.length}
+          lowScores={slideLowScores}
+        />
+      ) : null}
 
       <section className="mt-6 grid gap-6 xl:grid-cols-[1.35fr_0.9fr]">
         <div className="rounded-lg border border-line bg-white">
