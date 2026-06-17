@@ -226,7 +226,7 @@ export default function MatrixClient({
           )}
         </section>
 
-        <section className="rounded-lg border border-red-100 bg-white p-5 shadow-sm">
+        <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
           <div className="flex items-center gap-2">
             <MessageSquareWarning className="text-brand" size={18} />
             <h2 className="font-semibold text-ink">Комментарии ниже 9</h2>
@@ -234,7 +234,7 @@ export default function MatrixClient({
           <div className="mt-4 max-h-[620px] space-y-3 overflow-y-auto pr-1">
             {lowComments.length ? (
               lowComments.map((item) => (
-                <article className="rounded-lg border border-red-100 bg-red-50/60 p-3" key={item.id}>
+                <article className="rounded-lg border border-line bg-slate-50 p-3" key={item.id}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="text-sm font-semibold text-ink">
                       {item.evaluatorName} → {item.evaluateeName}

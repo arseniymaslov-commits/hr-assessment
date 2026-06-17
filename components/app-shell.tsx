@@ -46,7 +46,7 @@ type AppShellProps = {
 export default function AppShell({ user, children }: AppShellProps) {
   return (
     <div className="min-h-screen bg-surface">
-      <header className="sticky top-0 z-20 border-b border-line bg-white/95 shadow-sm backdrop-blur">
+      <header className="sticky top-0 z-20 border-b border-line bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex min-w-0 items-center gap-4">
             <div className="relative h-12 w-48 shrink-0 overflow-hidden">
@@ -68,7 +68,7 @@ export default function AppShell({ user, children }: AppShellProps) {
                 const Icon = item.icon;
                 return (
                   <Link
-                    className="focus-ring inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-red-50 hover:text-brand"
+                    className="focus-ring inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-ink"
                     href={item.href}
                     key={item.href}
                   >
@@ -78,7 +78,7 @@ export default function AppShell({ user, children }: AppShellProps) {
                 );
               })}
             <form action="/logout" method="post">
-              <button className="focus-ring rounded-lg border border-line px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              <button className="focus-ring rounded-lg border border-line bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50">
                 Выйти
               </button>
             </form>

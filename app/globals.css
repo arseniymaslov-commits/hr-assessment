@@ -4,7 +4,7 @@
 
 :root {
   color-scheme: light;
-  background: #f6f7f9;
+  background: #f7f8fb;
 }
 
 * {
@@ -13,10 +13,10 @@
 
 body {
   margin: 0;
-  color: #1f2933;
+  color: #18202b;
   background:
-    linear-gradient(180deg, rgba(227, 0, 22, 0.045), transparent 260px),
-    #f6f7f9;
+    linear-gradient(180deg, rgba(15, 23, 42, 0.025), transparent 280px),
+    #f7f8fb;
   font-family:
     Inter,
     ui-sans-serif,
@@ -35,5 +35,5 @@ textarea {
 }
 
 .focus-ring {
-  @apply focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2;
+  @apply focus:outline-none focus:ring-2 focus:ring-brand/25 focus:ring-offset-2;
 }

@@ -163,7 +163,7 @@ export default function AdminPanel({
           <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_140px_auto]">
             <input className="focus-ring rounded-lg border border-line px-3 py-2" placeholder="Название" value={departmentName} onChange={(event) => setDepartmentName(event.target.value)} />
             <input className="focus-ring rounded-lg border border-line px-3 py-2" placeholder="Кратко" value={shortName} onChange={(event) => setShortName(event.target.value)} />
-            <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2 font-semibold text-white">
+            <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-brand/30 bg-white px-4 py-2 font-semibold text-brand transition hover:bg-brand/5">
               <Plus size={18} /> Добавить
             </button>
           </div>
@@ -174,7 +174,7 @@ export default function AdminPanel({
                   <div className="font-medium">{department.name}</div>
                   <div className="text-sm text-muted">{department.shortName}</div>
                 </div>
-                <button className="focus-ring rounded-lg border border-line px-3 py-2 text-sm text-risk hover:bg-red-50" type="button" onClick={() => request(`/api/admin/departments/${department.id}`, { method: "DELETE" })}>
+                <button className="focus-ring rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-risk transition hover:bg-red-50/60" type="button" onClick={() => request(`/api/admin/departments/${department.id}`, { method: "DELETE" })}>
                   Удалить
                 </button>
               </div>
@@ -196,7 +196,7 @@ export default function AdminPanel({
           <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
             <input className="focus-ring rounded-lg border border-line px-3 py-2" placeholder="Название критерия" value={criterionName} onChange={(event) => setCriterionName(event.target.value)} />
             <input className="focus-ring rounded-lg border border-line px-3 py-2" placeholder="Описание" value={criterionDescription} onChange={(event) => setCriterionDescription(event.target.value)} />
-            <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2 font-semibold text-white">
+            <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-brand/30 bg-white px-4 py-2 font-semibold text-brand transition hover:bg-brand/5">
               <Plus size={18} /> Добавить
             </button>
           </div>
@@ -207,7 +207,7 @@ export default function AdminPanel({
                   <div className="font-medium">{criterion.name}</div>
                   <div className="text-sm text-muted">{criterion.description || "Без описания"}</div>
                 </div>
-                <button className="focus-ring rounded-lg border border-line px-3 py-2 text-sm text-risk hover:bg-red-50" type="button" onClick={() => request(`/api/admin/criteria/${criterion.id}`, { method: "DELETE" })}>
+                <button className="focus-ring rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-risk transition hover:bg-red-50/60" type="button" onClick={() => request(`/api/admin/criteria/${criterion.id}`, { method: "DELETE" })}>
                   Удалить
                 </button>
               </div>
@@ -234,16 +234,16 @@ export default function AdminPanel({
               <p className="mt-1 text-sm text-muted">По умолчанию можно выбрать всех, затем снять лишние отметки. Стандарт: ОВА, КРО, УЧР, ПЭО и Бухгалтерия оценивают все отделы; ОЦП оценивают все.</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button className="focus-ring rounded-lg border border-line bg-white px-3 py-2 text-sm font-semibold text-slate-700" type="button" onClick={() => setRequiredEvaluatorIds(evaluatorOptions.map((department) => department.id))}>
+              <button className="focus-ring rounded-lg border border-line bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50" type="button" onClick={() => setRequiredEvaluatorIds(evaluatorOptions.map((department) => department.id))}>
                 Выбрать всех
               </button>
-              <button className="focus-ring rounded-lg border border-line bg-white px-3 py-2 text-sm font-semibold text-slate-700" type="button" onClick={() => setRequiredEvaluatorIds([])}>
+              <button className="focus-ring rounded-lg border border-line bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50" type="button" onClick={() => setRequiredEvaluatorIds([])}>
                 Снять всех
               </button>
-              <button className="focus-ring inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-semibold text-slate-700" type="button" onClick={() => request("/api/admin/requirements/defaults", { method: "POST" })}>
+              <button className="focus-ring inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50" type="button" onClick={() => request("/api/admin/requirements/defaults", { method: "POST" })}>
                 <Settings2 size={16} /> Применить стандарт
               </button>
-              <button className="focus-ring rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white disabled:opacity-50" type="button" disabled={!requirementEvaluateeId} onClick={() => request("/api/admin/requirements/bulk", { method: "POST", body: JSON.stringify({ evaluateeDepartmentId: requirementEvaluateeId, evaluatorDepartmentIds: requiredEvaluatorIds }) })}>
+              <button className="focus-ring rounded-lg border border-brand/30 bg-white px-3 py-2 text-sm font-semibold text-brand transition hover:bg-brand/5 disabled:opacity-50" type="button" disabled={!requirementEvaluateeId} onClick={() => request("/api/admin/requirements/bulk", { method: "POST", body: JSON.stringify({ evaluateeDepartmentId: requirementEvaluateeId, evaluatorDepartmentIds: requiredEvaluatorIds }) })}>
                 Сохранить
               </button>
             </div>
@@ -273,7 +273,7 @@ export default function AdminPanel({
               {months.map((label, index) => <option key={label} value={index + 1}>{label}</option>)}
             </select>
             <input className="focus-ring rounded-lg border border-line px-3 py-2" type="number" value={year} onChange={(event) => setYear(Number(event.target.value))} />
-            <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2 font-semibold text-white">
+            <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-brand/30 bg-white px-4 py-2 font-semibold text-brand transition hover:bg-brand/5">
               <Plus size={18} /> Открыть
             </button>
           </div>
@@ -284,7 +284,7 @@ export default function AdminPanel({
                   <div className="font-medium">{months[period.month - 1]} {period.year}</div>
                   <div className="text-sm text-muted">{period.status === "OPEN" ? "Открыт" : "Закрыт"}</div>
                 </div>
-                <button className="focus-ring inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm hover:bg-slate-50" type="button" onClick={() => request(`/api/admin/periods/${period.id}`, { method: "PATCH", body: JSON.stringify({ status: period.status === "OPEN" ? "CLOSED" : "OPEN" }) })}>
+                <button className="focus-ring inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm transition hover:border-slate-300 hover:bg-slate-50" type="button" onClick={() => request(`/api/admin/periods/${period.id}`, { method: "PATCH", body: JSON.stringify({ status: period.status === "OPEN" ? "CLOSED" : "OPEN" }) })}>
                   <RefreshCw size={16} /> {period.status === "OPEN" ? "Закрыть" : "Открыть"}
                 </button>
               </div>
@@ -312,10 +312,10 @@ export default function AdminPanel({
             </label>
           </div>
           <div className="mt-4 flex flex-wrap gap-3">
-            <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2 font-semibold text-white" type="button" onClick={() => request("/api/evaluation-requests", { method: "POST", body: JSON.stringify({ evaluateeDepartmentId: launchDepartmentId, periodId: launchPeriodId, scheduledAt: launchScheduledAt, deadlineAt: launchDeadlineAt }) })}>
+            <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-brand/30 bg-white px-4 py-2 font-semibold text-brand transition hover:bg-brand/5" type="button" onClick={() => request("/api/evaluation-requests", { method: "POST", body: JSON.stringify({ evaluateeDepartmentId: launchDepartmentId, periodId: launchPeriodId, scheduledAt: launchScheduledAt, deadlineAt: launchDeadlineAt }) })}>
               <Send size={18} /> Запустить
             </button>
-            <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-line px-4 py-2 font-semibold text-ink" type="button" onClick={() => request("/api/evaluation-requests/bulk", { method: "POST", body: JSON.stringify({ periodId: launchPeriodId, scheduledAt: launchScheduledAt, deadlineAt: launchDeadlineAt }) })}>
+            <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-white px-4 py-2 font-semibold text-ink transition hover:border-slate-300 hover:bg-slate-50" type="button" onClick={() => request("/api/evaluation-requests/bulk", { method: "POST", body: JSON.stringify({ periodId: launchPeriodId, scheduledAt: launchScheduledAt, deadlineAt: launchDeadlineAt }) })}>
               <Send size={18} /> Все СП
             </button>
             <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 font-semibold text-amber-800" type="button" onClick={() => request("/api/admin/notifications/escalation", { method: "POST", body: JSON.stringify({ periodId: launchPeriodId }) })}>
@@ -347,7 +347,7 @@ export default function AdminPanel({
             <input className="h-4 w-4" type="checkbox" checked={userReceivesNotifications} onChange={(event) => setUserReceivesNotifications(event.target.checked)} />
             Рассылка
           </label>
-          <button className="focus-ring rounded-lg bg-brand px-4 py-2 font-semibold text-white">Сохранить</button>
+          <button className="focus-ring rounded-lg border border-brand/30 bg-white px-4 py-2 font-semibold text-brand transition hover:bg-brand/5">Сохранить</button>
         </form>
 
         <div className="mt-5 overflow-x-auto">
@@ -388,10 +388,10 @@ export default function AdminPanel({
                   <td className="px-4 py-3">{user.mustChangePassword ? "Нужно задать" : "Задан"}</td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-2">
-                      <button className="focus-ring inline-flex items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold hover:bg-slate-50" type="button" onClick={() => request(`/api/admin/users/${user.id}/reset-password`, { method: "POST" })}>
+                      <button className="focus-ring inline-flex items-center gap-1 rounded-lg border border-line bg-white px-2.5 py-1.5 text-xs font-semibold transition hover:border-slate-300 hover:bg-slate-50" type="button" onClick={() => request(`/api/admin/users/${user.id}/reset-password`, { method: "POST" })}>
                         <RotateCcw size={14} /> Сбросить пароль
                       </button>
-                      <button className="focus-ring rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-risk hover:bg-red-50" type="button" onClick={() => request(`/api/admin/users/${user.id}`, { method: "DELETE" })}>
+                      <button className="focus-ring rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-risk transition hover:bg-red-50/60" type="button" onClick={() => request(`/api/admin/users/${user.id}`, { method: "DELETE" })}>
                         Отключить
                       </button>
                     </div>

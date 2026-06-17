@@ -216,7 +216,7 @@ export default async function DashboardPage({
                     <span className="font-semibold">{fixed(point.average)}</span>
                   </div>
                   <div className="h-2 rounded-full bg-slate-100">
-                    <div className="h-2 rounded-full bg-brand" style={{ width }} />
+                    <div className="h-2 rounded-full bg-graphite" style={{ width }} />
                   </div>
                 </div>
               );

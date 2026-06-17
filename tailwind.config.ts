@@ -9,10 +9,10 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#1f2933",
+        ink: "#18202b",
         muted: "#667085",
-        line: "#d9dde5",
-        surface: "#f6f7f9",
+        line: "#e2e6ee",
+        surface: "#f7f8fb",
         brand: "#e30016",
         brandDark: "#9f0010",
         graphite: "#30343b",
@@ -21,7 +21,7 @@ const config: Config = {
         risk: "#b42318"
       },
       boxShadow: {
-        soft: "0 12px 30px rgba(16, 24, 40, 0.08)"
+        soft: "0 10px 24px rgba(16, 24, 40, 0.06)"
       }
     }
   },

@@ -233,7 +233,7 @@ export default function EvaluationForm({
   }
 
   return (
-    <section className="rounded-lg border border-brand/25 bg-white p-5 shadow-sm">
+    <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
       <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-ink">Поставить оценки подразделениям</h2>
@@ -242,7 +242,7 @@ export default function EvaluationForm({
           </p>
         </div>
         <button
-          className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2.5 font-semibold text-white disabled:opacity-50"
+          className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-brand/30 bg-white px-4 py-2.5 font-semibold text-brand transition hover:bg-brand/5 disabled:opacity-50"
           disabled={!canUseForm || bulkSaving || !availableEvaluatees.length}
           type="button"
           onClick={saveAll}
@@ -310,7 +310,7 @@ export default function EvaluationForm({
               const required = requiredEvaluateeIds.has(department.id);
               const commentRequired = !row.noInteraction && row.score < 10;
               return (
-                <tr className={required ? "bg-red-50/30" : ""} key={department.id}>
+                <tr className={required ? "bg-slate-50" : ""} key={department.id}>
                   <td className="px-4 py-4 align-top">
                     <div className="font-semibold text-ink">{department.name}</div>
                     {required ? <div className="mt-1 text-xs font-semibold text-brandDark">Обязательно оценить</div> : null}
@@ -329,7 +329,7 @@ export default function EvaluationForm({
                   <td className="px-4 py-4 align-top">
                     {commentRequired ? (
                       <textarea
-                        className="focus-ring min-h-20 w-full rounded-lg border border-red-200 px-3 py-2"
+                        className="focus-ring min-h-20 w-full rounded-lg border border-amber-200 px-3 py-2"
                         disabled={!canUseForm}
                         placeholder="Комментарий обязателен для оценки ниже 10"
                         value={row.comment}
@@ -348,7 +348,7 @@ export default function EvaluationForm({
                   <td className="px-4 py-4 align-top">
                     <div className="flex flex-col gap-2">
                       <button
-                        className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-3 py-2 font-semibold text-white disabled:opacity-50"
+                        className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-brand/30 bg-white px-3 py-2 font-semibold text-brand transition hover:bg-brand/5 disabled:opacity-50"
                         disabled={!canUseForm || row.saving || !rowCanSave(row)}
                         type="button"
                         onClick={() => saveDepartment(department.id)}
@@ -356,7 +356,7 @@ export default function EvaluationForm({
                         <Save size={16} /> Сохранить
                       </button>
                       <button
-                        className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-white px-3 py-2 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-white px-3 py-2 font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
                         disabled={!canUseForm || row.saving}
                         type="button"
                         onClick={() => saveDepartment(department.id, true)}

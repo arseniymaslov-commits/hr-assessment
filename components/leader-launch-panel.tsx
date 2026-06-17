@@ -67,7 +67,7 @@ export default function LeaderLaunchPanel({
   if (!periods.length) return null;
 
   return (
-    <section className="mb-6 mt-6 rounded-lg border border-red-100 bg-white p-5 shadow-sm">
+    <section className="mb-6 mt-6 rounded-lg border border-line bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h2 className="font-semibold text-ink">Запуск оценки своего подразделения</h2>
@@ -75,7 +75,7 @@ export default function LeaderLaunchPanel({
             {departmentName}: выберите дату запуска и дедлайн. В момент запуска руководителям обязательных подразделений уйдет письмо со ссылкой на форму оценки.
           </p>
         </div>
-        {message ? <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-brandDark">{message}</div> : null}
+        {message ? <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">{message}</div> : null}
       </div>
       <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_1fr_auto]">
         <select className="focus-ring rounded-lg border border-line px-3 py-2" value={periodId} onChange={(event) => setPeriodId(event.target.value)}>
@@ -93,7 +93,7 @@ export default function LeaderLaunchPanel({
           <span>Дедлайн заполнения</span>
           <input className="focus-ring rounded-lg border border-line px-3 py-2 text-ink" type="datetime-local" value={deadlineAt} onChange={(event) => setDeadlineAt(event.target.value)} />
         </label>
-        <button className="focus-ring inline-flex items-center justify-center gap-2 self-end rounded-lg bg-brand px-4 py-2 font-semibold text-white disabled:opacity-50" type="button" onClick={launch} disabled={loading}>
+        <button className="focus-ring inline-flex items-center justify-center gap-2 self-end rounded-lg border border-brand/30 bg-white px-4 py-2 font-semibold text-brand transition hover:bg-brand/5 disabled:opacity-50" type="button" onClick={launch} disabled={loading}>
           <Send size={18} /> {loading ? "Запуск..." : "Запустить"}
         </button>
       </div>

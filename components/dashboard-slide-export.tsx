@@ -75,7 +75,7 @@ export default function DashboardSlideExport({
           <p className="mt-1 text-sm text-muted">Формат 16:9, готов для вставки в презентацию.</p>
         </div>
         <button
-          className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2 font-semibold text-white disabled:opacity-60"
+          className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-brand/30 bg-white px-4 py-2 font-semibold text-brand transition hover:bg-brand/5 disabled:opacity-60"
           type="button"
           onClick={downloadPng}
           disabled={isExporting}

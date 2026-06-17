@@ -114,7 +114,7 @@ export default function LoginForm() {
 
         {error ? <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-risk">{error}</div> : null}
         <button
-          className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2.5 font-semibold text-white disabled:opacity-60"
+          className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-lg bg-graphite px-4 py-2.5 font-semibold text-white transition hover:bg-ink disabled:opacity-60"
           disabled={loading}
           type="submit"
         >
