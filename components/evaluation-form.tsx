@@ -242,7 +242,7 @@ export default function EvaluationForm({
         <div>
           <h2 className="text-lg font-semibold text-ink">Поставить оценки подразделениям</h2>
           <p className="mt-1 text-sm text-muted">
-            Все подразделения показаны списком. Оценка ниже 10 требует комментарий. ОЦП отмечен как обязательный для оценки.
+            Все подразделения показаны списком. Оценка 9 или ниже требует комментарий. ОЦП отмечен как обязательный для оценки.
           </p>
         </div>
         <button
@@ -336,7 +336,7 @@ export default function EvaluationForm({
                       <textarea
                         className="focus-ring min-h-20 w-full rounded-lg border border-amber-200 px-3 py-2"
                         disabled={!canUseForm}
-                        placeholder="Комментарий обязателен для оценки ниже 10"
+                        placeholder="Комментарий обязателен для оценки 9 или ниже"
                         value={row.comment}
                         onChange={(event) => updateRow(department.id, { comment: event.target.value, message: "" })}
                       />

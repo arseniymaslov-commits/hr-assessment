@@ -45,7 +45,7 @@ export default async function EvaluationsPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-ink">Заполнение оценки</h1>
         <p className="mt-1 text-sm text-muted">
-          Оцените взаимодействие со всеми доступными подразделениями. Оценки ниже 10 сохраняются только с комментарием.
+          Оцените взаимодействие со всеми доступными подразделениями. Оценки 9 или ниже сохраняются только с комментарием.
         </p>
       </div>
 
