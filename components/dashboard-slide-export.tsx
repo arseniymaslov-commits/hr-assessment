@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { Download } from "lucide-react";
 import { toPng } from "html-to-image";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type LowScore = {
   id: string;
@@ -43,9 +43,26 @@ export default function DashboardSlideExport({
   totalDepartments,
   lowScores
 }: DashboardSlideExportProps) {
+  const previewRef = useRef<HTMLDivElement>(null);
   const slideRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [previewScale, setPreviewScale] = useState(1);
   const visibleLowScores = lowScores.slice(0, 5);
+
+  useEffect(() => {
+    const element = previewRef.current;
+    if (!element) return;
+    const target = element;
+
+    function updateScale() {
+      setPreviewScale(Math.min(1, (target.clientWidth || 1280) / 1280));
+    }
+
+    updateScale();
+    const observer = new ResizeObserver(updateScale);
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, []);
 
   async function downloadPng() {
     if (!slideRef.current) return;
@@ -84,11 +101,14 @@ export default function DashboardSlideExport({
         </button>
       </div>
 
-      <div className="mt-5 overflow-x-auto rounded-lg border border-line bg-slate-100 p-4">
-        <div
-          ref={slideRef}
-          className="relative h-[720px] w-[1280px] overflow-hidden bg-slate-50 text-slate-950"
-        >
+      <div className="mt-5 rounded-lg border border-line bg-slate-100 p-4">
+        <div ref={previewRef} className="w-full overflow-hidden">
+          <div className="relative" style={{ height: `${720 * previewScale}px` }}>
+            <div className="origin-top-left" style={{ height: 720, transform: `scale(${previewScale})`, width: 1280 }}>
+              <div
+                ref={slideRef}
+                className="relative h-[720px] w-[1280px] overflow-hidden bg-slate-50 text-slate-950"
+              >
           <div className="absolute inset-x-0 top-0 h-3 bg-brand" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_12%,rgba(227,6,19,0.10),transparent_28%),linear-gradient(135deg,#ffffff_0%,#f8fafc_54%,#eef2f7_100%)]" />
 
@@ -178,6 +198,9 @@ export default function DashboardSlideExport({
               <span>Red Petroleum · Оценка взаимодействия подразделений</span>
               <span>PNG 16:9 · 1920×1080</span>
             </footer>
+          </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
