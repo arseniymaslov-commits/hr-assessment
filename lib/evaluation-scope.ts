@@ -16,6 +16,7 @@ export const DEFAULT_REQUIRED_EVALUATOR_NAMES = [
   "КРО",
   "УЧР",
   "ПЭО",
+  "СКП",
   "Бухгалтерия",
   "Главный бухгалтер"
 ];
