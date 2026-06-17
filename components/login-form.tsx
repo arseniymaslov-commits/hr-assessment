@@ -4,8 +4,8 @@ import { useState } from "react";
 import { KeyRound, LogIn } from "lucide-react";
 
 export default function LoginForm() {
-  const [email, setEmail] = useState("admin@company.test");
-  const [password, setPassword] = useState("demo123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [needsPasswordSetup, setNeedsPasswordSetup] = useState(false);
