@@ -24,6 +24,7 @@ export async function POST(request: Request) {
   const departmentId = String(body?.departmentId || "");
   const role = assignableRoles.has(body?.role) ? (body.role as Role) : Role.LEADER;
   const position = String(body?.position || "").trim();
+  const receivesNotifications = body?.receivesNotifications !== false;
 
   if (!name || !email) {
     return NextResponse.json({ error: "Заполните имя и email" }, { status: 400 });
@@ -43,6 +44,7 @@ export async function POST(request: Request) {
       role,
       position,
       departmentId: role === Role.LEADER ? departmentId : null,
+      receivesNotifications,
       isActive: true
     },
     create: {
@@ -53,6 +55,7 @@ export async function POST(request: Request) {
       departmentId: role === Role.LEADER ? departmentId : null,
       passwordHash: null,
       mustChangePassword: true,
+      receivesNotifications,
       isActive: true
     }
   });

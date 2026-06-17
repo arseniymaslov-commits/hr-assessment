@@ -25,6 +25,7 @@ type User = {
   departmentId?: string | null;
   mustChangePassword?: boolean;
   isActive?: boolean;
+  receivesNotifications?: boolean;
 };
 
 type Criterion = {
@@ -94,6 +95,7 @@ export default function AdminPanel({
   const [userRole, setUserRole] = useState<User["role"]>("LEADER");
   const [userPosition, setUserPosition] = useState("Руководитель");
   const [userDepartmentId, setUserDepartmentId] = useState(departments[0]?.id || "");
+  const [userReceivesNotifications, setUserReceivesNotifications] = useState(true);
   const [requirementEvaluateeId, setRequirementEvaluateeId] = useState(evaluateeDepartments[0]?.id || "");
   const [requiredEvaluatorIds, setRequiredEvaluatorIds] = useState<string[]>([]);
   const [launchDepartmentId, setLaunchDepartmentId] = useState(evaluateeDepartments[0]?.id || "");
@@ -322,11 +324,11 @@ export default function AdminPanel({
 
       <section className="rounded-lg border border-line bg-white p-5">
         <h2 className="font-semibold text-ink">Пользователи и роли</h2>
-        <form className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_1fr_1fr_1fr_auto]" onSubmit={(event) => {
+        <form className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_1fr_1fr_1fr_auto_auto]" onSubmit={(event) => {
           event.preventDefault();
           request("/api/admin/users", {
             method: "POST",
-            body: JSON.stringify({ name: userName, email: userEmail, role: userRole, position: userPosition, departmentId: userDepartmentId })
+            body: JSON.stringify({ name: userName, email: userEmail, role: userRole, position: userPosition, departmentId: userDepartmentId, receivesNotifications: userReceivesNotifications })
           });
         }}>
           <input className="focus-ring rounded-lg border border-line px-3 py-2" placeholder="ФИО" value={userName} onChange={(event) => setUserName(event.target.value)} />
@@ -338,6 +340,10 @@ export default function AdminPanel({
           <select className="focus-ring rounded-lg border border-line px-3 py-2 disabled:bg-slate-100" value={userDepartmentId} onChange={(event) => setUserDepartmentId(event.target.value)} disabled={userRole !== "LEADER"}>
             {departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
           </select>
+          <label className="flex items-center justify-center gap-2 rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink">
+            <input className="h-4 w-4" type="checkbox" checked={userReceivesNotifications} onChange={(event) => setUserReceivesNotifications(event.target.checked)} />
+            Рассылка
+          </label>
           <button className="focus-ring rounded-lg bg-brand px-4 py-2 font-semibold text-white">Сохранить</button>
         </form>
 
@@ -350,6 +356,7 @@ export default function AdminPanel({
                 <th className="px-4 py-3">Роль</th>
                 <th className="px-4 py-3">Должность</th>
                 <th className="px-4 py-3">Подразделение</th>
+                <th className="px-4 py-3">Рассылка</th>
                 <th className="px-4 py-3">Пароль</th>
                 <th className="px-4 py-3">Действия</th>
               </tr>
@@ -362,6 +369,19 @@ export default function AdminPanel({
                   <td className="px-4 py-3">{roles.find(([value]) => value === user.role)?.[1] || user.role}</td>
                   <td className="px-4 py-3">{user.position || "—"}</td>
                   <td className="px-4 py-3">{departments.find((department) => department.id === user.departmentId)?.name || "—"}</td>
+                  <td className="px-4 py-3">
+                    <button
+                      className={`focus-ring rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${
+                        user.receivesNotifications === false
+                          ? "border-line text-muted hover:bg-slate-50"
+                          : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      }`}
+                      type="button"
+                      onClick={() => request(`/api/admin/users/${user.id}`, { method: "PATCH", body: JSON.stringify({ receivesNotifications: user.receivesNotifications === false }) })}
+                    >
+                      {user.receivesNotifications === false ? "Выключена" : "Включена"}
+                    </button>
+                  </td>
                   <td className="px-4 py-3">{user.mustChangePassword ? "Нужно задать" : "Задан"}</td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-2">

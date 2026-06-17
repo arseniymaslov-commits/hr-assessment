@@ -19,7 +19,7 @@ export default async function AdminPage() {
     year,
     status
   }));
-  const userOptions = users.map(({ id, name, email, role, position, departmentId, mustChangePassword, isActive }) => ({
+  const userOptions = users.map(({ id, name, email, role, position, departmentId, mustChangePassword, isActive, receivesNotifications }) => ({
     id,
     name,
     email,
@@ -27,7 +27,8 @@ export default async function AdminPage() {
     position,
     departmentId,
     mustChangePassword,
-    isActive
+    isActive,
+    receivesNotifications
   }));
   const criterionOptions = criteria.map(({ id, name, description }) => ({
     id,

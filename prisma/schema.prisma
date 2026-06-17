@@ -44,6 +44,7 @@ model User {
   role          Role        @default(LEADER)
   position      String?
   isActive      Boolean     @default(true)
+  receivesNotifications Boolean @default(true)
   departmentId  String?
   department    Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   createdAt     DateTime    @default(now())

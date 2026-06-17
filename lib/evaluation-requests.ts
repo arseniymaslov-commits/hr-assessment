@@ -51,6 +51,7 @@ async function notifyEvaluationRequest(requestId: string) {
   const recipients = await prisma.user.findMany({
     where: {
       isActive: true,
+      receivesNotifications: true,
       role: { in: [Role.LEADER, Role.ADMIN] },
       departmentId: { in: evaluatorDepartmentIds }
     },
