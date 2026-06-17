@@ -11,6 +11,21 @@ export const NON_EVALUATED_DEPARTMENT_NAMES = new Set([
   "Заместитель финансового директора"
 ]);
 
+export const DEFAULT_REQUIRED_EVALUATOR_NAMES = [
+  "ОВА",
+  "КРО",
+  "УЧР",
+  "ПЭО",
+  "Бухгалтерия",
+  "Главный бухгалтер"
+];
+
+export const DEFAULT_FULL_COVERAGE_EVALUATEE_NAMES = ["ОЦП"];
+
+export function normalizeDepartmentName(name: string) {
+  return name.trim().toLocaleLowerCase("ru-RU");
+}
+
 export function isEvaluatableDepartmentName(name: string) {
   return !NON_EVALUATED_DEPARTMENT_NAMES.has(name.trim());
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, RefreshCw, RotateCcw, Send } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Plus, RefreshCw, RotateCcw, Send, Settings2 } from "lucide-react";
 
 type Department = {
   id: string;
@@ -94,8 +94,8 @@ export default function AdminPanel({
   const [userRole, setUserRole] = useState<User["role"]>("LEADER");
   const [userPosition, setUserPosition] = useState("Руководитель");
   const [userDepartmentId, setUserDepartmentId] = useState(departments[0]?.id || "");
-  const [requirementEvaluatorId, setRequirementEvaluatorId] = useState(departments[0]?.id || "");
-  const [bulkEvaluateeIds, setBulkEvaluateeIds] = useState<string[]>([]);
+  const [requirementEvaluateeId, setRequirementEvaluateeId] = useState(evaluateeDepartments[0]?.id || "");
+  const [requiredEvaluatorIds, setRequiredEvaluatorIds] = useState<string[]>([]);
   const [launchDepartmentId, setLaunchDepartmentId] = useState(evaluateeDepartments[0]?.id || "");
   const [launchPeriodId, setLaunchPeriodId] = useState(
     periods.find((period) => period.status === "OPEN")?.id || periods[0]?.id || ""
@@ -121,8 +121,21 @@ export default function AdminPanel({
     window.location.reload();
   }
 
-  function toggleBulkEvaluatee(departmentId: string, checked: boolean) {
-    setBulkEvaluateeIds((current) =>
+  const evaluatorOptions = useMemo(
+    () => departments.filter((department) => department.id !== requirementEvaluateeId),
+    [departments, requirementEvaluateeId]
+  );
+
+  useEffect(() => {
+    setRequiredEvaluatorIds(
+      requirements
+        .filter((requirement) => requirement.evaluateeDepartmentId === requirementEvaluateeId)
+        .map((requirement) => requirement.evaluatorDepartmentId)
+    );
+  }, [requirementEvaluateeId, requirements]);
+
+  function toggleRequiredEvaluator(departmentId: string, checked: boolean) {
+    setRequiredEvaluatorIds((current) =>
       checked
         ? Array.from(new Set([...current, departmentId]))
         : current.filter((id) => id !== departmentId)
@@ -205,51 +218,42 @@ export default function AdminPanel({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="font-semibold text-ink">Обязательные оценки</h2>
-            <p className="mt-1 text-sm text-muted">Настройте, кто кого обязан оценивать. Если обязательный отдел не оценил, он подсвечивается в контроле заполнения.</p>
+            <p className="mt-1 text-sm text-muted">Выберите оцениваемый отдел и отметьте подразделения, которые обязаны его оценить.</p>
           </div>
-          <select className="focus-ring rounded-lg border border-line px-3 py-2" value={requirementEvaluatorId} onChange={(event) => setRequirementEvaluatorId(event.target.value)}>
-            {departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
+          <select className="focus-ring rounded-lg border border-line px-3 py-2" value={requirementEvaluateeId} onChange={(event) => setRequirementEvaluateeId(event.target.value)}>
+            {evaluateeDepartments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
           </select>
         </div>
 
         <div className="mt-5 rounded-lg border border-line bg-slate-50 p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <div className="font-semibold text-ink">Массовое назначение</div>
-              <p className="mt-1 text-sm text-muted">Выберите отделы, которые должны оценить все остальные подразделения. Например HR и IT.</p>
+              <div className="font-semibold text-ink">Кто обязан оценить выбранный отдел</div>
+              <p className="mt-1 text-sm text-muted">По умолчанию можно выбрать всех, затем снять лишние отметки. Стандарт: ОВА, КРО, УЧР, ПЭО и Бухгалтерия оценивают все отделы; ОЦП оценивают все.</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button className="focus-ring rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white disabled:opacity-50" type="button" disabled={!bulkEvaluateeIds.length} onClick={() => request("/api/admin/requirements/bulk", { method: "POST", body: JSON.stringify({ evaluateeDepartmentIds: bulkEvaluateeIds, isActive: true }) })}>
-                Назначить всем
+              <button className="focus-ring rounded-lg border border-line bg-white px-3 py-2 text-sm font-semibold text-slate-700" type="button" onClick={() => setRequiredEvaluatorIds(evaluatorOptions.map((department) => department.id))}>
+                Выбрать всех
               </button>
-              <button className="focus-ring rounded-lg border border-line bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50" type="button" disabled={!bulkEvaluateeIds.length} onClick={() => request("/api/admin/requirements/bulk", { method: "POST", body: JSON.stringify({ evaluateeDepartmentIds: bulkEvaluateeIds, isActive: false }) })}>
-                Снять для всех
+              <button className="focus-ring rounded-lg border border-line bg-white px-3 py-2 text-sm font-semibold text-slate-700" type="button" onClick={() => setRequiredEvaluatorIds([])}>
+                Снять всех
+              </button>
+              <button className="focus-ring inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-semibold text-slate-700" type="button" onClick={() => request("/api/admin/requirements/defaults", { method: "POST" })}>
+                <Settings2 size={16} /> Применить стандарт
+              </button>
+              <button className="focus-ring rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white disabled:opacity-50" type="button" disabled={!requirementEvaluateeId} onClick={() => request("/api/admin/requirements/bulk", { method: "POST", body: JSON.stringify({ evaluateeDepartmentId: requirementEvaluateeId, evaluatorDepartmentIds: requiredEvaluatorIds }) })}>
+                Сохранить
               </button>
             </div>
           </div>
           <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-            {evaluateeDepartments.map((department) => (
+            {evaluatorOptions.map((department) => (
               <label className="flex items-center justify-between gap-3 rounded-lg border border-line bg-white px-3 py-2 text-sm" key={department.id}>
                 <span className="font-medium text-ink">{department.name}</span>
-                <input className="h-5 w-5" type="checkbox" checked={bulkEvaluateeIds.includes(department.id)} onChange={(event) => toggleBulkEvaluatee(department.id, event.target.checked)} />
+                <input className="h-5 w-5" type="checkbox" checked={requiredEvaluatorIds.includes(department.id)} onChange={(event) => toggleRequiredEvaluator(department.id, event.target.checked)} />
               </label>
             ))}
           </div>
-        </div>
-
-        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {evaluateeDepartments.filter((department) => department.id !== requirementEvaluatorId).map((department) => {
-            const checked = requirements.some((requirement) => requirement.evaluatorDepartmentId === requirementEvaluatorId && requirement.evaluateeDepartmentId === department.id);
-            return (
-              <label className="flex items-center justify-between gap-3 rounded-lg border border-line px-3 py-3 text-sm" key={department.id}>
-                <span>
-                  <span className="font-medium text-ink">{department.name}</span>
-                  <span className="block text-muted">Обязать выбранный отдел оценить это подразделение</span>
-                </span>
-                <input className="h-5 w-5" type="checkbox" checked={checked} onChange={(event) => request("/api/admin/requirements", { method: "POST", body: JSON.stringify({ evaluatorDepartmentId: requirementEvaluatorId, evaluateeDepartmentId: department.id, isActive: event.target.checked }) })} />
-              </label>
-            );
-          })}
         </div>
       </section>
 

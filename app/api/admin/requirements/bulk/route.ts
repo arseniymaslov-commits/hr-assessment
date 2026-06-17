@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
-import { isEvaluatableDepartment } from "@/lib/evaluation-scope";
+import { isEvaluatableDepartment, isEvaluatableDepartmentName } from "@/lib/evaluation-scope";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
@@ -11,10 +11,55 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => null);
+  const evaluateeDepartmentId = String(body?.evaluateeDepartmentId || "");
+  const evaluatorDepartmentIds: string[] = Array.isArray(body?.evaluatorDepartmentIds)
+    ? body.evaluatorDepartmentIds.map(String).filter(Boolean)
+    : [];
   const evaluateeDepartmentIds: string[] = Array.isArray(body?.evaluateeDepartmentIds)
     ? body.evaluateeDepartmentIds.map(String).filter(Boolean)
     : [];
   const isActive = Boolean(body?.isActive);
+
+  if (evaluateeDepartmentId) {
+    const departments = await prisma.department.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true }
+    });
+    const evaluateeDepartment = departments.find((department) => department.id === evaluateeDepartmentId);
+    if (!evaluateeDepartment || !isEvaluatableDepartmentName(evaluateeDepartment.name)) {
+      return NextResponse.json({ error: "Оцениваемый отдел не найден или исключен из оценки" }, { status: 400 });
+    }
+
+    const activeDepartmentIds = new Set(departments.map((department) => department.id));
+    const selectedEvaluatorIds = new Set(
+      evaluatorDepartmentIds.filter(
+        (departmentId) => activeDepartmentIds.has(departmentId) && departmentId !== evaluateeDepartmentId
+      )
+    );
+
+    let activeCount = 0;
+    for (const evaluatorDepartmentId of activeDepartmentIds) {
+      if (evaluatorDepartmentId === evaluateeDepartmentId) continue;
+      const shouldBeActive = selectedEvaluatorIds.has(evaluatorDepartmentId);
+      await prisma.evaluationRequirement.upsert({
+        where: {
+          evaluatorDepartmentId_evaluateeDepartmentId: {
+            evaluatorDepartmentId,
+            evaluateeDepartmentId
+          }
+        },
+        update: { isActive: shouldBeActive },
+        create: {
+          evaluatorDepartmentId,
+          evaluateeDepartmentId,
+          isActive: shouldBeActive
+        }
+      });
+      if (shouldBeActive) activeCount += 1;
+    }
+
+    return NextResponse.json({ message: `Список обязательных оценщиков сохранен: ${activeCount}` });
+  }
 
   if (!evaluateeDepartmentIds.length) {
     return NextResponse.json({ error: "Выберите хотя бы один отдел для оценки" }, { status: 400 });
