@@ -191,7 +191,7 @@ export async function finalizeExpiredEvaluationRequests() {
   const expiredRequests = await prisma.evaluationRequest.findMany({
     where: {
       deadlineAt: { lt: new Date() },
-      notificationSentAt: { not: null },
+      scheduledAt: { lte: new Date() },
       autoClosedAt: null
     }
   });

@@ -25,10 +25,30 @@ type Requirement = {
   evaluateeDepartmentId: string;
 };
 
+type ExistingEvaluation = {
+  periodId: string;
+  criterionId: string;
+  evaluatorDepartmentId?: string | null;
+  evaluatorUserId?: string | null;
+  evaluateeDepartmentId: string;
+  score?: number | null;
+  comment?: string | null;
+  noInteraction: boolean;
+};
+
 type UserContext = {
+  id: string;
   role: "ADMIN" | "ANALYST" | "LEADER" | "DASHBOARD_VIEWER" | "DIRECTOR" | "VIEWER";
   departmentId?: string | null;
   departmentName?: string | null;
+};
+
+type RowState = {
+  score: number;
+  comment: string;
+  noInteraction: boolean;
+  saving: boolean;
+  message: string;
 };
 
 const monthNames = [
@@ -46,12 +66,23 @@ const monthNames = [
   "Декабрь"
 ];
 
+function blankRow(): RowState {
+  return {
+    score: 10,
+    comment: "",
+    noInteraction: false,
+    saving: false,
+    message: ""
+  };
+}
+
 export default function EvaluationForm({
   departments,
   evaluateeDepartments,
   periods,
   criteria,
   requirements,
+  existingEvaluations,
   user
 }: {
   departments: Department[];
@@ -59,6 +90,7 @@ export default function EvaluationForm({
   periods: Period[];
   criteria: Criterion[];
   requirements: Requirement[];
+  existingEvaluations: ExistingEvaluation[];
   user: UserContext;
 }) {
   const openPeriod = periods.find((period) => period.status === "OPEN") || periods[0];
@@ -69,104 +101,157 @@ export default function EvaluationForm({
 
   const [periodId, setPeriodId] = useState(openPeriod?.id || "");
   const [evaluatorDepartmentId, setEvaluatorDepartmentId] = useState(defaultEvaluatorId);
-  const [evaluateeDepartmentId, setEvaluateeDepartmentId] = useState("");
   const [criterionId, setCriterionId] = useState(defaultCriterion?.id || "");
-  const [score, setScore] = useState(9);
-  const [comment, setComment] = useState("");
-  const [message, setMessage] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [rows, setRows] = useState<Record<string, RowState>>({});
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [formMessage, setFormMessage] = useState("");
 
   const selectedPeriod = useMemo(
     () => periods.find((period) => period.id === periodId),
     [periodId, periods]
   );
-  const availableEvaluatees = useMemo(() => {
-    if (isDirector) return evaluateeDepartments;
 
-    const requiredIds = requirements
-      .filter((requirement) => requirement.evaluatorDepartmentId === evaluatorDepartmentId)
-      .map((requirement) => requirement.evaluateeDepartmentId);
-    const allowedIds = requiredIds.length ? new Set(requiredIds) : null;
+  const availableEvaluatees = useMemo(
+    () =>
+      evaluateeDepartments.filter(
+        (department) => isDirector || department.id !== evaluatorDepartmentId
+      ),
+    [evaluateeDepartments, evaluatorDepartmentId, isDirector]
+  );
 
-    return evaluateeDepartments.filter(
-      (department) =>
-        department.id !== evaluatorDepartmentId && (!allowedIds || allowedIds.has(department.id))
+  const requiredEvaluateeIds = useMemo(() => {
+    const ids = new Set(
+      requirements
+        .filter((requirement) => requirement.evaluatorDepartmentId === evaluatorDepartmentId)
+        .map((requirement) => requirement.evaluateeDepartmentId)
     );
-  }, [evaluateeDepartments, evaluatorDepartmentId, isDirector, requirements]);
+    const ocp = evaluateeDepartments.find((department) => department.name === "ОЦП");
+    if (ocp) ids.add(ocp.id);
+    return ids;
+  }, [evaluateeDepartments, evaluatorDepartmentId, requirements]);
 
   useEffect(() => {
-    if (!availableEvaluatees.some((department) => department.id === evaluateeDepartmentId)) {
-      setEvaluateeDepartmentId(availableEvaluatees[0]?.id || "");
-    }
-  }, [availableEvaluatees, evaluateeDepartmentId]);
+    setRows((current) => {
+      const next: Record<string, RowState> = {};
+      for (const department of availableEvaluatees) {
+        const existing = existingEvaluations.find((evaluation) => {
+          const sameEvaluator = isDirector
+            ? evaluation.evaluatorUserId === user.id
+            : evaluation.evaluatorDepartmentId === evaluatorDepartmentId;
+          return (
+            sameEvaluator &&
+            evaluation.periodId === periodId &&
+            evaluation.criterionId === criterionId &&
+            evaluation.evaluateeDepartmentId === department.id
+          );
+        });
+        const currentRow = current[department.id];
+        next[department.id] = existing
+          ? {
+              score: existing.score ?? currentRow?.score ?? 10,
+              comment: existing.comment || currentRow?.comment || "",
+              noInteraction: existing.noInteraction,
+              saving: false,
+              message: existing.noInteraction ? "Сохранено: нет взаимодействия" : "Сохранено"
+            }
+          : currentRow || blankRow();
+      }
+      return next;
+    });
+  }, [availableEvaluatees, criterionId, evaluatorDepartmentId, existingEvaluations, isDirector, periodId, user.id]);
 
-  const requiresComment = score < 9;
-  const baseCanSubmit =
+  const canUseForm =
     (user.role === "ADMIN" || user.role === "LEADER" || user.role === "DIRECTOR") &&
     selectedPeriod?.status === "OPEN" &&
-    (isDirector || evaluatorDepartmentId) &&
-    evaluateeDepartmentId &&
-    (isDirector || evaluatorDepartmentId !== evaluateeDepartmentId) &&
-    criterionId;
-  const canSubmitScore =
-    baseCanSubmit &&
-    Number.isInteger(score) &&
-    score >= 1 &&
-    score <= 10 &&
-    (!requiresComment || comment.trim().length > 0);
+    criterionId &&
+    (isDirector || evaluatorDepartmentId);
 
-  async function save(noInteraction: boolean) {
-    setSaving(true);
-    setMessage("");
+  function updateRow(departmentId: string, patch: Partial<RowState>) {
+    setRows((current) => ({
+      ...current,
+      [departmentId]: {
+        ...(current[departmentId] || blankRow()),
+        ...patch
+      }
+    }));
+  }
 
+  function rowCanSave(row: RowState) {
+    if (row.noInteraction) return true;
+    return Number.isInteger(row.score) && row.score >= 1 && row.score <= 10 && (row.score === 10 || row.comment.trim().length > 0);
+  }
+
+  async function saveDepartment(departmentId: string, noInteraction = false) {
+    const row = rows[departmentId] || blankRow();
+    if (!canUseForm || (!noInteraction && !rowCanSave(row))) return false;
+
+    updateRow(departmentId, { saving: true, message: "" });
     const response = await fetch("/api/evaluations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         periodId,
         evaluatorDepartmentId: isDirector ? "" : evaluatorDepartmentId,
-        evaluateeDepartmentId,
+        evaluateeDepartmentId: departmentId,
         criterionId,
-        score,
-        comment,
+        score: row.score,
+        comment: row.comment,
         noInteraction
       })
     });
-
     const data = await response.json().catch(() => ({}));
-    setSaving(false);
-
-    if (response.ok) {
-      setMessage(noInteraction ? "Отметка «Нет взаимодействия» сохранена." : "Оценка сохранена.");
-      if (noInteraction || score >= 9) setComment("");
-      return;
-    }
-
-    setMessage(data.error || "Не удалось сохранить оценку.");
+    updateRow(departmentId, {
+      saving: false,
+      noInteraction,
+      comment: noInteraction ? "" : row.comment,
+      message: response.ok
+        ? noInteraction
+          ? "Сохранено: нет взаимодействия"
+          : "Оценка сохранена"
+        : data.error || "Не удалось сохранить"
+    });
+    return response.ok;
   }
 
-  function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    save(false);
+  async function saveAll() {
+    setBulkSaving(true);
+    setFormMessage("");
+    let saved = 0;
+    let blocked = 0;
+    for (const department of availableEvaluatees) {
+      const row = rows[department.id] || blankRow();
+      if (!rowCanSave(row)) {
+        blocked += 1;
+        updateRow(department.id, { message: "Нужен комментарий" });
+        continue;
+      }
+      const ok = await saveDepartment(department.id, row.noInteraction);
+      if (ok) saved += 1;
+    }
+    setBulkSaving(false);
+    setFormMessage(blocked ? `Сохранено: ${saved}. Не сохранено без комментария: ${blocked}.` : `Сохранено оценок: ${saved}.`);
   }
 
   return (
-    <form className="rounded-lg border border-brand/25 bg-white p-5 shadow-sm" onSubmit={submit}>
-      <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+    <section className="rounded-lg border border-brand/25 bg-white p-5 shadow-sm">
+      <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-ink">Поставить оценку</h2>
-          <p className="mt-1 text-sm text-muted">Начните с балла, затем выберите подразделение и добавьте комментарий при необходимости.</p>
+          <h2 className="text-lg font-semibold text-ink">Поставить оценки подразделениям</h2>
+          <p className="mt-1 text-sm text-muted">
+            Все подразделения показаны списком. Оценка ниже 10 требует комментарий. ОЦП отмечен как обязательный для оценки.
+          </p>
         </div>
-        <span className="inline-flex w-fit rounded-full bg-red-50 px-3 py-1 text-sm font-semibold text-brandDark ring-1 ring-red-100">
-          Оценка ниже 9 требует комментарий
-        </span>
+        <button
+          className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2.5 font-semibold text-white disabled:opacity-50"
+          disabled={!canUseForm || bulkSaving || !availableEvaluatees.length}
+          type="button"
+          onClick={saveAll}
+        >
+          <Save size={18} /> {bulkSaving ? "Сохраняем..." : "Сохранить все"}
+        </button>
       </div>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <label className="block rounded-lg border border-red-100 bg-red-50/40 p-4">
-          <span className="text-sm font-semibold text-brandDark">Оценка от 1 до 10</span>
-          <input className="focus-ring mt-2 w-full rounded-lg border border-red-200 bg-white px-4 py-3 text-3xl font-semibold text-ink" type="number" min={1} max={10} value={score} onChange={(event) => setScore(Number(event.target.value))} />
-        </label>
 
+      <div className="mb-5 grid gap-4 md:grid-cols-3">
         <label className="block">
           <span className="text-sm font-medium text-slate-700">Период оценки</span>
           <select className="focus-ring mt-1 w-full rounded-lg border border-line px-3 py-2" value={periodId} onChange={(event) => setPeriodId(event.target.value)}>
@@ -181,29 +266,18 @@ export default function EvaluationForm({
         <label className="block">
           <span className="text-sm font-medium text-slate-700">Кто оценивает</span>
           {isDirector ? (
-            <div className="mt-1 rounded-lg border border-line bg-slate-100 px-3 py-2 text-slate-700">
-              Директор
-            </div>
+            <div className="mt-1 rounded-lg border border-line bg-slate-100 px-3 py-2 text-slate-700">Директор</div>
           ) : user.role === "LEADER" ? (
             <div className="mt-1 rounded-lg border border-line bg-slate-100 px-3 py-2 font-medium text-slate-700">
               {user.departmentName || departments.find((department) => department.id === evaluatorDepartmentId)?.name || "Ваш отдел"}
             </div>
           ) : (
-            <select className="focus-ring mt-1 w-full rounded-lg border border-line px-3 py-2 disabled:bg-slate-100" value={evaluatorDepartmentId} onChange={(event) => setEvaluatorDepartmentId(event.target.value)}>
+            <select className="focus-ring mt-1 w-full rounded-lg border border-line px-3 py-2" value={evaluatorDepartmentId} onChange={(event) => setEvaluatorDepartmentId(event.target.value)}>
               {departments.map((department) => (
                 <option key={department.id} value={department.id}>{department.name}</option>
               ))}
             </select>
           )}
-        </label>
-
-        <label className="block">
-          <span className="text-sm font-medium text-slate-700">Кого оценивают</span>
-          <select className="focus-ring mt-1 w-full rounded-lg border border-line px-3 py-2" value={evaluateeDepartmentId} onChange={(event) => setEvaluateeDepartmentId(event.target.value)}>
-            {availableEvaluatees.map((department) => (
-              <option key={department.id} value={department.id}>{department.name}</option>
-            ))}
-          </select>
         </label>
 
         <label className="block">
@@ -214,32 +288,92 @@ export default function EvaluationForm({
             ))}
           </select>
         </label>
-
-        <div className="rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
-          <div className="font-medium">Правило контроля</div>
-          <div className="mt-1">Ниже 9 нужен комментарий. Если взаимодействия не было, нажмите отдельную кнопку.</div>
-        </div>
       </div>
 
-      <label className="mt-4 block">
-        <span className="text-sm font-medium text-slate-700">
-          Комментарий {requiresComment ? <span className="text-risk">*</span> : null}
-        </span>
-        <textarea className="focus-ring mt-1 min-h-28 w-full rounded-lg border border-line px-3 py-2" value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Опишите причину низкой оценки или важный контекст" required={requiresComment} />
-      </label>
+      {formMessage ? <div className="mb-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">{formMessage}</div> : null}
+      {selectedPeriod?.status === "CLOSED" ? <div className="mb-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-muted">Период закрыт, редактирование недоступно.</div> : null}
 
-      {message ? <div className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">{message}</div> : null}
-
-      <div className="mt-5 flex flex-wrap items-center gap-3">
-        <button className="focus-ring inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 font-semibold text-white disabled:opacity-50" disabled={!canSubmitScore || saving} type="submit">
-          <Save size={18} /> {saving ? "Сохраняем..." : "Сохранить оценку"}
-        </button>
-        <button className="focus-ring inline-flex items-center gap-2 rounded-lg border border-line bg-white px-4 py-2.5 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50" disabled={!baseCanSubmit || saving} type="button" onClick={() => save(true)}>
-          <Ban size={18} /> Нет взаимодействия
-        </button>
-        {selectedPeriod?.status === "CLOSED" ? <span className="text-sm text-muted">Период закрыт, редактирование недоступно.</span> : null}
-        {!availableEvaluatees.length ? <span className="text-sm text-muted">Нет доступных подразделений для оценки.</span> : null}
+      <div className="overflow-x-auto rounded-lg border border-line">
+        <table className="w-full min-w-[920px] text-left text-sm">
+          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-muted">
+            <tr>
+              <th className="px-4 py-3">Подразделение</th>
+              <th className="px-4 py-3">Оценка</th>
+              <th className="px-4 py-3">Комментарий</th>
+              <th className="px-4 py-3">Действие</th>
+              <th className="px-4 py-3">Статус</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {availableEvaluatees.map((department) => {
+              const row = rows[department.id] || blankRow();
+              const required = requiredEvaluateeIds.has(department.id);
+              const commentRequired = !row.noInteraction && row.score < 10;
+              return (
+                <tr className={required ? "bg-red-50/30" : ""} key={department.id}>
+                  <td className="px-4 py-4 align-top">
+                    <div className="font-semibold text-ink">{department.name}</div>
+                    {required ? <div className="mt-1 text-xs font-semibold text-brandDark">Обязательно оценить</div> : null}
+                  </td>
+                  <td className="px-4 py-4 align-top">
+                    <input
+                      className="focus-ring w-24 rounded-lg border border-line px-3 py-2 text-lg font-semibold"
+                      disabled={row.noInteraction || !canUseForm}
+                      max={10}
+                      min={1}
+                      type="number"
+                      value={row.score}
+                      onChange={(event) => updateRow(department.id, { score: Number(event.target.value), noInteraction: false, message: "" })}
+                    />
+                  </td>
+                  <td className="px-4 py-4 align-top">
+                    {commentRequired ? (
+                      <textarea
+                        className="focus-ring min-h-20 w-full rounded-lg border border-red-200 px-3 py-2"
+                        disabled={!canUseForm}
+                        placeholder="Комментарий обязателен для оценки ниже 10"
+                        value={row.comment}
+                        onChange={(event) => updateRow(department.id, { comment: event.target.value, message: "" })}
+                      />
+                    ) : (
+                      <textarea
+                        className="focus-ring min-h-20 w-full rounded-lg border border-line px-3 py-2"
+                        disabled={!canUseForm || row.noInteraction}
+                        placeholder={row.noInteraction ? "Отмечено: нет взаимодействия" : "Комментарий не обязателен для оценки 10"}
+                        value={row.comment}
+                        onChange={(event) => updateRow(department.id, { comment: event.target.value, message: "" })}
+                      />
+                    )}
+                  </td>
+                  <td className="px-4 py-4 align-top">
+                    <div className="flex flex-col gap-2">
+                      <button
+                        className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-3 py-2 font-semibold text-white disabled:opacity-50"
+                        disabled={!canUseForm || row.saving || !rowCanSave(row)}
+                        type="button"
+                        onClick={() => saveDepartment(department.id)}
+                      >
+                        <Save size={16} /> Сохранить
+                      </button>
+                      <button
+                        className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-white px-3 py-2 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        disabled={!canUseForm || row.saving}
+                        type="button"
+                        onClick={() => saveDepartment(department.id, true)}
+                      >
+                        <Ban size={16} /> Нет взаимодействия
+                      </button>
+                    </div>
+                  </td>
+                  <td className="px-4 py-4 align-top text-slate-700">
+                    {row.saving ? "Сохраняем..." : row.message || (commentRequired ? "Нужен комментарий" : "Готово к сохранению")}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
-    </form>
+    </section>
   );
 }

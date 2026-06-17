@@ -97,7 +97,14 @@ export default async function DashboardPage({
                 {rows.map((row) => (
                   <tr key={row.department.id}>
                     <td className="px-5 py-4 font-medium text-ink">{row.department.name}</td>
-                    <td className="px-5 py-4"><ScoreBadge score={row.average} /></td>
+                    <td className="px-5 py-4">
+                      <ScoreBadge score={row.average} />
+                      {row.missingRequiredEvaluatorNames.length ? (
+                        <div className="mt-2 max-w-xs text-xs leading-5 text-risk">
+                          Нет обязательной оценки от: {row.missingRequiredEvaluatorNames.join(", ")}
+                        </div>
+                      ) : null}
+                    </td>
                     <td className="px-5 py-4 text-slate-700">{row.count}</td>
                     <td className="px-5 py-4 text-slate-700">{row.noInteractionCount}</td>
                     <td className="px-5 py-4 text-slate-700">{row.lowCount}</td>

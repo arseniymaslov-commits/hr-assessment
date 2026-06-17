@@ -36,8 +36,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Подразделение не оценивает само себя" }, { status: 400 });
   }
 
-  if (!noInteraction && score < 9 && !comment) {
-    return NextResponse.json({ error: "Для оценки ниже 9 комментарий обязателен" }, { status: 400 });
+  if (!noInteraction && score < 10 && !comment) {
+    return NextResponse.json({ error: "Для оценки ниже 10 комментарий обязателен" }, { status: 400 });
   }
 
   if (user.role === Role.LEADER && !user.departmentId) {

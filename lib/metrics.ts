@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { processEvaluationRequestSchedule } from "@/lib/evaluation-requests";
-import { isEvaluatableDepartment } from "@/lib/evaluation-scope";
+import {
+  DEFAULT_FULL_COVERAGE_EVALUATEE_NAMES,
+  isEvaluatableDepartment,
+  normalizeDepartmentName
+} from "@/lib/evaluation-scope";
 
 type RequirementPair = {
   evaluatorDepartmentId: string;
@@ -96,6 +100,13 @@ export async function getPeriodMetrics(periodId?: string) {
   const average = (scores: number[]) =>
     scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : null;
 
+  const evaluationKeys = new Set(
+    evaluations
+      .filter((evaluation) => evaluation.evaluatorDepartmentId)
+      .map((evaluation) => `${evaluation.evaluatorDepartmentId}:${evaluation.evaluateeDepartmentId}`)
+  );
+  const departmentById = new Map(departments.map((department) => [department.id, department]));
+
   const byEvaluatee = evaluateeDepartments.map((department) => {
     const relevantEvaluations = scoredEvaluations.filter(
       (evaluation) => evaluation.evaluateeDepartmentId === department.id
@@ -110,7 +121,15 @@ export async function getPeriodMetrics(periodId?: string) {
       average: average(scores),
       count: scores.length,
       noInteractionCount,
-      lowCount: scores.filter((score) => score < 9).length
+      lowCount: scores.filter((score) => score < 9).length,
+      missingRequiredEvaluatorNames: requirements
+        .filter(
+          (requirement) =>
+            requirement.evaluateeDepartmentId === department.id &&
+            !evaluationKeys.has(`${requirement.evaluatorDepartmentId}:${requirement.evaluateeDepartmentId}`)
+        )
+        .map((requirement) => departmentById.get(requirement.evaluatorDepartmentId)?.name)
+        .filter((name): name is string => Boolean(name))
     };
   });
 
@@ -131,11 +150,6 @@ export async function getPeriodMetrics(periodId?: string) {
     };
   });
 
-  const evaluationKeys = new Set(
-    evaluations
-      .filter((evaluation) => evaluation.evaluatorDepartmentId)
-      .map((evaluation) => `${evaluation.evaluatorDepartmentId}:${evaluation.evaluateeDepartmentId}`)
-  );
   const completion = departments.map((department) => {
     const requiredPairs = requirements.filter(
       (requirement) => requirement.evaluatorDepartmentId === department.id
@@ -213,7 +227,7 @@ async function getRequiredPairs(activeDepartmentIds: string[]): Promise<Requirem
     );
   }
 
-  return allRequirements
+  const pairs = allRequirements
     .filter(
       (requirement) =>
         requirement.isActive &&
@@ -225,4 +239,27 @@ async function getRequiredPairs(activeDepartmentIds: string[]): Promise<Requirem
       evaluatorDepartmentId: requirement.evaluatorDepartmentId,
       evaluateeDepartmentId: requirement.evaluateeDepartmentId
     }));
+
+  const pairKeys = new Set(pairs.map((pair) => `${pair.evaluatorDepartmentId}:${pair.evaluateeDepartmentId}`));
+  const fullCoverageEvaluateeIds = new Set(
+    activeDepartments
+      .filter((department) =>
+        DEFAULT_FULL_COVERAGE_EVALUATEE_NAMES.some(
+          (name) => normalizeDepartmentName(name) === normalizeDepartmentName(department.name)
+        )
+      )
+      .filter(isEvaluatableDepartment)
+      .map((department) => department.id)
+  );
+
+  for (const evaluateeDepartmentId of fullCoverageEvaluateeIds) {
+    for (const evaluatorDepartmentId of activeDepartmentIds) {
+      const key = `${evaluatorDepartmentId}:${evaluateeDepartmentId}`;
+      if (evaluatorDepartmentId === evaluateeDepartmentId || pairKeys.has(key)) continue;
+      pairs.push({ evaluatorDepartmentId, evaluateeDepartmentId });
+      pairKeys.add(key);
+    }
+  }
+
+  return pairs;
 }

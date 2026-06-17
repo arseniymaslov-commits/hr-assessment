@@ -43,7 +43,7 @@ export default async function EvaluationsPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-ink">Заполнение оценки</h1>
         <p className="mt-1 text-sm text-muted">
-          Оцените взаимодействие с другим подразделением. Оценки ниже 9 сохраняются только с комментарием.
+          Оцените взаимодействие со всеми доступными подразделениями. Оценки ниже 10 сохраняются только с комментарием.
         </p>
       </div>
 
@@ -53,7 +53,17 @@ export default async function EvaluationsPage() {
         periods={periodOptions}
         criteria={criterionOptions}
         requirements={requirementOptions}
-        user={{ role: user.role, departmentId: user.departmentId, departmentName: user.department?.name }}
+        existingEvaluations={visibleEvaluations.map((evaluation) => ({
+          periodId: evaluation.periodId,
+          criterionId: evaluation.criterionId,
+          evaluatorDepartmentId: evaluation.evaluatorDepartmentId,
+          evaluatorUserId: evaluation.evaluatorUserId,
+          evaluateeDepartmentId: evaluation.evaluateeDepartmentId,
+          score: evaluation.score,
+          comment: evaluation.comment,
+          noInteraction: evaluation.noInteraction
+        }))}
+        user={{ id: user.id, role: user.role, departmentId: user.departmentId, departmentName: user.department?.name }}
       />
 
       {user.role === Role.LEADER && user.departmentId && user.department && canLaunchOwnEvaluation ? (
