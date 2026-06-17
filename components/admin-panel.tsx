@@ -318,6 +318,9 @@ export default function AdminPanel({
             <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-line px-4 py-2 font-semibold text-ink" type="button" onClick={() => request("/api/evaluation-requests/bulk", { method: "POST", body: JSON.stringify({ periodId: launchPeriodId, scheduledAt: launchScheduledAt, deadlineAt: launchDeadlineAt }) })}>
               <Send size={18} /> Все СП
             </button>
+            <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 font-semibold text-amber-800" type="button" onClick={() => request("/api/admin/notifications/escalation", { method: "POST", body: JSON.stringify({ periodId: launchPeriodId }) })}>
+              <Send size={18} /> Эскалация руководителям
+            </button>
           </div>
         </section>
       </section>
