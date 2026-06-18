@@ -46,13 +46,15 @@ export default function MatrixClient({
   columnDepartments,
   evaluations,
   summaries,
-  lowComments
+  lowComments,
+  canViewComments
 }: {
   rowDepartments: Department[];
   columnDepartments: Department[];
   evaluations: MatrixEvaluation[];
   summaries: Summary[];
   lowComments: LowComment[];
+  canViewComments: boolean;
 }) {
   const [selected, setSelected] = useState<MatrixEvaluation | null>(null);
   const map = useMemo(() => {
@@ -87,7 +89,7 @@ export default function MatrixClient({
                     <div className="mt-1 font-semibold text-ink">Подразделение</div>
                   )}
                   <div className="mt-3 text-3xl font-semibold text-brand">{fixed(summary.average)}</div>
-                  <div className="mt-1 text-sm text-muted">Оценок: {summary.count}, ниже 9: {summary.lowCount}</div>
+                  <div className="mt-1 text-sm text-muted">Оценок: {summary.count}, 9 и ниже: {summary.lowCount}</div>
                 </div>
               );
             })}
@@ -223,10 +225,12 @@ export default function MatrixClient({
               <div>
                 <div className="text-sm text-muted">Комментарий</div>
                 <p className="mt-1 text-sm leading-6 text-slate-700">
-                  {selected.comment ||
+                  {canViewComments
+                    ? selected.comment ||
                     (selected.noInteraction
                       ? "Подразделение отметило, что взаимодействия за период не было."
-                      : "Комментарий не указан, потому что оценка 9 или выше.")}
+                      : "Комментарий не указан, потому что оценка выше 9.")
+                    : "Комментарии доступны руководителю оцениваемого отдела, директору и администратору."}
                 </p>
               </div>
             </div>
@@ -240,10 +244,14 @@ export default function MatrixClient({
         <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
           <div className="flex items-center gap-2">
             <MessageSquareWarning className="text-brand" size={18} />
-            <h2 className="font-semibold text-ink">Комментарии ниже 9</h2>
+            <h2 className="font-semibold text-ink">Комментарии 9 и ниже</h2>
           </div>
           <div className="mt-4 max-h-[620px] space-y-3 overflow-y-auto pr-1">
-            {lowComments.length ? (
+            {!canViewComments ? (
+              <p className="text-sm leading-6 text-muted">
+                Комментарии доступны руководителю оцениваемого отдела, директору и администратору.
+              </p>
+            ) : lowComments.length ? (
               lowComments.map((item) => (
                 <article className="rounded-lg border border-line bg-slate-50 p-3" key={item.id}>
                   <div className="flex items-start justify-between gap-3">
@@ -259,7 +267,7 @@ export default function MatrixClient({
                 </article>
               ))
             ) : (
-              <p className="text-sm leading-6 text-muted">За выбранный период нет оценок ниже 9 с комментариями.</p>
+              <p className="text-sm leading-6 text-muted">За выбранный период нет оценок 9 и ниже с комментариями.</p>
             )}
           </div>
         </section>

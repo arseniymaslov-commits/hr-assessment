@@ -1,7 +1,6 @@
 import AppShell from "@/components/app-shell";
 import DepartmentLabel from "@/components/department-label";
 import EvaluationForm from "@/components/evaluation-form";
-import LeaderLaunchPanel from "@/components/leader-launch-panel";
 import ScoreBadge from "@/components/score-badge";
 import { Role } from "@prisma/client";
 import { requireUser } from "@/lib/auth";
@@ -30,9 +29,6 @@ export default async function EvaluationsPage() {
     status
   }));
   const criterionOptions = criteria.map(({ id, name }) => ({ id, name }));
-  const canLaunchOwnEvaluation = Boolean(
-    user.departmentId && evaluateeDepartmentOptions.some((department) => department.id === user.departmentId)
-  );
   const requirementOptions = requirements.map(
     ({ evaluatorDepartmentId, evaluateeDepartmentId }) => ({
       evaluatorDepartmentId,
@@ -75,10 +71,6 @@ export default async function EvaluationsPage() {
             : null
         }}
       />
-
-      {user.role === Role.LEADER && user.departmentId && user.department && canLaunchOwnEvaluation ? (
-        <LeaderLaunchPanel departmentId={user.departmentId} departmentName={user.department.name} periods={periodOptions} />
-      ) : null}
 
       <section className="mt-6 rounded-lg border border-line bg-white">
         <div className="border-b border-line px-5 py-4">

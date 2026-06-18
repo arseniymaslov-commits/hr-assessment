@@ -67,6 +67,7 @@ export async function getPeriodMetrics(periodId?: string) {
       byEvaluator: [],
       companyAverage: null,
       lowScores: [],
+      lowScoreRepeatCounts: {},
       missingCount: 0,
       expectedCount: 0,
       completion: [],
@@ -76,6 +77,11 @@ export async function getPeriodMetrics(periodId?: string) {
 
   const activeDepartmentIds = new Set(departments.map((department) => department.id));
   const evaluateeDepartmentIds = new Set(evaluateeDepartments.map((department) => department.id));
+  const previousPeriod = periods.find(
+    (period) =>
+      period.year < selectedPeriod.year ||
+      (period.year === selectedPeriod.year && period.month < selectedPeriod.month)
+  );
   const allEvaluations = await prisma.evaluation.findMany({
     where: { periodId: selectedPeriod.id, criterionId: criterion.id },
     include: {
@@ -97,6 +103,36 @@ export async function getPeriodMetrics(periodId?: string) {
   const scoredEvaluations = evaluations.filter(
     (evaluation) => !evaluation.noInteraction && evaluation.score != null
   );
+  const previousEvaluations = previousPeriod
+    ? await prisma.evaluation.findMany({
+        where: {
+          periodId: previousPeriod.id,
+          criterionId: criterion.id,
+          noInteraction: false,
+          score: { not: null }
+        },
+        select: { evaluateeDepartmentId: true, score: true }
+      })
+    : [];
+  const previousLowEvaluations = await prisma.evaluation.findMany({
+    where: {
+      periodId: { not: selectedPeriod.id },
+      criterionId: criterion.id,
+      noInteraction: false,
+      score: { lte: 9 }
+    },
+    select: {
+      evaluatorDepartmentId: true,
+      evaluatorUserId: true,
+      evaluateeDepartmentId: true
+    }
+  });
+  const lowScoreRepeatCounts = previousLowEvaluations.reduce<Record<string, number>>((acc, evaluation) => {
+    const evaluatorId = evaluation.evaluatorDepartmentId || evaluation.evaluatorUserId || "director";
+    const key = `${evaluatorId}:${evaluation.evaluateeDepartmentId}`;
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
 
   const average = (scores: number[]) =>
     scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : null;
@@ -113,16 +149,24 @@ export async function getPeriodMetrics(periodId?: string) {
       (evaluation) => evaluation.evaluateeDepartmentId === department.id
     );
     const scores = relevantEvaluations.map((evaluation) => evaluation.score as number);
+    const previousScores = previousEvaluations
+      .filter((evaluation) => evaluation.evaluateeDepartmentId === department.id)
+      .map((evaluation) => evaluation.score)
+      .filter((score): score is number => score != null);
+    const previousAverage = average(previousScores);
+    const currentAverage = average(scores);
     const noInteractionCount = evaluations.filter(
       (evaluation) => evaluation.evaluateeDepartmentId === department.id && evaluation.noInteraction
     ).length;
 
     return {
       department,
-      average: average(scores),
+      average: currentAverage,
+      previousAverage,
+      averageDelta: currentAverage != null && previousAverage != null ? currentAverage - previousAverage : null,
       count: scores.length,
       noInteractionCount,
-      lowCount: scores.filter((score) => score < 9).length,
+      lowCount: scores.filter((score) => score <= 9).length,
       missingRequiredEvaluatorNames: requirements
         .filter(
           (requirement) =>
@@ -203,7 +247,8 @@ export async function getPeriodMetrics(periodId?: string) {
     byEvaluatee,
     byEvaluator,
     companyAverage: average(scoredEvaluations.map((evaluation) => evaluation.score as number)),
-    lowScores: scoredEvaluations.filter((evaluation) => (evaluation.score as number) < 9),
+    lowScores: scoredEvaluations.filter((evaluation) => (evaluation.score as number) <= 9),
+    lowScoreRepeatCounts,
     missingCount,
     expectedCount,
     completion,

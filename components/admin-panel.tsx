@@ -105,9 +105,6 @@ export default function AdminPanel({
     periods.find((period) => period.status === "OPEN")?.id || periods[0]?.id || ""
   );
   const [launchScheduledAt, setLaunchScheduledAt] = useState(toDateTimeLocal(new Date()));
-  const [launchDeadlineAt, setLaunchDeadlineAt] = useState(
-    toDateTimeLocal(new Date(Date.now() + 3 * 24 * 60 * 60 * 1000))
-  );
   const [message, setMessage] = useState("");
 
   async function request(url: string, options: RequestInit) {
@@ -234,7 +231,7 @@ export default function AdminPanel({
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <div className="font-semibold text-ink">Кто обязан оценить выбранный отдел</div>
-              <p className="mt-1 text-sm text-muted">По умолчанию можно выбрать всех, затем снять лишние отметки. Стандарт: ОВА, КРО, УЧР, ПЭО и Бухгалтерия оценивают все отделы; ОЦП оценивают все.</p>
+              <p className="mt-1 text-sm text-muted">Стандарт: все активные подразделения оценивают все оцениваемые отделы. Админ может снять лишних оценщиков вручную.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <button className="focus-ring rounded-lg border border-line bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50" type="button" onClick={() => setRequiredEvaluatorIds(evaluatorOptions.map((department) => department.id))}>
@@ -301,7 +298,7 @@ export default function AdminPanel({
 
         <section className="rounded-lg border border-line bg-white p-5">
           <h2 className="font-semibold text-ink">Запуск оценки отдела</h2>
-          <p className="mt-1 text-sm text-muted">Запускает оценку выбранного отдела или планирует ее на календарную дату. В момент запуска руководителям обязательных подразделений отправляется письмо со ссылкой на форму. После дедлайна незаполненные обязательные оценки станут статусом «Нет взаимодействия».</p>
+          <p className="mt-1 text-sm text-muted">Запускает оценку выбранного отдела или планирует ее на календарную дату. Срок заполнения всегда 3 дня от даты запуска. За день до дедлайна система отправит напоминание тем, кто не заполнил оценку.</p>
           <div className="mt-4 grid gap-3 lg:grid-cols-2">
             <select className="focus-ring rounded-lg border border-line px-3 py-2" value={launchDepartmentId} onChange={(event) => setLaunchDepartmentId(event.target.value)}>
               {evaluateeDepartments.map((department) => (
@@ -317,19 +314,18 @@ export default function AdminPanel({
               <span>Дата и время запуска</span>
               <input className="focus-ring rounded-lg border border-line px-3 py-2 text-ink" type="datetime-local" value={launchScheduledAt} onChange={(event) => setLaunchScheduledAt(event.target.value)} />
             </label>
-            <label className="grid gap-1 text-sm text-muted">
-              <span>Дедлайн заполнения</span>
-              <input className="focus-ring rounded-lg border border-line px-3 py-2 text-ink" type="datetime-local" value={launchDeadlineAt} onChange={(event) => setLaunchDeadlineAt(event.target.value)} />
-            </label>
+            <div className="rounded-lg border border-line bg-slate-50 px-3 py-2 text-sm text-muted">
+              Дедлайн: автоматически через 3 дня после запуска
+            </div>
           </div>
           <div className="mt-4 flex flex-wrap gap-3">
-            <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-brand/30 bg-white px-4 py-2 font-semibold text-brand transition hover:bg-brand/5" type="button" onClick={() => request("/api/evaluation-requests", { method: "POST", body: JSON.stringify({ evaluateeDepartmentId: launchDepartmentId, periodId: launchPeriodId, scheduledAt: launchScheduledAt, deadlineAt: launchDeadlineAt }) })}>
+            <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-brand/30 bg-white px-3 py-2 text-sm font-semibold text-brand transition hover:bg-brand/5" type="button" onClick={() => request("/api/evaluation-requests", { method: "POST", body: JSON.stringify({ evaluateeDepartmentId: launchDepartmentId, periodId: launchPeriodId, scheduledAt: launchScheduledAt }) })}>
               <Send size={18} /> Запустить
             </button>
-            <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-white px-4 py-2 font-semibold text-ink transition hover:border-slate-300 hover:bg-slate-50" type="button" onClick={() => request("/api/evaluation-requests/bulk", { method: "POST", body: JSON.stringify({ periodId: launchPeriodId, scheduledAt: launchScheduledAt, deadlineAt: launchDeadlineAt }) })}>
+            <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-semibold text-ink transition hover:border-slate-300 hover:bg-slate-50" type="button" onClick={() => request("/api/evaluation-requests/bulk", { method: "POST", body: JSON.stringify({ periodId: launchPeriodId, scheduledAt: launchScheduledAt }) })}>
               <Send size={18} /> Все СП
             </button>
-            <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 font-semibold text-amber-800" type="button" onClick={() => request("/api/admin/notifications/escalation", { method: "POST", body: JSON.stringify({ periodId: launchPeriodId }) })}>
+            <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm font-semibold text-amber-800 transition hover:bg-amber-50" type="button" onClick={() => request("/api/admin/notifications/escalation", { method: "POST", body: JSON.stringify({ periodId: launchPeriodId }) })}>
               <Send size={18} /> Эскалация руководителям
             </button>
           </div>

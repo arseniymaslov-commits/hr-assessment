@@ -16,6 +16,8 @@ export default async function MatrixPage({
   const user = await requireUser([Role.ADMIN, Role.ANALYST, Role.LEADER, Role.DIRECTOR, Role.VIEWER]);
   const metrics = await getPeriodMetrics(searchParams.period);
   const leaderDepartmentId = user.role === Role.LEADER ? user.departmentId : null;
+  const canViewComments =
+    user.role === Role.ADMIN || user.role === Role.DIRECTOR || user.role === Role.LEADER;
   const selectedDepartment = leaderDepartmentId || searchParams.department;
   const columnDepartments = selectedDepartment
     ? metrics.evaluateeDepartments.filter((department) => department.id === selectedDepartment)
@@ -103,7 +105,14 @@ export default async function MatrixPage({
           {!leaderDepartmentId ? <DepartmentFilter departments={departmentOptions} /> : null}
         </div>
       </div>
-      <MatrixClient rowDepartments={rowDepartmentOptions} columnDepartments={columnDepartmentOptions} evaluations={evaluations} summaries={summaries} lowComments={lowComments} />
+      <MatrixClient
+        rowDepartments={rowDepartmentOptions}
+        columnDepartments={columnDepartmentOptions}
+        evaluations={evaluations}
+        summaries={summaries}
+        lowComments={canViewComments ? lowComments : []}
+        canViewComments={canViewComments}
+      />
     </AppShell>
   );
 }

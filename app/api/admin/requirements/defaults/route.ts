@@ -1,12 +1,8 @@
 import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
-import {
-  DEFAULT_FULL_COVERAGE_EVALUATEE_NAMES,
-  DEFAULT_REQUIRED_EVALUATOR_NAMES,
-  isEvaluatableDepartment,
-  normalizeDepartmentName
-} from "@/lib/evaluation-scope";
+import { isEvaluatableDepartment } from "@/lib/evaluation-scope";
+import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
 export async function POST() {
@@ -20,39 +16,10 @@ export async function POST() {
     select: { id: true, name: true }
   });
   const evaluateeDepartments = departments.filter(isEvaluatableDepartment);
-  const departmentsByName = new Map(departments.map((department) => [normalizeDepartmentName(department.name), department]));
-  const evaluatorDepartments = DEFAULT_REQUIRED_EVALUATOR_NAMES.map((name) =>
-    departmentsByName.get(normalizeDepartmentName(name))
-  ).filter((department): department is { id: string; name: string } => Boolean(department));
-  const fullCoverageEvaluatees = DEFAULT_FULL_COVERAGE_EVALUATEE_NAMES.map((name) =>
-    departmentsByName.get(normalizeDepartmentName(name))
-  ).filter((department): department is { id: string; name: string } => Boolean(department));
 
   let updatedCount = 0;
 
   for (const evaluateeDepartment of evaluateeDepartments) {
-    for (const evaluatorDepartment of evaluatorDepartments) {
-      if (evaluatorDepartment.id === evaluateeDepartment.id) continue;
-      await prisma.evaluationRequirement.upsert({
-        where: {
-          evaluatorDepartmentId_evaluateeDepartmentId: {
-            evaluatorDepartmentId: evaluatorDepartment.id,
-            evaluateeDepartmentId: evaluateeDepartment.id
-          }
-        },
-        update: { isActive: true },
-        create: {
-          evaluatorDepartmentId: evaluatorDepartment.id,
-          evaluateeDepartmentId: evaluateeDepartment.id,
-          isActive: true
-        }
-      });
-      updatedCount += 1;
-    }
-  }
-
-  for (const evaluateeDepartment of fullCoverageEvaluatees) {
-    if (!isEvaluatableDepartment(evaluateeDepartment)) continue;
     for (const evaluatorDepartment of departments) {
       if (evaluatorDepartment.id === evaluateeDepartment.id) continue;
       await prisma.evaluationRequirement.upsert({
@@ -72,6 +39,13 @@ export async function POST() {
       updatedCount += 1;
     }
   }
+
+  await writeAuditLog({
+    action: "requirements.defaults",
+    summary: "Применен стандарт: все активные подразделения оценивают все оцениваемые подразделения",
+    details: `Активировано связок: ${updatedCount}`,
+    user
+  });
 
   return NextResponse.json({
     message: `Стандарт обязательных оценок применен. Активировано связок: ${updatedCount}.`

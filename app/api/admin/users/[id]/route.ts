@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
+import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
@@ -26,9 +27,16 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     return NextResponse.json({ error: "Нельзя отключить текущего пользователя" }, { status: 400 });
   }
 
-  await prisma.user.update({
+  const targetUser = await prisma.user.update({
     where: { id: params.id },
     data
+  });
+
+  await writeAuditLog({
+    action: "user.update",
+    summary: "Пользователь обновлен",
+    details: `${targetUser.name} (${targetUser.email})`,
+    user
   });
 
   return NextResponse.json({ message: "Пользователь обновлен" });
@@ -44,9 +52,16 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: "Нельзя отключить текущего пользователя" }, { status: 400 });
   }
 
-  await prisma.user.update({
+  const targetUser = await prisma.user.update({
     where: { id: params.id },
     data: { isActive: false }
+  });
+
+  await writeAuditLog({
+    action: "user.disable",
+    summary: "Пользователь отключен",
+    details: `${targetUser.name} (${targetUser.email})`,
+    user
   });
 
   return NextResponse.json({ message: "Пользователь отключен" });

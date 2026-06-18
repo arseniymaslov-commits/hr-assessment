@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
 import { isEvaluatableDepartment, isEvaluatableDepartmentName } from "@/lib/evaluation-scope";
+import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
@@ -58,6 +59,13 @@ export async function POST(request: Request) {
       if (shouldBeActive) activeCount += 1;
     }
 
+    await writeAuditLog({
+      action: "requirements.update",
+      summary: "Изменен список оценщиков для подразделения",
+      details: `Оцениваемый отдел: ${evaluateeDepartment.name}. Активных оценщиков: ${activeCount}`,
+      user
+    });
+
     return NextResponse.json({ message: `Список обязательных оценщиков сохранен: ${activeCount}` });
   }
 
@@ -101,6 +109,13 @@ export async function POST(request: Request) {
       updatedCount += 1;
     }
   }
+
+  await writeAuditLog({
+    action: "requirements.bulk",
+    summary: isActive ? "Массово назначены обязательные оценки" : "Массово сняты обязательные оценки",
+    details: `Изменено связок: ${updatedCount}`,
+    user
+  });
 
   return NextResponse.json({
     message: isActive

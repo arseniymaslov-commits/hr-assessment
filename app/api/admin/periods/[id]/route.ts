@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { PeriodStatus, Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
+import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
@@ -19,9 +20,16 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     });
   }
 
-  await prisma.period.update({
+  const period = await prisma.period.update({
     where: { id: params.id },
     data: { status }
+  });
+
+  await writeAuditLog({
+    action: status === PeriodStatus.OPEN ? "period.reopen" : "period.close",
+    summary: status === PeriodStatus.OPEN ? "Период открыт повторно" : "Период закрыт и оценки заморожены",
+    details: `${String(period.month).padStart(2, "0")}.${period.year}`,
+    user
   });
 
   return NextResponse.json({ message: "Статус периода обновлен" });

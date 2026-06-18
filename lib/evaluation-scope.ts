@@ -1,14 +1,7 @@
 export const NON_EVALUATED_DEPARTMENT_NAMES = new Set([
-  "СВКА",
   "ОВА",
   "КРО",
-  "ТД",
-  "КД",
-  "ЗГД",
-  "Securi Force",
-  "Финансы",
-  "Финансовая дирекция",
-  "Заместитель финансового директора"
+  "СКП"
 ]);
 
 export const DEFAULT_REQUIRED_EVALUATOR_NAMES = [

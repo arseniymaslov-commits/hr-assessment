@@ -3,7 +3,7 @@ import { Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
 import { isEvaluatableDepartmentName } from "@/lib/evaluation-scope";
 import { prisma } from "@/lib/prisma";
-import { launchEvaluationRequest } from "@/lib/evaluation-requests";
+import { launchEvaluationRequest, notifyAdminsEvaluationStarted } from "@/lib/evaluation-requests";
 
 function parseDate(value: unknown) {
   if (!value) return undefined;
@@ -13,7 +13,7 @@ function parseDate(value: unknown) {
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
-  if (!user || (user.role !== Role.ADMIN && user.role !== Role.LEADER)) {
+  if (!user || user.role !== Role.ADMIN) {
     return NextResponse.json({ error: "Недостаточно прав" }, { status: 403 });
   }
 
@@ -21,23 +21,12 @@ export async function POST(request: Request) {
   const periodId = String(body?.periodId || "");
   const evaluateeDepartmentId = String(body?.evaluateeDepartmentId || "");
   const scheduledAt = parseDate(body?.scheduledAt);
-  const deadlineAt = parseDate(body?.deadlineAt);
 
   if (!periodId || !evaluateeDepartmentId) {
     return NextResponse.json({ error: "Укажите период и подразделение" }, { status: 400 });
   }
-  if (scheduledAt === null || deadlineAt === null) {
-    return NextResponse.json({ error: "Некорректная дата запуска или дедлайн" }, { status: 400 });
-  }
-  if (scheduledAt && deadlineAt && deadlineAt <= scheduledAt) {
-    return NextResponse.json({ error: "Дедлайн должен быть позже даты запуска" }, { status: 400 });
-  }
-
-  if (user.role === Role.LEADER && user.departmentId !== evaluateeDepartmentId) {
-    return NextResponse.json(
-      { error: "Руководитель или заместитель может запускать оценку только своего отдела" },
-      { status: 403 }
-    );
+  if (scheduledAt === null) {
+    return NextResponse.json({ error: "Некорректная дата запуска" }, { status: 400 });
   }
 
   const period = await prisma.period.findUnique({ where: { id: periodId } });
@@ -57,8 +46,13 @@ export async function POST(request: Request) {
     periodId,
     evaluateeDepartmentId,
     initiatedById: user.id,
-    scheduledAt: scheduledAt || undefined,
-    deadlineAt: deadlineAt || undefined
+    scheduledAt: scheduledAt || undefined
+  });
+
+  const adminNotice = await notifyAdminsEvaluationStarted({
+    periodId,
+    initiatedById: user.id,
+    summary: `Запущена оценка отдела ${evaluateeDepartment.name}. Обязательных оценщиков: ${result.requirementsCount}.`
   });
 
   const message = result.scheduled
@@ -67,5 +61,7 @@ export async function POST(request: Request) {
       ? `Оценка создана, но письмо не отправлено: не настроен SMTP или нет получателей. Обязательных оценщиков: ${result.requirementsCount}.`
       : `Оценка запущена. Письмо отправлено руководителям: ${result.recipientsCount}. Обязательных оценщиков: ${result.requirementsCount}.`;
 
-  return NextResponse.json({ message });
+  return NextResponse.json({
+    message: `${message} Админу отправлено уведомлений: ${adminNotice.adminRecipients}.`
+  });
 }

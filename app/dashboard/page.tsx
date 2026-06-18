@@ -18,6 +18,9 @@ export default async function DashboardPage({
   const user = await requireUser();
   const metrics = await getPeriodMetrics(searchParams.period);
   const leaderDepartmentId = user.role === Role.LEADER ? user.departmentId : null;
+  const canViewProblemComments =
+    user.role === Role.ADMIN || user.role === Role.DIRECTOR || user.role === Role.LEADER;
+  const canExportExcel = user.role === Role.ADMIN || user.role === Role.ANALYST || user.role === Role.DIRECTOR;
   const selectedDepartment = leaderDepartmentId || searchParams.department;
 
   const rows = selectedDepartment
@@ -66,6 +69,7 @@ export default async function DashboardPage({
           evaluateeName: departmentOptionLabel(evaluation.evaluateeDepartment)
         }))
     : [];
+  const lowScoreRepeatCounts = metrics.lowScoreRepeatCounts as Record<string, number>;
   const periodOptions = metrics.periods.map(({ id, month, year, status }) => ({
     id,
     month,
@@ -86,7 +90,7 @@ export default async function DashboardPage({
         <div className="flex flex-wrap gap-2">
           <PeriodFilter periods={periodOptions} selectedPeriodId={metrics.selectedPeriod?.id} />
           {!leaderDepartmentId ? <DepartmentFilter departments={departmentOptions} /> : null}
-          {metrics.selectedPeriod && !leaderDepartmentId ? (
+          {metrics.selectedPeriod && canExportExcel ? (
             <a
               className="focus-ring rounded-lg border border-line bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
               href={`/api/export?period=${metrics.selectedPeriod.id}`}
@@ -99,7 +103,7 @@ export default async function DashboardPage({
 
       <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Средний балл компании" value={fixed(metrics.companyAverage)} />
-        <MetricCard label={leaderDepartmentId ? "Оценок ниже 9 по вашему отделу" : "Оценок ниже 9"} value={String(lowScores.length)} />
+        <MetricCard label={leaderDepartmentId ? "Оценок 9 и ниже по вашему отделу" : "Оценок 9 и ниже"} value={String(lowScores.length)} />
         <MetricCard label={leaderDepartmentId ? "Осталось оценок по вашему отделу" : "Отсутствующих оценок"} value={String(leaderDepartmentId ? visibleMissingCount : metrics.missingCount)} />
         <MetricCard
           label="Статус периода"
@@ -132,7 +136,7 @@ export default async function DashboardPage({
                   <th className="px-5 py-3">Средний балл</th>
                   <th className="px-5 py-3">Оценок</th>
                   <th className="px-5 py-3">Нет взаимодействия</th>
-                  <th className="px-5 py-3">Ниже 9</th>
+                  <th className="px-5 py-3">9 и ниже</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -143,6 +147,7 @@ export default async function DashboardPage({
                     </td>
                     <td className="px-5 py-4">
                       <ScoreBadge score={row.average} />
+                      <DeltaBadge value={row.averageDelta} />
                       {row.missingRequiredEvaluatorNames.length ? (
                         <div className="mt-2 max-w-xs text-xs leading-5 text-risk">
                           Нет обязательной оценки от: {row.missingRequiredEvaluatorNames.join(", ")}
@@ -180,6 +185,7 @@ export default async function DashboardPage({
                     />
                   </div>
                   <ScoreBadge score={row.average} />
+                  <DeltaBadge value={row.averageDelta} />
                 </div>
               ))}
           </div>
@@ -192,7 +198,11 @@ export default async function DashboardPage({
             <h2 className="font-semibold text-ink">Проблемные зоны</h2>
           </div>
           <div className="max-h-[430px] overflow-auto">
-            {lowScores.length ? (
+            {!canViewProblemComments ? (
+              <div className="px-5 py-8 text-sm text-muted">
+                Комментарии доступны руководителю оцениваемого отдела, директору и администратору.
+              </div>
+            ) : lowScores.length ? (
               <div className="divide-y divide-line">
                 {lowScores.map((evaluation) => (
                   <div className="px-5 py-4" key={evaluation.id}>
@@ -207,12 +217,24 @@ export default async function DashboardPage({
                         → {departmentOptionLabel(evaluation.evaluateeDepartment)}
                       </span>
                     </div>
+                    {lowScoreRepeatCounts[
+                      `${evaluation.evaluatorDepartmentId || evaluation.evaluatorUserId || "director"}:${evaluation.evaluateeDepartmentId}`
+                    ] ? (
+                      <div className="mt-2 text-xs font-semibold text-amber-700">
+                        Повторяется в прошлых периодах:{" "}
+                        {
+                          lowScoreRepeatCounts[
+                            `${evaluation.evaluatorDepartmentId || evaluation.evaluatorUserId || "director"}:${evaluation.evaluateeDepartmentId}`
+                          ]
+                        }
+                      </div>
+                    ) : null}
                     <p className="mt-2 text-sm leading-6 text-slate-700">{evaluation.comment}</p>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="px-5 py-8 text-sm text-muted">Низких оценок за период нет.</div>
+              <div className="px-5 py-8 text-sm text-muted">Оценок 9 и ниже за период нет.</div>
             )}
           </div>
         </div>
@@ -247,5 +269,24 @@ function MetricCard({ label, value }: { label: string; value: string }) {
       <div className="text-sm text-muted">{label}</div>
       <div className="mt-2 text-3xl font-semibold text-ink">{value}</div>
     </div>
+  );
+}
+
+function DeltaBadge({ value }: { value?: number | null }) {
+  if (value == null) return null;
+  const positive = value > 0;
+  const neutral = Math.abs(value) < 0.005;
+  return (
+    <span
+      className={`ml-2 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+        neutral
+          ? "bg-slate-100 text-slate-600"
+          : positive
+            ? "bg-emerald-50 text-emerald-700"
+            : "bg-red-50 text-red-700"
+      }`}
+    >
+      {neutral ? "0.00" : `${positive ? "+" : ""}${value.toFixed(2)}`}
+    </span>
   );
 }

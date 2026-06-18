@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { PeriodStatus, Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
+import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
@@ -26,6 +27,13 @@ export async function POST(request: Request) {
     where: { month_year: { month, year } },
     update: { status: PeriodStatus.OPEN },
     create: { month, year, status: PeriodStatus.OPEN }
+  });
+
+  await writeAuditLog({
+    action: "period.open",
+    summary: "Открыт период оценки",
+    details: `${String(month).padStart(2, "0")}.${year}`,
+    user
   });
 
   return NextResponse.json({ message: "Период открыт" });

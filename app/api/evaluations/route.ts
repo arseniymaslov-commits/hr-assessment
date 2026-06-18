@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
+import { writeAuditLog } from "@/lib/audit";
 import { isEvaluatableDepartmentName } from "@/lib/evaluation-scope";
 import { prisma } from "@/lib/prisma";
 
@@ -52,6 +53,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Период закрыт или не найден" }, { status: 400 });
   }
 
+  const evaluationRequest = await prisma.evaluationRequest.findFirst({
+    where: {
+      periodId,
+      evaluateeDepartmentId,
+      scheduledAt: { lte: new Date() }
+    },
+    select: { deadlineAt: true, autoClosedAt: true }
+  });
+  if (evaluationRequest && (evaluationRequest.autoClosedAt || evaluationRequest.deadlineAt <= new Date())) {
+    return NextResponse.json(
+      { error: "Дедлайн оценки истек. Редактирование заблокировано." },
+      { status: 400 }
+    );
+  }
+
   const evaluateeDepartment = await prisma.department.findUnique({
     where: { id: evaluateeDepartmentId },
     select: { name: true, isActive: true }
@@ -91,6 +107,15 @@ export async function POST(request: Request) {
   const evaluation = existing
     ? await prisma.evaluation.update({ where: { id: existing.id }, data: payload })
     : await prisma.evaluation.create({ data: payload });
+
+  await writeAuditLog({
+    action: existing ? "evaluation.update" : "evaluation.create",
+    summary: existing ? "Оценка изменена" : "Оценка создана",
+    details: `Оцениваемый отдел: ${evaluateeDepartment.name}. Оценка: ${
+      noInteraction ? "Нет взаимодействия" : scoreToSave
+    }.`,
+    user
+  });
 
   return NextResponse.json({ evaluation });
 }

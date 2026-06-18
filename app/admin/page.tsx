@@ -5,12 +5,17 @@ import DepartmentLabel from "@/components/department-label";
 import ScoreBadge from "@/components/score-badge";
 import { requireUser } from "@/lib/auth";
 import { getPeriodMetrics, getReferenceData } from "@/lib/metrics";
+import { prisma } from "@/lib/prisma";
 
 export default async function AdminPage() {
   const user = await requireUser([Role.ADMIN]);
-  const [{ departments, evaluateeDepartments, periods, users, criteria }, metrics] = await Promise.all([
+  const [{ departments, evaluateeDepartments, periods, users, criteria }, metrics, auditLogs] = await Promise.all([
     getReferenceData(),
-    getPeriodMetrics()
+    getPeriodMetrics(),
+    prisma.auditLog.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 20
+    })
   ]);
   const departmentOptions = departments.map(({ id, name, shortName }) => ({ id, name, shortName }));
   const evaluateeDepartmentOptions = evaluateeDepartments.map(({ id, name, shortName }) => ({ id, name, shortName }));
@@ -114,6 +119,33 @@ export default async function AdminPage() {
                 ))}
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <section className="mt-6 rounded-lg border border-line bg-white">
+        <div className="border-b border-line px-5 py-4">
+          <h2 className="font-semibold text-ink">Журнал действий</h2>
+        </div>
+        <div className="divide-y divide-line">
+          {auditLogs.length ? (
+            auditLogs.map((log) => (
+              <div className="grid gap-2 px-5 py-3 text-sm md:grid-cols-[170px_1fr_190px]" key={log.id}>
+                <div className="text-muted">
+                  {log.createdAt.toLocaleString("ru-RU", {
+                    dateStyle: "short",
+                    timeStyle: "short"
+                  })}
+                </div>
+                <div>
+                  <div className="font-medium text-ink">{log.summary}</div>
+                  {log.details ? <div className="mt-1 text-muted">{log.details}</div> : null}
+                </div>
+                <div className="text-muted">{log.userName || "Система"}</div>
+              </div>
+            ))
+          ) : (
+            <div className="px-5 py-6 text-sm text-muted">Действий пока нет.</div>
+          )}
         </div>
       </section>
     </AppShell>

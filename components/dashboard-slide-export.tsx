@@ -156,7 +156,7 @@ export default function DashboardSlideExport({
 
               <section className="rounded-lg border border-slate-200 bg-white p-8 shadow-sm">
                 <div className="flex items-center justify-between gap-4">
-                  <h2 className="text-[28px] font-bold text-slate-950">Оценки ниже 9</h2>
+                  <h2 className="text-[28px] font-bold text-slate-950">Оценки 9 и ниже</h2>
                   <span className="rounded-full bg-red-50 px-4 py-2 text-[17px] font-semibold text-red-700 ring-1 ring-red-100">
                     {lowScores.length}
                   </span>
@@ -181,7 +181,7 @@ export default function DashboardSlideExport({
                     ))
                   ) : (
                     <div className="flex h-[330px] items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50 text-[24px] font-semibold text-emerald-700">
-                      Оценок ниже 9 нет
+                      Оценок 9 и ниже нет
                     </div>
                   )}
                 </div>

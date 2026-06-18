@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
+import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
 const assignableRoles = new Set<Role>([
@@ -58,6 +59,13 @@ export async function POST(request: Request) {
       receivesNotifications,
       isActive: true
     }
+  });
+
+  await writeAuditLog({
+    action: "user.save",
+    summary: "Пользователь сохранен",
+    details: `${name} (${email})`,
+    user
   });
 
   return NextResponse.json({ message: "Пользователь сохранен. Пароль будет задан при первом входе." });

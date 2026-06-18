@@ -19,10 +19,16 @@ export async function GET(request: Request) {
   if (!user) {
     return NextResponse.json({ error: "Требуется вход" }, { status: 401 });
   }
+  const allowedExportRoles = new Set<Role>([Role.ADMIN, Role.ANALYST, Role.DIRECTOR]);
+  if (!allowedExportRoles.has(user.role)) {
+    return NextResponse.json({ error: "Недостаточно прав для экспорта" }, { status: 403 });
+  }
 
   const { searchParams } = new URL(request.url);
   const metrics = await getPeriodMetrics(searchParams.get("period") || undefined);
-  const leaderDepartmentId = user.role === Role.LEADER ? user.departmentId : null;
+  const leaderDepartmentId = null;
+  const canExportComments =
+    user.role === Role.ADMIN || user.role === Role.DIRECTOR || user.role === Role.LEADER;
   const periodName = metrics.selectedPeriod ? periodLabel(metrics.selectedPeriod) : "period";
   const evaluatorDepartments = metrics.departments;
   const evaluateeDepartments = leaderDepartmentId
@@ -51,7 +57,8 @@ export async function GET(request: Request) {
       "Средний балл": row.average == null ? "" : Number(row.average.toFixed(2)),
       "Количество оценок": row.count,
       "Нет взаимодействия": row.noInteractionCount,
-      "Оценок ниже 9": row.lowCount
+      "Оценок 9 и ниже": row.lowCount,
+      "Изменение к прошлому месяцу": row.averageDelta == null ? "" : Number(row.averageDelta.toFixed(2))
     })),
     "Сводка"
   );
@@ -116,11 +123,11 @@ export async function GET(request: Request) {
         : evaluation.evaluatorUser?.name || "Директор",
       "Кого оценивают": departmentOptionLabel(evaluation.evaluateeDepartment),
       "Оценка": evaluation.score,
-      "Комментарий": evaluation.comment || "",
+      "Комментарий": canExportComments ? evaluation.comment || "" : "",
       "Автор": evaluation.author.name,
       "Дата": evaluation.updatedAt.toISOString()
     })),
-    "Комментарии ниже 9"
+    "Комментарии 9 и ниже"
   );
 
   appendSheet(
@@ -133,7 +140,7 @@ export async function GET(request: Request) {
       "Кого оценивают": departmentOptionLabel(evaluation.evaluateeDepartment),
       "Оценка": evaluation.noInteraction ? "" : evaluation.score,
       "Нет взаимодействия": evaluation.noInteraction ? "Да" : "Нет",
-      "Комментарий": evaluation.comment || "",
+      "Комментарий": canExportComments ? evaluation.comment || "" : "",
       "Автор": evaluation.author.name,
       "Дата заполнения": evaluation.updatedAt.toISOString()
     })),
