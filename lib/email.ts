@@ -33,13 +33,18 @@ export async function sendMail(input: MailInput) {
     auth: { user, pass }
   });
 
-  await transporter.sendMail({
-    from: { name: fromName, address: fromAddress },
-    to: recipients.join(", "),
-    subject: input.subject,
-    text: input.text,
-    html: input.html
-  });
+  try {
+    await transporter.sendMail({
+      from: { name: fromName, address: fromAddress },
+      to: recipients.join(", "),
+      subject: input.subject,
+      text: input.text,
+      html: input.html
+    });
+  } catch (error) {
+    console.error(`[mail failed] ${input.subject}:`, error);
+    return { skipped: true, recipientsCount: recipients.length };
+  }
 
   return { skipped: false, recipientsCount: recipients.length };
 }
