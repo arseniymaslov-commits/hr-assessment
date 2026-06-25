@@ -36,12 +36,12 @@ export default async function DashboardPage({
           evaluation.evaluatorDepartmentId === selectedDepartment
       )
     : metrics.lowScores;
-  const visibleExpectedCount = leaderDepartmentId
-    ? metrics.requirements.filter((requirement) => requirement.evaluateeDepartmentId === leaderDepartmentId).length
+  const visibleExpectedCount = selectedDepartment
+    ? metrics.requirements.filter((requirement) => requirement.evaluateeDepartmentId === selectedDepartment).length
     : metrics.expectedCount;
-  const visibleFilledCount = leaderDepartmentId
-    ? metrics.evaluations.filter((evaluation) => evaluation.evaluateeDepartmentId === leaderDepartmentId).length
-    : metrics.evaluations.length;
+  const visibleFilledCount = selectedDepartment
+    ? metrics.evaluations.filter((evaluation) => evaluation.evaluateeDepartmentId === selectedDepartment).length
+    : Math.max(0, metrics.expectedCount - metrics.missingCount);
   const visibleMissingCount = Math.max(0, visibleExpectedCount - visibleFilledCount);
   const slideDepartmentRow = selectedDepartment
     ? metrics.byEvaluatee.find((row) => row.department.id === selectedDepartment) || null
@@ -98,6 +98,31 @@ export default async function DashboardPage({
     missing: row.missing,
     isComplete: row.isComplete
   }));
+  const evaluationKeys = new Set(
+    metrics.evaluations
+      .filter((evaluation) => evaluation.evaluatorDepartmentId)
+      .map((evaluation) => `${evaluation.evaluatorDepartmentId}:${evaluation.evaluateeDepartmentId}`)
+  );
+  const departmentCompletionRows = slideDepartmentRow
+    ? metrics.requirements
+        .filter((requirement) => requirement.evaluateeDepartmentId === slideDepartmentRow.department.id)
+        .map((requirement) => {
+          const evaluatorDepartment = metrics.departments.find(
+            (department) => department.id === requirement.evaluatorDepartmentId
+          );
+          const filled = evaluationKeys.has(`${requirement.evaluatorDepartmentId}:${requirement.evaluateeDepartmentId}`)
+            ? 1
+            : 0;
+          return {
+            id: requirement.evaluatorDepartmentId,
+            name: evaluatorDepartment ? departmentOptionLabel(evaluatorDepartment) : "Подразделение",
+            filled,
+            expected: 1,
+            missing: filled ? 0 : 1,
+            isComplete: Boolean(filled)
+          };
+        })
+    : [];
   const lowScoreRepeatCounts = metrics.lowScoreRepeatCounts as Record<string, number>;
   const periodOptions = metrics.periods.map(({ id, month, year, status }) => ({
     id,
@@ -140,6 +165,24 @@ export default async function DashboardPage({
         />
       </section>
 
+      {slideDepartmentRow && metrics.selectedPeriod ? (
+        <CompanyDashboardPanel
+          mode="department"
+          title={slideDepartmentRow.department.name}
+          periodLabel={periodLabel(metrics.selectedPeriod)}
+          average={slideDepartmentRow.average}
+          companyAverage={metrics.companyAverage}
+          rank={slideRank}
+          totalDepartments={rankedDepartments.length}
+          lowScores={slideLowScores}
+          ranking={slideRanking}
+          completion={departmentCompletionRows}
+          filledCount={slideFilledCount}
+          missingCount={visibleMissingCount}
+          expectedCount={visibleExpectedCount}
+        />
+      ) : null}
+
       {canExportDepartmentSlide && metrics.selectedPeriod ? (
         <DashboardSlideExport
           mode="department"
@@ -159,6 +202,7 @@ export default async function DashboardPage({
 
       {canViewCompanyInteractiveDashboard && metrics.selectedPeriod ? (
         <CompanyDashboardPanel
+          mode="company"
           periodLabel={periodLabel(metrics.selectedPeriod)}
           companyAverage={metrics.companyAverage}
           lowScores={companyLowScores}

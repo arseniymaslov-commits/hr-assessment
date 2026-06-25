@@ -31,9 +31,14 @@ type CompletionItem = {
   isComplete: boolean;
 };
 
-type CompanyDashboardPanelProps = {
+type DashboardPanelProps = {
+  mode?: "company" | "department";
+  title?: string;
   periodLabel: string;
+  average?: number | null;
   companyAverage: number | null;
+  rank?: number | null;
+  totalDepartments?: number;
   lowScores: LowScore[];
   ranking: RankingItem[];
   completion: CompletionItem[];
@@ -54,11 +59,11 @@ const tabs: Array<{ key: TabKey; label: string; icon: LucideIcon }> = [
 const rankingPageSize = 12;
 const commentPageSize = 8;
 
-function fixed(value: number | null) {
+function fixed(value: number | null | undefined) {
   return value == null ? "-" : value.toFixed(2);
 }
 
-function scoreTone(value: number | null) {
+function scoreTone(value: number | null | undefined) {
   if (value == null) return "bg-slate-100 text-slate-600 ring-slate-200";
   if (value >= 9) return "bg-emerald-50 text-emerald-700 ring-emerald-200";
   if (value >= 8) return "bg-amber-50 text-amber-700 ring-amber-200";
@@ -72,18 +77,26 @@ function deltaText(value?: number | null) {
 }
 
 export default function CompanyDashboardPanel({
+  mode = "company",
+  title,
   periodLabel,
+  average,
   companyAverage,
+  rank,
+  totalDepartments = 0,
   lowScores,
   ranking,
   completion,
   filledCount,
   missingCount,
   expectedCount
-}: CompanyDashboardPanelProps) {
+}: DashboardPanelProps) {
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
   const [rankingPage, setRankingPage] = useState(1);
   const [commentPage, setCommentPage] = useState(1);
+  const isDepartment = mode === "department";
+  const dashboardTitle = isDepartment ? `Дашборд подразделения: ${title || "-"}` : "Общий дашборд компании";
+  const primaryAverage = isDepartment ? average : companyAverage;
   const completionPercent = expectedCount ? Math.round((filledCount / expectedCount) * 100) : 0;
 
   const rankedRows = useMemo(
@@ -112,6 +125,13 @@ export default function CompanyDashboardPanel({
         .sort((a, b) => b.missing - a.missing),
     [completion]
   );
+  const overviewRanking = useMemo(() => {
+    if (!isDepartment || !title) return rankedRows.slice(0, 6);
+    const topRows = rankedRows.slice(0, 5);
+    const currentRow = rankedRows.find((row) => row.name === title);
+    if (currentRow && !topRows.some((row) => row.id === currentRow.id)) return [...topRows, currentRow];
+    return topRows;
+  }, [isDepartment, rankedRows, title]);
 
   const rankingPages = Math.max(1, Math.ceil(rankedRows.length / rankingPageSize));
   const commentPages = Math.max(1, Math.ceil(lowScores.length / commentPageSize));
@@ -123,7 +143,7 @@ export default function CompanyDashboardPanel({
       <div className="border-b border-line px-5 py-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-ink">Общий дашборд компании</h2>
+            <h2 className="text-lg font-semibold text-ink">{dashboardTitle}</h2>
             <p className="mt-1 text-sm text-muted">{periodLabel}</p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -154,45 +174,77 @@ export default function CompanyDashboardPanel({
         {activeTab === "overview" ? (
           <div className="grid gap-5 xl:grid-cols-[1fr_1.1fr]">
             <div className="grid gap-3 sm:grid-cols-2">
-              <OverviewCard label="Средний балл компании" value={fixed(companyAverage)} hint="по выбранному периоду" />
-              <OverviewCard label="Заполнение" value={`${completionPercent}%`} hint={`${filledCount} из ${expectedCount}`} />
+              <OverviewCard
+                label={isDepartment ? "Средний балл подразделения" : "Средний балл компании"}
+                value={fixed(primaryAverage)}
+                hint="по выбранному периоду"
+              />
+              <OverviewCard
+                label={isDepartment ? "Место в рейтинге" : "Заполнение"}
+                value={isDepartment ? (rank ? `${rank}/${totalDepartments}` : "-") : `${completionPercent}%`}
+                hint={isDepartment ? "среди оцениваемых отделов" : `${filledCount} из ${expectedCount}`}
+              />
               <OverviewCard label="Оценки 9 и ниже" value={String(lowScores.length)} hint="с комментариями" />
               <OverviewCard label="Осталось оценок" value={String(missingCount)} hint="по обязательным связям" />
             </div>
 
             <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
               <CompactList
-                title="Лидеры рейтинга"
-                rows={rankedRows.slice(0, 6)}
+                title={isDepartment ? "Контекст рейтинга" : "Лидеры рейтинга"}
+                rows={overviewRanking}
                 emptyText="Нет данных для рейтинга"
-                render={(row, index) => (
-                  <>
-                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-xs font-semibold text-slate-700">
-                      {index + 1}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate font-medium text-ink">{row.name}</span>
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${scoreTone(row.average)}`}>
-                      {fixed(row.average)}
-                    </span>
-                  </>
-                )}
+                render={(row, index) => {
+                  const rowIndex = rankedRows.findIndex((rankedRow) => rankedRow.id === row.id) + 1;
+                  const isCurrent = isDepartment && row.name === title;
+                  return (
+                    <>
+                      <span
+                        className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-semibold ${
+                          isCurrent ? "bg-brand/10 text-brand" : "bg-slate-100 text-slate-700"
+                        }`}
+                      >
+                        {rowIndex || index + 1}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate font-medium text-ink">{row.name}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${scoreTone(row.average)}`}>
+                        {fixed(row.average)}
+                      </span>
+                    </>
+                  );
+                }}
               />
-              <CompactList
-                title="Требуют внимания"
-                rows={problemRows.slice(0, 6)}
-                emptyText="Проблемных зон нет"
-                render={(row) => (
-                  <>
-                    <span className="min-w-0 flex-1 truncate font-medium text-ink">{row.name}</span>
-                    <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 ring-1 ring-red-100">
-                      9 и ниже: {row.lowCount}
-                    </span>
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
-                      нет: {row.noInteractionCount}
-                    </span>
-                  </>
-                )}
-              />
+              {isDepartment ? (
+                <CompactList
+                  title="Кто дал 9 и ниже"
+                  rows={lowScores.slice(0, 8)}
+                  emptyText="Оценок 9 и ниже нет"
+                  render={(row) => (
+                    <>
+                      <span className="min-w-0 flex-1 truncate font-medium text-ink">{row.evaluatorName}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${scoreTone(row.score)}`}>
+                        {row.score ?? "-"}
+                      </span>
+                    </>
+                  )}
+                />
+              ) : (
+                <CompactList
+                  title="Требуют внимания"
+                  rows={problemRows.slice(0, 6)}
+                  emptyText="Проблемных зон нет"
+                  render={(row) => (
+                    <>
+                      <span className="min-w-0 flex-1 truncate font-medium text-ink">{row.name}</span>
+                      <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 ring-1 ring-red-100">
+                        9 и ниже: {row.lowCount}
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                        нет: {row.noInteractionCount}
+                      </span>
+                    </>
+                  )}
+                />
+              )}
             </div>
           </div>
         ) : null}
@@ -212,22 +264,25 @@ export default function CompanyDashboardPanel({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {pagedRanking.map((row, index) => (
-                    <tr key={row.id}>
-                      <td className="px-4 py-3 font-semibold text-slate-700">
-                        {(rankingPage - 1) * rankingPageSize + index + 1}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-ink">{row.name}</td>
-                      <td className="px-4 py-3">
-                        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${scoreTone(row.average)}`}>
-                          {fixed(row.average)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-slate-700">{deltaText(row.averageDelta)}</td>
-                      <td className="px-4 py-3 text-slate-700">{row.lowCount}</td>
-                      <td className="px-4 py-3 text-slate-700">{row.noInteractionCount}</td>
-                    </tr>
-                  ))}
+                  {pagedRanking.map((row, index) => {
+                    const isCurrent = isDepartment && row.name === title;
+                    return (
+                      <tr key={row.id} className={isCurrent ? "bg-brand/5" : undefined}>
+                        <td className="px-4 py-3 font-semibold text-slate-700">
+                          {(rankingPage - 1) * rankingPageSize + index + 1}
+                        </td>
+                        <td className="px-4 py-3 font-medium text-ink">{row.name}</td>
+                        <td className="px-4 py-3">
+                          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${scoreTone(row.average)}`}>
+                            {fixed(row.average)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-700">{deltaText(row.averageDelta)}</td>
+                        <td className="px-4 py-3 text-slate-700">{row.lowCount}</td>
+                        <td className="px-4 py-3 text-slate-700">{row.noInteractionCount}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -272,7 +327,7 @@ export default function CompanyDashboardPanel({
               <table className="w-full min-w-[680px] text-left text-sm">
                 <thead className="bg-slate-50 text-xs uppercase tracking-wide text-muted">
                   <tr>
-                    <th className="px-4 py-3">Оценивающий отдел</th>
+                    <th className="px-4 py-3">{isDepartment ? "Кто должен оценить отдел" : "Оценивающий отдел"}</th>
                     <th className="px-4 py-3">Заполнено</th>
                     <th className="px-4 py-3">Осталось</th>
                     <th className="px-4 py-3">Статус</th>
@@ -304,7 +359,7 @@ export default function CompanyDashboardPanel({
             </div>
 
             <CompactList
-              title="Кто бездействует"
+              title={isDepartment ? "Кто еще не оценил" : "Кто бездействует"}
               rows={inactiveRows}
               emptyText="Все обязательные оценки заполнены"
               render={(row) => (
