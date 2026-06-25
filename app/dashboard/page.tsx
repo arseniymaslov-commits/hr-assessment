@@ -56,17 +56,38 @@ export default async function DashboardPage({
   const slideRank = slideDepartmentRow
     ? rankedDepartments.findIndex((row) => row.department.id === slideDepartmentRow.department.id) + 1
     : null;
-  const slideLowScores = selectedDepartment
-    ? metrics.lowScores
-        .filter((evaluation) => evaluation.evaluateeDepartmentId === selectedDepartment)
-        .map((evaluation) => ({
-          id: evaluation.id,
-          score: evaluation.score,
-          comment: evaluation.comment,
-          evaluatorName: evaluation.evaluatorDepartment?.name || evaluation.evaluatorUser?.name || "Директор",
-          evaluateeName: departmentOptionLabel(evaluation.evaluateeDepartment)
-        }))
-    : [];
+  const canExportSlides =
+    canViewProblemComments &&
+    (Boolean(slideDepartmentRow) || (!selectedDepartment && (user.role === Role.ADMIN || user.role === Role.DIRECTOR)));
+  const slideMode = slideDepartmentRow ? "department" : "company";
+  const slideTitle = slideDepartmentRow ? slideDepartmentRow.department.name : "Компания";
+  const slideAverage = slideDepartmentRow ? slideDepartmentRow.average : metrics.companyAverage;
+  const slideFilledCount = Math.max(0, visibleExpectedCount - visibleMissingCount);
+  const slideLowScores = (slideDepartmentRow
+    ? metrics.lowScores.filter((evaluation) => evaluation.evaluateeDepartmentId === slideDepartmentRow.department.id)
+    : metrics.lowScores
+  ).map((evaluation) => ({
+    id: evaluation.id,
+    score: evaluation.score,
+    comment: evaluation.comment,
+    evaluatorName:
+      slideMode === "department"
+        ? evaluation.evaluatorDepartment?.name || evaluation.evaluatorUser?.name || "Директор"
+        : evaluation.evaluatorDepartment
+          ? departmentOptionLabel(evaluation.evaluatorDepartment)
+          : evaluation.evaluatorUser?.name || "Директор",
+    evaluateeName:
+      slideMode === "department"
+        ? evaluation.evaluateeDepartment.name
+        : departmentOptionLabel(evaluation.evaluateeDepartment)
+  }));
+  const slideRanking = rankedDepartments.map((row) => ({
+    id: row.department.id,
+    name: row.department.name,
+    average: row.average,
+    lowCount: row.lowCount,
+    noInteractionCount: row.noInteractionCount
+  }));
   const lowScoreRepeatCounts = metrics.lowScoreRepeatCounts as Record<string, number>;
   const periodOptions = metrics.periods.map(({ id, month, year, status }) => ({
     id,
@@ -109,15 +130,20 @@ export default async function DashboardPage({
         />
       </section>
 
-      {slideDepartmentRow && metrics.selectedPeriod ? (
+      {canExportSlides && metrics.selectedPeriod ? (
         <DashboardSlideExport
-          departmentName={slideDepartmentRow.department.name}
+          mode={slideMode}
+          title={slideTitle}
           periodLabel={periodLabel(metrics.selectedPeriod)}
-          average={slideDepartmentRow.average}
+          average={slideAverage}
           companyAverage={metrics.companyAverage}
           rank={slideRank}
           totalDepartments={rankedDepartments.length}
           lowScores={slideLowScores}
+          ranking={slideRanking}
+          filledCount={slideFilledCount}
+          missingCount={visibleMissingCount}
+          expectedCount={visibleExpectedCount}
         />
       ) : null}
 
