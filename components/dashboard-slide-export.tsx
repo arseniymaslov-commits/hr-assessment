@@ -171,7 +171,7 @@ export default function DashboardSlideExport({
                             {item.score ?? "—"}
                           </span>
                           <div className="min-w-0 flex-1 truncate text-[16px] font-semibold text-slate-900">
-                            {item.evaluatorName} → {item.evaluateeName}
+                            {item.evaluatorName}
                           </div>
                         </div>
                         <p className="mt-1.5 line-clamp-2 text-[15px] leading-5 text-slate-600">

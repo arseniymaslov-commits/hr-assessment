@@ -63,9 +63,7 @@ export default async function DashboardPage({
           id: evaluation.id,
           score: evaluation.score,
           comment: evaluation.comment,
-          evaluatorName: evaluation.evaluatorDepartment
-            ? departmentOptionLabel(evaluation.evaluatorDepartment)
-            : evaluation.evaluatorUser?.name || "Директор",
+          evaluatorName: evaluation.evaluatorDepartment?.name || evaluation.evaluatorUser?.name || "Директор",
           evaluateeName: departmentOptionLabel(evaluation.evaluateeDepartment)
         }))
     : [];
