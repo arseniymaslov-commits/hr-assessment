@@ -95,15 +95,12 @@ export async function notifyEvaluationRequests(requestIds: string[]) {
     dateStyle: "medium",
     timeStyle: "short"
   });
-  let sent = 0;
-  let skipped = false;
-
-  for (const recipient of recipients) {
+  const mailResults = await Promise.all(recipients.map(async (recipient) => {
     const targetDepartments = requirements
       .filter((requirement) => requirement.evaluatorDepartmentId === recipient.departmentId)
       .map((requirement) => requirement.evaluateeDepartment.name);
     const uniqueTargets = Array.from(new Set(targetDepartments)).sort((a, b) => a.localeCompare(b));
-    const mailResult = await sendMail({
+    return sendMail({
       to: [recipient.email],
       subject: "Просим оценить взаимодействие с отделами",
       text: [
@@ -130,9 +127,10 @@ export async function notifyEvaluationRequests(requestIds: string[]) {
         "<p>Если оценка не будет поставлена до срока, система автоматически отметит «Нет взаимодействия».</p>"
       ].filter(Boolean).join("")
     });
-    if (mailResult.skipped) skipped = true;
-    else sent += 1;
-  }
+  }));
+
+  const skipped = mailResults.some((result) => result.skipped);
+  const sent = mailResults.filter((result) => !result.skipped).length;
 
   if (!skipped) {
     await prisma.evaluationRequest.updateMany({

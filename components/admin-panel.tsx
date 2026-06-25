@@ -106,20 +106,27 @@ export default function AdminPanel({
   );
   const [launchScheduledAt, setLaunchScheduledAt] = useState(toDateTimeLocal(new Date()));
   const [message, setMessage] = useState("");
+  const [pending, setPending] = useState(false);
 
   async function request(url: string, options: RequestInit) {
-    setMessage("");
-    const response = await fetch(url, {
-      ...options,
-      headers: { "Content-Type": "application/json", ...(options.headers || {}) }
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      setMessage(data.error || "Операция не выполнена.");
-      return;
+    if (pending) return;
+    setPending(true);
+    setMessage("Выполняется...");
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers: { "Content-Type": "application/json", ...(options.headers || {}) }
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setMessage(data.error || "Операция не выполнена.");
+        return;
+      }
+      setMessage(data.message || "Готово.");
+      window.location.reload();
+    } finally {
+      setPending(false);
     }
-    setMessage(data.message || "Готово.");
-    window.location.reload();
   }
 
   const evaluatorOptions = useMemo(
@@ -144,7 +151,7 @@ export default function AdminPanel({
   }
 
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 ${pending ? "cursor-progress" : ""}`}>
       {message ? <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm text-slate-700">{message}</div> : null}
 
       <section className="grid gap-6 xl:grid-cols-2">

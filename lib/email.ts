@@ -5,6 +5,8 @@ type MailInput = {
   html?: string;
 };
 
+let transporterPromise: Promise<import("nodemailer").Transporter> | null = null;
+
 function extractAddress(value: string | undefined, fallback: string) {
   if (!value) return fallback;
   const match = value.match(/<([^>]+)>/);
@@ -25,15 +27,21 @@ export async function sendMail(input: MailInput) {
     return { skipped: true, recipientsCount: recipients.length };
   }
 
-  const nodemailer = await import("nodemailer");
-  const transporter = nodemailer.createTransport({
-    host,
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: Number(process.env.SMTP_PORT || 587) === 465,
-    auth: { user, pass }
-  });
-
   try {
+    if (!transporterPromise) {
+      transporterPromise = import("nodemailer").then((nodemailer) =>
+        nodemailer.createTransport({
+          host,
+          port: Number(process.env.SMTP_PORT || 587),
+          secure: Number(process.env.SMTP_PORT || 587) === 465,
+          auth: { user, pass },
+          connectionTimeout: 10000,
+          greetingTimeout: 10000,
+          socketTimeout: 15000
+        })
+      );
+    }
+    const transporter = await transporterPromise;
     await transporter.sendMail({
       from: { name: fromName, address: fromAddress },
       to: recipients.join(", "),
@@ -43,6 +51,7 @@ export async function sendMail(input: MailInput) {
     });
   } catch (error) {
     console.error(`[mail failed] ${input.subject}:`, error);
+    transporterPromise = null;
     return { skipped: true, recipientsCount: recipients.length };
   }
 

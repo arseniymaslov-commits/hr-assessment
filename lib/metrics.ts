@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { departmentOptionLabel } from "@/lib/department-decodings";
-import { processEvaluationRequestSchedule } from "@/lib/evaluation-requests";
 import {
   DEFAULT_FULL_COVERAGE_EVALUATEE_NAMES,
   isEvaluatableDepartment,
@@ -36,8 +35,6 @@ export async function getReferenceData() {
 }
 
 export async function getPeriodMetrics(periodId?: string) {
-  await processEvaluationRequestSchedule();
-
   const periods = await prisma.period.findMany({
     orderBy: [{ year: "desc" }, { month: "desc" }]
   });
@@ -82,18 +79,53 @@ export async function getPeriodMetrics(periodId?: string) {
       period.year < selectedPeriod.year ||
       (period.year === selectedPeriod.year && period.month < selectedPeriod.month)
   );
-  const allEvaluations = await prisma.evaluation.findMany({
-    where: { periodId: selectedPeriod.id, criterionId: criterion.id },
-    include: {
-      evaluatorDepartment: true,
-      evaluatorUser: true,
-      evaluateeDepartment: true,
-      author: true,
-      period: true,
-      criterion: true
-    },
-    orderBy: { updatedAt: "desc" }
-  });
+  const [allEvaluations, previousEvaluations, previousLowEvaluations, dynamicAverages] = await Promise.all([
+    prisma.evaluation.findMany({
+      where: { periodId: selectedPeriod.id, criterionId: criterion.id },
+      include: {
+        evaluatorDepartment: true,
+        evaluatorUser: true,
+        evaluateeDepartment: true,
+        author: true,
+        period: true,
+        criterion: true
+      },
+      orderBy: { updatedAt: "desc" }
+    }),
+    previousPeriod
+      ? prisma.evaluation.findMany({
+          where: {
+            periodId: previousPeriod.id,
+            criterionId: criterion.id,
+            noInteraction: false,
+            score: { not: null }
+          },
+          select: { evaluateeDepartmentId: true, score: true }
+        })
+      : Promise.resolve([]),
+    prisma.evaluation.findMany({
+      where: {
+        periodId: { not: selectedPeriod.id },
+        criterionId: criterion.id,
+        noInteraction: false,
+        score: { lte: 9 }
+      },
+      select: {
+        evaluatorDepartmentId: true,
+        evaluatorUserId: true,
+        evaluateeDepartmentId: true
+      }
+    }),
+    prisma.evaluation.groupBy({
+      by: ["periodId"],
+      where: {
+        criterionId: criterion.id,
+        noInteraction: false,
+        score: { not: null }
+      },
+      _avg: { score: true }
+    })
+  ]);
   const evaluations = allEvaluations.filter(
     (evaluation) =>
       (evaluation.evaluatorDepartmentId == null ||
@@ -103,30 +135,6 @@ export async function getPeriodMetrics(periodId?: string) {
   const scoredEvaluations = evaluations.filter(
     (evaluation) => !evaluation.noInteraction && evaluation.score != null
   );
-  const previousEvaluations = previousPeriod
-    ? await prisma.evaluation.findMany({
-        where: {
-          periodId: previousPeriod.id,
-          criterionId: criterion.id,
-          noInteraction: false,
-          score: { not: null }
-        },
-        select: { evaluateeDepartmentId: true, score: true }
-      })
-    : [];
-  const previousLowEvaluations = await prisma.evaluation.findMany({
-    where: {
-      periodId: { not: selectedPeriod.id },
-      criterionId: criterion.id,
-      noInteraction: false,
-      score: { lte: 9 }
-    },
-    select: {
-      evaluatorDepartmentId: true,
-      evaluatorUserId: true,
-      evaluateeDepartmentId: true
-    }
-  });
   const lowScoreRepeatCounts = previousLowEvaluations.reduce<Record<string, number>>((acc, evaluation) => {
     const evaluatorId = evaluation.evaluatorDepartmentId || evaluation.evaluatorUserId || "director";
     const key = `${evaluatorId}:${evaluation.evaluateeDepartmentId}`;
@@ -143,20 +151,63 @@ export async function getPeriodMetrics(periodId?: string) {
       .map((evaluation) => `${evaluation.evaluatorDepartmentId}:${evaluation.evaluateeDepartmentId}`)
   );
   const departmentById = new Map(departments.map((department) => [department.id, department]));
+  const scoredByEvaluatee = new Map<string, typeof scoredEvaluations>();
+  const allByEvaluatee = new Map<string, typeof evaluations>();
+  const previousScoresByEvaluatee = new Map<string, number[]>();
+  const scoredByEvaluator = new Map<string, typeof scoredEvaluations>();
+  const allByEvaluator = new Map<string, typeof evaluations>();
+  const requirementsByEvaluatee = new Map<string, RequirementPair[]>();
+  const requirementsByEvaluator = new Map<string, RequirementPair[]>();
+
+  for (const evaluation of scoredEvaluations) {
+    const evaluateeRows = scoredByEvaluatee.get(evaluation.evaluateeDepartmentId) || [];
+    evaluateeRows.push(evaluation);
+    scoredByEvaluatee.set(evaluation.evaluateeDepartmentId, evaluateeRows);
+
+    if (evaluation.evaluatorDepartmentId) {
+      const evaluatorRows = scoredByEvaluator.get(evaluation.evaluatorDepartmentId) || [];
+      evaluatorRows.push(evaluation);
+      scoredByEvaluator.set(evaluation.evaluatorDepartmentId, evaluatorRows);
+    }
+  }
+
+  for (const evaluation of evaluations) {
+    const evaluateeRows = allByEvaluatee.get(evaluation.evaluateeDepartmentId) || [];
+    evaluateeRows.push(evaluation);
+    allByEvaluatee.set(evaluation.evaluateeDepartmentId, evaluateeRows);
+
+    if (evaluation.evaluatorDepartmentId) {
+      const evaluatorRows = allByEvaluator.get(evaluation.evaluatorDepartmentId) || [];
+      evaluatorRows.push(evaluation);
+      allByEvaluator.set(evaluation.evaluatorDepartmentId, evaluatorRows);
+    }
+  }
+
+  for (const evaluation of previousEvaluations) {
+    if (evaluation.score == null) continue;
+    const scores = previousScoresByEvaluatee.get(evaluation.evaluateeDepartmentId) || [];
+    scores.push(evaluation.score);
+    previousScoresByEvaluatee.set(evaluation.evaluateeDepartmentId, scores);
+  }
+
+  for (const requirement of requirements) {
+    const evaluateeRows = requirementsByEvaluatee.get(requirement.evaluateeDepartmentId) || [];
+    evaluateeRows.push(requirement);
+    requirementsByEvaluatee.set(requirement.evaluateeDepartmentId, evaluateeRows);
+
+    const evaluatorRows = requirementsByEvaluator.get(requirement.evaluatorDepartmentId) || [];
+    evaluatorRows.push(requirement);
+    requirementsByEvaluator.set(requirement.evaluatorDepartmentId, evaluatorRows);
+  }
 
   const byEvaluatee = evaluateeDepartments.map((department) => {
-    const relevantEvaluations = scoredEvaluations.filter(
-      (evaluation) => evaluation.evaluateeDepartmentId === department.id
-    );
+    const relevantEvaluations = scoredByEvaluatee.get(department.id) || [];
     const scores = relevantEvaluations.map((evaluation) => evaluation.score as number);
-    const previousScores = previousEvaluations
-      .filter((evaluation) => evaluation.evaluateeDepartmentId === department.id)
-      .map((evaluation) => evaluation.score)
-      .filter((score): score is number => score != null);
+    const previousScores = previousScoresByEvaluatee.get(department.id) || [];
     const previousAverage = average(previousScores);
     const currentAverage = average(scores);
-    const noInteractionCount = evaluations.filter(
-      (evaluation) => evaluation.evaluateeDepartmentId === department.id && evaluation.noInteraction
+    const noInteractionCount = (allByEvaluatee.get(department.id) || []).filter(
+      (evaluation) => evaluation.noInteraction
     ).length;
 
     return {
@@ -167,10 +218,9 @@ export async function getPeriodMetrics(periodId?: string) {
       count: scores.length,
       noInteractionCount,
       lowCount: scores.filter((score) => score <= 9).length,
-      missingRequiredEvaluatorNames: requirements
+      missingRequiredEvaluatorNames: (requirementsByEvaluatee.get(department.id) || [])
         .filter(
           (requirement) =>
-            requirement.evaluateeDepartmentId === department.id &&
             !evaluationKeys.has(`${requirement.evaluatorDepartmentId}:${requirement.evaluateeDepartmentId}`)
         )
         .map((requirement) => {
@@ -182,12 +232,10 @@ export async function getPeriodMetrics(periodId?: string) {
   });
 
   const byEvaluator = departments.map((department) => {
-    const relevantEvaluations = scoredEvaluations.filter(
-      (evaluation) => evaluation.evaluatorDepartmentId === department.id
-    );
+    const relevantEvaluations = scoredByEvaluator.get(department.id) || [];
     const scores = relevantEvaluations.map((evaluation) => evaluation.score as number);
-    const noInteractionCount = evaluations.filter(
-      (evaluation) => evaluation.evaluatorDepartmentId === department.id && evaluation.noInteraction
+    const noInteractionCount = (allByEvaluator.get(department.id) || []).filter(
+      (evaluation) => evaluation.noInteraction
     ).length;
 
     return {
@@ -199,9 +247,7 @@ export async function getPeriodMetrics(periodId?: string) {
   });
 
   const completion = departments.map((department) => {
-    const requiredPairs = requirements.filter(
-      (requirement) => requirement.evaluatorDepartmentId === department.id
-    );
+    const requiredPairs = requirementsByEvaluator.get(department.id) || [];
     const filled = requiredPairs.filter((requirement) =>
       evaluationKeys.has(`${requirement.evaluatorDepartmentId}:${requirement.evaluateeDepartmentId}`)
     ).length;
@@ -221,21 +267,14 @@ export async function getPeriodMetrics(periodId?: string) {
   ).length;
   const missingCount = Math.max(0, expectedCount - filledRequiredCount);
 
-  const dynamics = await Promise.all(
-    periods
-      .slice()
-      .reverse()
-      .map(async (period) => {
-        const rows = await prisma.evaluation.findMany({
-          where: { periodId: period.id, criterionId: criterion.id, noInteraction: false },
-          select: { score: true }
-        });
-        return {
-          period,
-          average: average(rows.map((row) => row.score).filter((score): score is number => score != null))
-        };
-      })
-  );
+  const dynamicAverageByPeriod = new Map(dynamicAverages.map((row) => [row.periodId, row._avg.score]));
+  const dynamics = periods
+    .slice()
+    .reverse()
+    .map((period) => ({
+      period,
+      average: dynamicAverageByPeriod.get(period.id) ?? null
+    }));
 
   return {
     periods,
