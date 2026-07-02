@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
-import { sendMail } from "@/lib/email";
+import { emailActionLink, sendMail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 
 function getAppUrl() {
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
           `<li>Период оценки: ${formatPeriod(period.month, period.year)}</li>`,
           recipient.department?.name ? `<li>Ваше подразделение: ${recipient.department.name}</li>` : "",
           "</ul>",
-          `<p><a href="${evaluationUrl}">Перейти в форму оценки</a></p>`,
+          emailActionLink(evaluationUrl, "Перейти к оценке"),
           "<p>Если оценка не будет заполнена в установленный срок, система отметит отсутствие взаимодействия автоматически.</p>"
         ].filter(Boolean).join("")
       });

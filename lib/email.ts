@@ -7,6 +7,19 @@ type MailInput = {
 
 let transporterPromise: Promise<import("nodemailer").Transporter> | null = null;
 
+export function emailActionLink(url: string, label = "Перейти в приложение") {
+  return [
+    '<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:20px 0">',
+    "<tr>",
+    '<td style="border-radius:6px;background:#e30613">',
+    `<a href="${url}" style="display:inline-block;padding:12px 20px;color:#ffffff;text-decoration:none;font-family:Arial,sans-serif;font-size:15px;font-weight:700">${label}</a>`,
+    "</td>",
+    "</tr>",
+    "</table>",
+    `<p style="font-size:12px;color:#64748b">Если кнопка не открывается, используйте ссылку:<br><a href="${url}">${url}</a></p>`
+  ].join("");
+}
+
 function extractAddress(value: string | undefined, fallback: string) {
   if (!value) return fallback;
   const match = value.match(/<([^>]+)>/);

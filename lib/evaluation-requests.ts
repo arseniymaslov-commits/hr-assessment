@@ -2,7 +2,7 @@ import { PeriodStatus, Role } from "@prisma/client";
 import { writeAuditLog } from "@/lib/audit";
 import { isEvaluatableDepartment } from "@/lib/evaluation-scope";
 import { prisma } from "@/lib/prisma";
-import { sendMail } from "@/lib/email";
+import { emailActionLink, sendMail } from "@/lib/email";
 
 const MS_IN_DAY = 1000 * 60 * 60 * 24;
 
@@ -123,7 +123,7 @@ export async function notifyEvaluationRequests(requestIds: string[]) {
         `<li>Срок заполнения: ${deadline}</li>`,
         uniqueTargets.length ? `<li>Доступно для оценки: ${uniqueTargets.join(", ")}</li>` : "",
         "</ul>",
-        `<p><a href="${evaluationUrl}">Перейти в форму оценки</a></p>`,
+        emailActionLink(evaluationUrl, "Перейти к оценке"),
         "<p>Если оценка не будет поставлена до срока, система автоматически отметит «Нет взаимодействия».</p>"
       ].filter(Boolean).join("")
     });
@@ -307,7 +307,7 @@ export async function sendDeadlineReminders() {
           `<li>Период: ${formatPeriod(request.period.month, request.period.year)}</li>`,
           `<li>Дедлайн: ${deadline}</li>`,
           "</ul>",
-          `<p><a href="${evaluationUrl}">Перейти в форму оценки</a></p>`
+          emailActionLink(evaluationUrl, "Перейти к оценке")
         ].join("")
       });
       if (!result.skipped) reminderRecipients += 1;
@@ -463,6 +463,7 @@ export async function notifyAdminsEvaluationStarted({
     activeAdminEmails()
   ]);
   if (!period || !admins.length) return { adminRecipients: 0 };
+  const dashboardUrl = `${getAppUrl()}/dashboard`;
 
   const result = await sendMail({
     to: admins,
@@ -471,7 +472,8 @@ export async function notifyAdminsEvaluationStarted({
       "Оценка взаимодействия запущена.",
       `Период: ${formatPeriod(period.month, period.year)}.`,
       initiatedBy ? `Запустил: ${initiatedBy.name}.` : "",
-      summary
+      summary,
+      `Открыть приложение: ${dashboardUrl}`
     ].filter(Boolean).join("\n"),
     html: [
       "<p>Оценка взаимодействия запущена.</p>",
@@ -479,7 +481,8 @@ export async function notifyAdminsEvaluationStarted({
       `<li>Период: ${formatPeriod(period.month, period.year)}</li>`,
       initiatedBy ? `<li>Запустил: ${initiatedBy.name}</li>` : "",
       `<li>${summary}</li>`,
-      "</ul>"
+      "</ul>",
+      emailActionLink(dashboardUrl, "Открыть дашборд")
     ].filter(Boolean).join("")
   });
 
