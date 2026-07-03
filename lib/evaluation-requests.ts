@@ -95,39 +95,47 @@ export async function notifyEvaluationRequests(requestIds: string[]) {
     dateStyle: "medium",
     timeStyle: "short"
   });
-  const mailResults = await Promise.all(recipients.map(async (recipient) => {
-    const targetDepartments = requirements
-      .filter((requirement) => requirement.evaluatorDepartmentId === recipient.departmentId)
-      .map((requirement) => requirement.evaluateeDepartment.name);
-    const uniqueTargets = Array.from(new Set(targetDepartments)).sort((a, b) => a.localeCompare(b));
-    return sendMail({
-      to: [recipient.email],
-      subject: "Просим оценить взаимодействие с отделами",
-      text: [
-        `${greeting(recipient.name)}.`,
-        "",
-        "Просим оценить взаимодействие с отделами.",
-        `Период: ${formatPeriod(period.month, period.year)}.`,
-        `Срок заполнения: ${deadline}.`,
-        uniqueTargets.length ? `Доступно для оценки: ${uniqueTargets.join(", ")}.` : "",
-        "",
-        `Перейдите в форму оценки: ${evaluationUrl}`,
-        "",
-        "Если оценка не будет поставлена до срока, система автоматически отметит «Нет взаимодействия»."
-      ].filter(Boolean).join("\n"),
-      html: [
-        `<p>${greeting(recipient.name)}.</p>`,
-        "<p>Просим оценить взаимодействие с отделами.</p>",
-        "<ul>",
-        `<li>Период: ${formatPeriod(period.month, period.year)}</li>`,
-        `<li>Срок заполнения: ${deadline}</li>`,
-        uniqueTargets.length ? `<li>Доступно для оценки: ${uniqueTargets.join(", ")}</li>` : "",
-        "</ul>",
-        emailActionLink(evaluationUrl, "Перейти к оценке"),
-        "<p>Если оценка не будет поставлена до срока, система автоматически отметит «Нет взаимодействия».</p>"
-      ].filter(Boolean).join("")
-    });
-  }));
+  const mailResults: Array<{ skipped: boolean; recipientsCount: number }> = [];
+  const batchSize = 4;
+  for (let index = 0; index < recipients.length; index += batchSize) {
+    const batch = recipients.slice(index, index + batchSize);
+    const batchResults = await Promise.all(
+      batch.map(async (recipient) => {
+        const targetDepartments = requirements
+          .filter((requirement) => requirement.evaluatorDepartmentId === recipient.departmentId)
+          .map((requirement) => requirement.evaluateeDepartment.name);
+        const uniqueTargets = Array.from(new Set(targetDepartments)).sort((a, b) => a.localeCompare(b));
+        return sendMail({
+          to: [recipient.email],
+          subject: "Просим оценить взаимодействие с отделами",
+          text: [
+            `${greeting(recipient.name)}.`,
+            "",
+            "Просим оценить взаимодействие с отделами.",
+            `Период: ${formatPeriod(period.month, period.year)}.`,
+            `Срок заполнения: ${deadline}.`,
+            uniqueTargets.length ? `Доступно для оценки: ${uniqueTargets.join(", ")}.` : "",
+            "",
+            `Перейдите в форму оценки: ${evaluationUrl}`,
+            "",
+            "Если оценка не будет поставлена до срока, система автоматически отметит «Нет взаимодействия»."
+          ].filter(Boolean).join("\n"),
+          html: [
+            `<p>${greeting(recipient.name)}.</p>`,
+            "<p>Просим оценить взаимодействие с отделами.</p>",
+            "<ul>",
+            `<li>Период: ${formatPeriod(period.month, period.year)}</li>`,
+            `<li>Срок заполнения: ${deadline}</li>`,
+            uniqueTargets.length ? `<li>Доступно для оценки: ${uniqueTargets.join(", ")}</li>` : "",
+            "</ul>",
+            emailActionLink(evaluationUrl, "Перейти к оценке"),
+            "<p>Если оценка не будет поставлена до срока, система автоматически отметит «Нет взаимодействия».</p>"
+          ].filter(Boolean).join("")
+        });
+      })
+    );
+    mailResults.push(...batchResults);
+  }
 
   const skipped = mailResults.some((result) => result.skipped);
   const sent = mailResults.filter((result) => !result.skipped).length;

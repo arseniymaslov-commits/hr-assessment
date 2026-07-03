@@ -40,33 +40,46 @@ export async function sendMail(input: MailInput) {
     return { skipped: true, recipientsCount: recipients.length };
   }
 
-  try {
-    if (!transporterPromise) {
-      transporterPromise = import("nodemailer").then((nodemailer) =>
-        nodemailer.createTransport({
-          host,
-          port: Number(process.env.SMTP_PORT || 587),
-          secure: Number(process.env.SMTP_PORT || 587) === 465,
-          auth: { user, pass },
-          connectionTimeout: 10000,
-          greetingTimeout: 10000,
-          socketTimeout: 15000
-        })
-      );
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      if (!transporterPromise) {
+        transporterPromise = import("nodemailer").then((nodemailer) =>
+          nodemailer.createTransport({
+            host,
+            port: Number(process.env.SMTP_PORT || 587),
+            secure: Number(process.env.SMTP_PORT || 587) === 465,
+            auth: { user, pass },
+            connectionTimeout: 10000,
+            greetingTimeout: 10000,
+            socketTimeout: 15000
+          })
+        );
+      }
+      const transporter = await transporterPromise;
+      await transporter.sendMail({
+        from: { name: fromName, address: fromAddress },
+        to: recipients.join(", "),
+        subject: input.subject,
+        text: input.text,
+        html: input.html
+      });
+      return { skipped: false, recipientsCount: recipients.length };
+    } catch (error) {
+      const responseCode =
+        typeof error === "object" && error && "responseCode" in error
+          ? Number((error as { responseCode?: number }).responseCode)
+          : 0;
+      const isTemporary = responseCode >= 400 && responseCode < 500;
+      console.error(`[mail failed attempt ${attempt}] ${input.subject}:`, error);
+      transporterPromise = null;
+
+      if (!isTemporary || attempt === 3) {
+        return { skipped: true, recipientsCount: recipients.length };
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
     }
-    const transporter = await transporterPromise;
-    await transporter.sendMail({
-      from: { name: fromName, address: fromAddress },
-      to: recipients.join(", "),
-      subject: input.subject,
-      text: input.text,
-      html: input.html
-    });
-  } catch (error) {
-    console.error(`[mail failed] ${input.subject}:`, error);
-    transporterPromise = null;
-    return { skipped: true, recipientsCount: recipients.length };
   }
 
-  return { skipped: false, recipientsCount: recipients.length };
+  return { skipped: true, recipientsCount: recipients.length };
 }
