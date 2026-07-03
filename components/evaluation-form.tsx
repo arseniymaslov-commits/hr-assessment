@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Ban, Save } from "lucide-react";
 import DepartmentLabel from "@/components/department-label";
 import { departmentOptionLabel } from "@/lib/department-decodings";
@@ -97,6 +98,7 @@ export default function EvaluationForm({
   existingEvaluations: ExistingEvaluation[];
   user: UserContext;
 }) {
+  const router = useRouter();
   const openPeriod = periods.find((period) => period.status === "OPEN") || periods[0];
   const isDirector = user.role === "DIRECTOR";
   const defaultEvaluatorId = user.role === "LEADER" ? user.departmentId || "" : departments[0]?.id || "";
@@ -190,31 +192,39 @@ export default function EvaluationForm({
     if (!canUseForm || (!noInteraction && !rowCanSave(row))) return false;
 
     updateRow(departmentId, { saving: true, message: "" });
-    const response = await fetch("/api/evaluations", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        periodId,
-        evaluatorDepartmentId: isDirector ? "" : evaluatorDepartmentId,
-        evaluateeDepartmentId: departmentId,
-        criterionId,
-        score: row.score,
-        comment: row.comment,
-        noInteraction
-      })
-    });
-    const data = await response.json().catch(() => ({}));
-    updateRow(departmentId, {
-      saving: false,
-      noInteraction,
-      comment: noInteraction ? "" : row.comment,
-      message: response.ok
-        ? noInteraction
-          ? "Сохранено: нет взаимодействия"
-          : "Оценка сохранена"
-        : data.error || "Не удалось сохранить"
-    });
-    return response.ok;
+    try {
+      const response = await fetch("/api/evaluations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          periodId,
+          evaluatorDepartmentId: isDirector ? "" : evaluatorDepartmentId,
+          evaluateeDepartmentId: departmentId,
+          criterionId,
+          score: row.score,
+          comment: row.comment,
+          noInteraction
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      updateRow(departmentId, {
+        saving: false,
+        noInteraction,
+        comment: noInteraction ? "" : row.comment,
+        message: response.ok
+          ? noInteraction
+            ? "Сохранено: нет взаимодействия"
+            : "Оценка сохранена"
+          : data.error || "Не удалось сохранить"
+      });
+      return response.ok;
+    } catch {
+      updateRow(departmentId, {
+        saving: false,
+        message: "Ошибка соединения. Эта строка не сохранена"
+      });
+      return false;
+    }
   }
 
   async function saveAll() {
@@ -222,18 +232,28 @@ export default function EvaluationForm({
     setFormMessage("");
     let saved = 0;
     let blocked = 0;
-    for (const department of availableEvaluatees) {
-      const row = rows[department.id] || blankRow();
-      if (!rowCanSave(row)) {
-        blocked += 1;
-        updateRow(department.id, { message: "Нужен комментарий" });
-        continue;
+    let failed = 0;
+    try {
+      for (const department of availableEvaluatees) {
+        const row = rows[department.id] || blankRow();
+        if (!rowCanSave(row)) {
+          blocked += 1;
+          updateRow(department.id, { message: "Нужен комментарий" });
+          continue;
+        }
+        const ok = await saveDepartment(department.id, row.noInteraction);
+        if (ok) saved += 1;
+        else failed += 1;
       }
-      const ok = await saveDepartment(department.id, row.noInteraction);
-      if (ok) saved += 1;
+    } finally {
+      setBulkSaving(false);
     }
-    setBulkSaving(false);
-    setFormMessage(blocked ? `Сохранено: ${saved}. Не сохранено без комментария: ${blocked}.` : `Сохранено оценок: ${saved}.`);
+    setFormMessage(
+      `Подтверждено сервером: ${saved}.` +
+        (blocked ? ` Нужен комментарий: ${blocked}.` : "") +
+        (failed ? ` Ошибок сохранения: ${failed}. Повторите только отмеченные строки.` : "")
+    );
+    if (saved > 0) router.refresh();
   }
 
   return (

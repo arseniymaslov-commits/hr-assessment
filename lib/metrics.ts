@@ -40,7 +40,7 @@ export async function getPeriodMetrics(periodId?: string) {
   });
   const selectedPeriod = periodId
     ? periods.find((period) => period.id === periodId) || periods[0]
-    : periods[0];
+    : periods.find((period) => period.status === "OPEN") || periods[0];
 
   const departments = await prisma.department.findMany({
     where: { isActive: true },
