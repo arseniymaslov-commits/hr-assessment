@@ -24,13 +24,16 @@ export async function getReferenceData() {
     })
   ]);
 
+  const evaluateeDepartments = departments.filter(isEvaluatableDepartment);
+  const evaluateeDepartmentIds = new Set(evaluateeDepartments.map((department) => department.id));
+
   return {
     departments,
-    evaluateeDepartments: departments.filter(isEvaluatableDepartment),
+    evaluateeDepartments,
     periods,
     criteria,
     users,
-    requirements
+    requirements: requirements.filter((requirement) => evaluateeDepartmentIds.has(requirement.evaluateeDepartmentId))
   };
 }
 

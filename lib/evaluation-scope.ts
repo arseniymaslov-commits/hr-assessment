@@ -1,7 +1,8 @@
 export const NON_EVALUATED_DEPARTMENT_NAMES = new Set([
   "ОВА",
   "КРО",
-  "СКП"
+  "СКП",
+  "СВКА"
 ]);
 
 export const DEFAULT_REQUIRED_EVALUATOR_NAMES = [
