@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Ban, Save } from "lucide-react";
 import DepartmentLabel from "@/components/department-label";
 import { departmentOptionLabel } from "@/lib/department-decodings";
@@ -98,7 +97,6 @@ export default function EvaluationForm({
   existingEvaluations: ExistingEvaluation[];
   user: UserContext;
 }) {
-  const router = useRouter();
   const openPeriod = periods.find((period) => period.status === "OPEN") || periods[0];
   const isDirector = user.role === "DIRECTOR";
   const defaultEvaluatorId = user.role === "LEADER" ? user.departmentId || "" : departments[0]?.id || "";
@@ -109,8 +107,6 @@ export default function EvaluationForm({
   const [evaluatorDepartmentId, setEvaluatorDepartmentId] = useState(defaultEvaluatorId);
   const [criterionId, setCriterionId] = useState(defaultCriterion?.id || "");
   const [rows, setRows] = useState<Record<string, RowState>>({});
-  const [bulkSaving, setBulkSaving] = useState(false);
-  const [formMessage, setFormMessage] = useState("");
 
   const selectedPeriod = useMemo(
     () => periods.find((period) => period.id === periodId),
@@ -227,52 +223,13 @@ export default function EvaluationForm({
     }
   }
 
-  async function saveAll() {
-    setBulkSaving(true);
-    setFormMessage("");
-    let saved = 0;
-    let blocked = 0;
-    let failed = 0;
-    try {
-      for (const department of availableEvaluatees) {
-        const row = rows[department.id] || blankRow();
-        if (!rowCanSave(row)) {
-          blocked += 1;
-          updateRow(department.id, { message: "Нужен комментарий" });
-          continue;
-        }
-        const ok = await saveDepartment(department.id, row.noInteraction);
-        if (ok) saved += 1;
-        else failed += 1;
-      }
-    } finally {
-      setBulkSaving(false);
-    }
-    setFormMessage(
-      `Подтверждено сервером: ${saved}.` +
-        (blocked ? ` Нужен комментарий: ${blocked}.` : "") +
-        (failed ? ` Ошибок сохранения: ${failed}. Повторите только отмеченные строки.` : "")
-    );
-    if (saved > 0) router.refresh();
-  }
-
   return (
     <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
-      <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-ink">Поставить оценки подразделениям</h2>
-          <p className="mt-1 text-sm text-muted">
-            Все подразделения показаны списком. Оценка 9 или ниже требует комментарий. ОЦП отмечен как обязательный для оценки.
-          </p>
-        </div>
-        <button
-          className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-brand/30 bg-white px-4 py-2.5 font-semibold text-brand transition hover:bg-brand/5 disabled:opacity-50"
-          disabled={!canUseForm || bulkSaving || !availableEvaluatees.length}
-          type="button"
-          onClick={saveAll}
-        >
-          <Save size={18} /> {bulkSaving ? "Сохраняем..." : "Сохранить все"}
-        </button>
+      <div className="mb-5">
+        <h2 className="text-lg font-semibold text-ink">Поставить оценки подразделениям</h2>
+        <p className="mt-1 text-sm text-muted">
+          Все подразделения показаны списком. Оценка 9 или ниже требует комментарий. ОЦП отмечен как обязательный для оценки.
+        </p>
       </div>
 
       <div className="mb-5 grid gap-4 md:grid-cols-3">
@@ -315,7 +272,6 @@ export default function EvaluationForm({
         </label>
       </div>
 
-      {formMessage ? <div className="mb-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">{formMessage}</div> : null}
       {selectedPeriod?.status === "CLOSED" ? <div className="mb-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-muted">Период закрыт, редактирование недоступно.</div> : null}
 
       <div className="overflow-x-auto rounded-lg border border-line">
