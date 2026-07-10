@@ -6,6 +6,7 @@ import { Role } from "@prisma/client";
 import { requireUser } from "@/lib/auth";
 import { getDepartmentFullName } from "@/lib/department-decodings";
 import { getPeriodMetrics, getReferenceData } from "@/lib/metrics";
+import { prisma } from "@/lib/prisma";
 
 export default async function EvaluationsPage() {
   const user = await requireUser([Role.ADMIN, Role.LEADER, Role.DIRECTOR]);
@@ -13,6 +14,24 @@ export default async function EvaluationsPage() {
     getReferenceData(),
     getPeriodMetrics()
   ]);
+  const allVisibleEvaluations = await prisma.evaluation.findMany({
+    where:
+      user.role === "LEADER" && user.departmentId
+        ? { evaluatorDepartmentId: user.departmentId }
+        : user.role === "DIRECTOR"
+          ? { evaluatorUserId: user.id }
+          : {},
+    select: {
+      periodId: true,
+      criterionId: true,
+      evaluatorDepartmentId: true,
+      evaluatorUserId: true,
+      evaluateeDepartmentId: true,
+      score: true,
+      comment: true,
+      noInteraction: true
+    }
+  });
 
   const visibleEvaluations =
     user.role === "LEADER" && user.departmentId
@@ -28,7 +47,7 @@ export default async function EvaluationsPage() {
     year,
     status
   }));
-  const criterionOptions = criteria.map(({ id, name }) => ({ id, name }));
+  const criterionOptions = criteria.map(({ id, name, description }) => ({ id, name, description }));
   const requirementOptions = requirements.map(
     ({ evaluatorDepartmentId, evaluateeDepartmentId }) => ({
       evaluatorDepartmentId,
@@ -51,7 +70,7 @@ export default async function EvaluationsPage() {
         periods={periodOptions}
         criteria={criterionOptions}
         requirements={requirementOptions}
-        existingEvaluations={visibleEvaluations.map((evaluation) => ({
+        existingEvaluations={allVisibleEvaluations.map((evaluation) => ({
           periodId: evaluation.periodId,
           criterionId: evaluation.criterionId,
           evaluatorDepartmentId: evaluation.evaluatorDepartmentId,
