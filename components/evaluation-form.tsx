@@ -100,6 +100,19 @@ function blankRow(): RowState {
   };
 }
 
+function statusTone(row: RowState, needsDetails: boolean) {
+  if (row.saving) return "border-amber-100 bg-amber-50 text-amber-800";
+  if (row.noInteraction) return "border-slate-200 bg-slate-100 text-slate-600";
+  if (row.message.includes("Ошибка") || row.message.includes("Не удалось")) {
+    return "border-red-100 bg-red-50 text-red-700";
+  }
+  if (row.message.includes("Сохранено") || row.message.includes("сохранена")) {
+    return "border-emerald-100 bg-emerald-50 text-emerald-700";
+  }
+  if (needsDetails) return "border-amber-100 bg-amber-50 text-amber-800";
+  return "border-slate-200 bg-slate-50 text-slate-600";
+}
+
 export default function EvaluationForm({
   departments,
   evaluateeDepartments,
@@ -325,7 +338,7 @@ export default function EvaluationForm({
               }`}
               key={department.id}
             >
-              <div className="grid gap-4 lg:grid-cols-[minmax(220px,1fr)_120px_minmax(260px,1.2fr)_220px] lg:items-start">
+              <div className="grid gap-4 lg:grid-cols-[minmax(220px,1fr)_120px_minmax(260px,1.2fr)_190px] lg:items-start">
                 <div>
                   <DepartmentLabel department={department} className="font-semibold text-ink" />
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -386,32 +399,46 @@ export default function EvaluationForm({
                 </div>
 
                 <div className="grid gap-2">
-                  <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">
+                  <div className={`rounded-lg border px-3 py-2 text-xs font-medium leading-5 ${statusTone(row, needsDetails)}`}>
                     {statusText}
                   </div>
                   <button
-                    className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-brand/30 bg-white px-3 py-2 text-sm font-semibold text-brand transition hover:bg-brand/5 disabled:opacity-50"
+                    className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-brand/30 bg-white px-2.5 py-1.5 text-xs font-semibold text-brand transition hover:bg-brand/5 disabled:opacity-50"
                     disabled={!canUseForm || row.saving || !rowCanSave(row)}
                     type="button"
                     onClick={() => saveDepartment(department.id)}
                   >
-                    <Save size={15} /> Сохранить
+                    <Save size={14} /> Сохранить
                   </button>
                   <button
-                    className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
+                    className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
                     disabled={!canUseForm || row.saving}
                     type="button"
                     onClick={() => saveDepartment(department.id, true)}
                   >
-                    <Ban size={15} /> Нет взаимодействия
+                    <Ban size={14} /> Нет взаимодействия
                   </button>
                 </div>
               </div>
 
               {needsDetails ? (
-                <div className="mt-4 rounded-lg border border-amber-100 bg-amber-50/40 p-3">
-                  <div className="mb-2 text-sm font-semibold text-ink">Категории отклонений</div>
-                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <details className="mt-4 rounded-lg border border-amber-100 bg-amber-50/40">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-semibold text-ink">
+                    <span>Категории отклонений</span>
+                    <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-slate-600 ring-1 ring-amber-100">
+                      выбрано: {row.deviationCategories.length}
+                    </span>
+                  </summary>
+                  {row.deviationCategories.length ? (
+                    <div className="flex flex-wrap gap-1 px-3 pb-2">
+                      {row.deviationCategories.map((category) => (
+                        <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-slate-600 ring-1 ring-line" key={category}>
+                          {category}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="grid gap-2 border-t border-amber-100 p-3 sm:grid-cols-2 xl:grid-cols-4">
                     {DEVIATION_CATEGORIES.map((category) => (
                       <label
                         className="flex items-start gap-2 rounded-lg border border-line bg-white p-2 text-xs font-medium text-slate-700"
@@ -433,7 +460,7 @@ export default function EvaluationForm({
                       </label>
                     ))}
                   </div>
-                </div>
+                </details>
               ) : null}
             </article>
           );

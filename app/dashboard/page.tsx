@@ -125,6 +125,9 @@ export default async function DashboardPage({
           };
         })
     : [];
+  const missingCompletionRows = (slideDepartmentRow ? departmentCompletionRows : completionRows)
+    .filter((row) => row.missing > 0)
+    .slice(0, 10);
   const lowScoreRepeatCounts = metrics.lowScoreRepeatCounts as Record<string, number>;
   const periodOptions = metrics.periods.map(({ id, month, year, status }) => ({
     id,
@@ -165,6 +168,34 @@ export default async function DashboardPage({
           label="Статус периода"
           value={metrics.selectedPeriod?.status === "OPEN" ? "Открыт" : "Закрыт"}
         />
+      </section>
+
+      <section className="mt-6 rounded-lg border border-line bg-white p-5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-semibold text-ink">Не заполнено</h2>
+            <p className="mt-1 text-sm text-muted">
+              Отдельный контроль отсутствующих обязательных оценок. Это не считается «нет взаимодействия».
+            </p>
+          </div>
+          <span className="rounded-full bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-700 ring-1 ring-amber-100">
+            осталось: {leaderDepartmentId ? visibleMissingCount : metrics.missingCount}
+          </span>
+        </div>
+        {missingCompletionRows.length ? (
+          <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {missingCompletionRows.map((row) => (
+              <div className="rounded-lg border border-amber-100 bg-amber-50/50 px-3 py-2 text-sm" key={row.id}>
+                <div className="break-words font-semibold text-ink">{row.name}</div>
+                <div className="mt-1 text-xs text-amber-800">Не заполнено: {row.missing}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-4 rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+            Все обязательные оценки заполнены.
+          </div>
+        )}
       </section>
 
       {slideDepartmentRow && metrics.selectedPeriod ? (
@@ -242,7 +273,7 @@ export default async function DashboardPage({
                       <ScoreBadge score={row.average} />
                       <DeltaBadge value={row.averageDelta} />
                       {row.missingRequiredEvaluatorNames.length ? (
-                        <div className="mt-2 max-w-xs text-xs leading-5 text-risk">
+                        <div className="mt-2 max-w-xs break-words text-xs leading-5 text-risk">
                           Нет обязательной оценки от: {row.missingRequiredEvaluatorNames.join(", ")}
                         </div>
                       ) : null}
@@ -331,7 +362,7 @@ export default async function DashboardPage({
                         ))}
                       </div>
                     ) : null}
-                    <p className="mt-2 text-sm leading-6 text-slate-700">{evaluation.comment}</p>
+                    <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">{evaluation.comment}</p>
                   </div>
                 ))}
               </div>

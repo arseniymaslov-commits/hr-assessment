@@ -3,6 +3,7 @@ import { Role } from "@prisma/client";
 import * as XLSX from "xlsx";
 import { getCurrentUser } from "@/lib/auth";
 import { departmentOptionLabel, getDepartmentFullName } from "@/lib/department-decodings";
+import { DEVIATION_CATEGORIES } from "@/lib/evaluation-categories";
 import { fixed, periodLabel } from "@/lib/format";
 import { getPeriodMetrics } from "@/lib/metrics";
 
@@ -130,6 +131,41 @@ export async function GET(request: Request) {
     })),
     "Комментарии 9 и ниже"
   );
+
+  const categoryRows = DEVIATION_CATEGORIES.map((category) => {
+    const matchingEvaluations = evaluationRows.filter((evaluation) =>
+      evaluation.deviationCategories.includes(category)
+    );
+    const scores = matchingEvaluations
+      .map((evaluation) => evaluation.score)
+      .filter((score): score is number => typeof score === "number");
+    const evaluateeNames = Array.from(
+      new Set(matchingEvaluations.map((evaluation) => departmentOptionLabel(evaluation.evaluateeDepartment)))
+    );
+    const evaluatorNames = Array.from(
+      new Set(
+        matchingEvaluations.map((evaluation) =>
+          evaluation.evaluatorDepartment
+            ? departmentOptionLabel(evaluation.evaluatorDepartment)
+            : evaluation.evaluatorUser?.name || "Директор"
+        )
+      )
+    );
+
+    return {
+      "Период": periodName,
+      "Категория": category,
+      "Количество": matchingEvaluations.length,
+      "Средняя оценка": scores.length
+        ? Number((scores.reduce((sum, score) => sum + score, 0) / scores.length).toFixed(2))
+        : "",
+      "Оцениваемых отделов": evaluateeNames.length,
+      "Оценивающих отделов": evaluatorNames.length,
+      "Кого затронуло": evaluateeNames.join(", ")
+    };
+  });
+
+  appendSheet(workbook, categoryRows, "Категории отклонений");
 
   appendSheet(
     workbook,

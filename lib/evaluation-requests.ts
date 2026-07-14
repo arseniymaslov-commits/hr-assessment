@@ -4,20 +4,13 @@ import { isEvaluatableDepartment } from "@/lib/evaluation-scope";
 import { prisma } from "@/lib/prisma";
 import { emailActionLink, sendMail } from "@/lib/email";
 
-const MS_IN_DAY = 1000 * 60 * 60 * 24;
-
 type LaunchEvaluationInput = {
   periodId: string;
   evaluateeDepartmentId: string;
   initiatedById: string;
   scheduledAt?: Date;
-  deadlineAt?: Date;
   notifyNow?: boolean;
 };
-
-function defaultDeadline(scheduledAt = new Date()) {
-  return new Date(scheduledAt.getTime() + 3 * MS_IN_DAY);
-}
 
 function getAppUrl() {
   const configuredUrl = process.env.APP_URL;
@@ -145,11 +138,9 @@ export async function launchEvaluationRequest({
   evaluateeDepartmentId,
   initiatedById,
   scheduledAt,
-  deadlineAt,
   notifyNow = true
 }: LaunchEvaluationInput) {
   const normalizedScheduledAt = scheduledAt || new Date();
-  const normalizedDeadlineAt = deadlineAt || defaultDeadline(normalizedScheduledAt);
   const request = await prisma.evaluationRequest.upsert({
     where: {
       periodId_evaluateeDepartmentId: {
@@ -160,16 +151,13 @@ export async function launchEvaluationRequest({
     update: {
       initiatedById,
       scheduledAt: normalizedScheduledAt,
-      deadlineAt: normalizedDeadlineAt,
-      notificationSentAt: null,
-      autoClosedAt: null
+      notificationSentAt: null
     },
     create: {
       periodId,
       evaluateeDepartmentId,
       initiatedById,
-      scheduledAt: normalizedScheduledAt,
-      deadlineAt: normalizedDeadlineAt
+      scheduledAt: normalizedScheduledAt
     }
   });
 

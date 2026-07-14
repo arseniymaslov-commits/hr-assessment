@@ -188,7 +188,7 @@ export default function CompanyDashboardPanel({
               <OverviewCard label="Осталось оценок" value={String(missingCount)} hint="по обязательным связям" />
             </div>
 
-            <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+            <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-3">
               <CompactList
                 title={isDepartment ? "Контекст рейтинга" : "Лидеры рейтинга"}
                 rows={overviewRanking}
@@ -220,7 +220,7 @@ export default function CompanyDashboardPanel({
                   emptyText="Оценок 9 и ниже нет"
                   render={(row) => (
                     <>
-                      <span className="min-w-0 flex-1 truncate font-medium text-ink">{row.evaluatorName}</span>
+                      <span className="min-w-0 flex-1 break-words font-medium text-ink">{row.evaluatorName}</span>
                       <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${scoreTone(row.score)}`}>
                         {row.score ?? "-"}
                       </span>
@@ -234,7 +234,7 @@ export default function CompanyDashboardPanel({
                   emptyText="Проблемных зон нет"
                   render={(row) => (
                     <>
-                      <span className="min-w-0 flex-1 truncate font-medium text-ink">{row.name}</span>
+                      <span className="min-w-0 flex-1 break-words font-medium text-ink">{row.name}</span>
                       <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 ring-1 ring-red-100">
                         9 и ниже: {row.lowCount}
                       </span>
@@ -245,6 +245,19 @@ export default function CompanyDashboardPanel({
                   )}
                 />
               )}
+              <CompactList
+                title={isDepartment ? "Не оценили отдел" : "Не заполнено"}
+                rows={inactiveRows.slice(0, 8)}
+                emptyText="Все обязательные оценки заполнены"
+                render={(row) => (
+                  <>
+                    <span className="min-w-0 flex-1 break-words font-medium text-ink">{row.name}</span>
+                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-100">
+                      осталось {row.missing}
+                    </span>
+                  </>
+                )}
+              />
             </div>
           </div>
         ) : null}
@@ -271,7 +284,7 @@ export default function CompanyDashboardPanel({
                         <td className="px-4 py-3 font-semibold text-slate-700">
                           {(rankingPage - 1) * rankingPageSize + index + 1}
                         </td>
-                        <td className="px-4 py-3 font-medium text-ink">{row.name}</td>
+                        <td className="px-4 py-3 font-medium text-ink"><span className="break-words">{row.name}</span></td>
                         <td className="px-4 py-3">
                           <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${scoreTone(row.average)}`}>
                             {fixed(row.average)}
@@ -301,9 +314,9 @@ export default function CompanyDashboardPanel({
                         <span className={`rounded-full px-2.5 py-1 text-sm font-semibold ring-1 ${scoreTone(item.score)}`}>
                           {item.score ?? "-"}
                         </span>
-                        <span className="font-semibold text-ink">{item.evaluatorName}</span>
+                        <span className="min-w-0 break-words font-semibold text-ink">{item.evaluatorName}</span>
                         <span className="text-muted">оценил</span>
-                        <span className="font-semibold text-ink">{item.evaluateeName}</span>
+                        <span className="min-w-0 break-words font-semibold text-ink">{item.evaluateeName}</span>
                       </div>
                       <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">
                         {item.comment || "Комментарий не указан"}
@@ -364,7 +377,7 @@ export default function CompanyDashboardPanel({
               emptyText="Все обязательные оценки заполнены"
               render={(row) => (
                 <>
-                  <span className="min-w-0 flex-1 truncate font-medium text-ink">{row.name}</span>
+                  <span className="min-w-0 flex-1 break-words font-medium text-ink">{row.name}</span>
                   <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 ring-1 ring-red-100">
                     осталось {row.missing}
                   </span>
@@ -406,7 +419,7 @@ function CompactList<T>({
         {rows.length ? (
           <div className="space-y-2">
             {rows.map((row, index) => (
-              <div className="flex min-w-0 items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm" key={index}>
+              <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm" key={index}>
                 {render(row, index)}
               </div>
             ))}

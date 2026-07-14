@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "build:deploy": "prisma db push && node scripts/seed-if-enabled.mjs && next build",
+    "build:deploy": "prisma db push --accept-data-loss && node scripts/seed-if-enabled.mjs && next build",
     "start": "next start",
     "postinstall": "prisma generate",
     "lint": "next lint",

@@ -125,14 +125,10 @@ model EvaluationRequest {
   initiatedById         String
   initiatedBy           User         @relation("EvaluationRequestInitiator", fields: [initiatedById], references: [id], onDelete: Cascade)
   scheduledAt           DateTime     @default(now())
-  deadlineAt            DateTime
   notificationSentAt    DateTime?
-  reminderSentAt        DateTime?
-  autoClosedAt          DateTime?
   createdAt             DateTime     @default(now())
 
   @@unique([periodId, evaluateeDepartmentId])
-  @@index([deadlineAt])
 }
 
 model AuditLog {
