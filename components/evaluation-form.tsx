@@ -37,6 +37,7 @@ type ExistingEvaluation = {
   evaluateeDepartmentId: string;
   score?: number | null;
   comment?: string | null;
+  deviationCategories?: string[];
   noInteraction: boolean;
 };
 
@@ -49,24 +50,12 @@ type UserContext = {
 };
 
 type RowState = {
-  scores: Record<string, number>;
+  score: number;
+  deviationCategories: string[];
   comment: string;
   noInteraction: boolean;
   saving: boolean;
   message: string;
-};
-
-type CriterionDefinition = {
-  id: string;
-  name: string;
-  shortName: string;
-  description?: string | null;
-};
-
-type CriterionTemplate = {
-  name: string;
-  shortName: string;
-  description: string;
 };
 
 const monthNames = [
@@ -84,73 +73,42 @@ const monthNames = [
   "Декабрь"
 ];
 
+const OVERALL_CRITERION_NAME = "Общая оценка взаимодействия";
+
+const DEVIATION_CATEGORIES = [
+  "Нарушение сроков исполнения",
+  "Несвоевременная или неполная обратная связь",
+  "Неполные или некорректные данные и документы",
+  "Недостаточная координация действий",
+  "Некорректная деловая коммуникация",
+  "Несоответствие результата требованиям",
+  "Неисполнение обязательного требования или поручения",
+  "Иное"
+];
+
+const SCORE_GUIDE = [
+  [10, "Результат полностью соответствует требованиям, принят с первого раза и может использоваться без исправлений."],
+  [9, "Единичное незначительное отклонение без влияния на дальнейшую работу."],
+  [8, "Потребовалась незначительная корректировка или уточнение без влияния на сроки."],
+  [7, "Несколько незначительных отклонений либо уточнение существенных элементов, результат пригоден."],
+  [6, "Существенная доработка, повторное предоставление части результата или неполное обязательное требование."],
+  [5, "Нарушение повлияло на срок следующего этапа, но не остановило процесс."],
+  [4, "Значительная задержка, существенная повторная работа или ограничение использования результата."],
+  [3, "Результат частично пригоден, процесс невозможен до устранения нарушения или временно приостановлен."],
+  [2, "Результат практически непригоден и требует полного повторного выполнения."],
+  [1, "Результат не предоставлен, обязательство не исполнено или допущено критическое нарушение."]
+] as const;
+
 function blankRow(): RowState {
   return {
-    scores: {},
+    score: 10,
+    deviationCategories: [],
     comment: "",
     noInteraction: false,
     saving: false,
     message: ""
   };
 }
-
-const OVERALL_CRITERION_NAME = "Общая оценка взаимодействия";
-
-const COMMON_CRITERIA: CriterionTemplate[] = [
-  {
-    name: "Сроки исполнения и обратной связи",
-    shortName: "Сроки",
-    description:
-      "Соблюдение сроков по запросам, письмам, заявкам, согласованиям, поручениям и предоставлению обратной связи."
-  },
-  {
-    name: "Качество предоставленных данных и документов",
-    shortName: "Данные",
-    description:
-      "Полнота, корректность и достоверность предоставленных данных, документов, таблиц, отчётов и пояснений."
-  },
-  {
-    name: "Качество рабочего взаимодействия",
-    shortName: "Взаимодействие",
-    description:
-      "Исполнение совместных задач без необоснованных задержек, повторных запросов, формального подхода и некорректной коммуникации."
-  }
-] as const;
-
-const SPECIAL_CRITERIA_BY_EVALUATOR: Record<string, CriterionTemplate[]> = {
-  СВКА: [
-    {
-      name: "Исполнение аудиторских рекомендаций",
-      shortName: "Аудит",
-      description: "Своевременность и качество исполнения рекомендаций по итогам аудиторских проверок."
-    },
-    {
-      name: "Взаимодействие при проверках",
-      shortName: "Проверки",
-      description: "Своевременность предоставления документов, пояснений и данных по запросам СВКА."
-    }
-  ],
-  УЧР: [
-    {
-      name: "Трудовая дисциплина",
-      shortName: "Дисциплина",
-      description:
-        "Опоздания, отсутствия, нарушения графика работы, некорректная регистрация в СКУД, неоформленные рабочие выезды и несвоевременное информирование УЧР."
-    },
-    {
-      name: "Кадровое и административное делопроизводство",
-      shortName: "Кадры",
-      description:
-        "Своевременность и корректность оформления приёма, увольнения, отпусков, табелей, КПЭ, актов передачи дел и иных кадровых документов."
-    },
-    {
-      name: "Оценка, обучение и кадровая работа",
-      shortName: "Развитие",
-      description:
-        "Участие сотрудников в оценке, обучении, срезах знаний, формировании кадрового резерва, а также взаимодействие при подборе и предоставление обратной связи."
-    }
-  ]
-};
 
 export default function EvaluationForm({
   departments,
@@ -181,7 +139,10 @@ export default function EvaluationForm({
     () => periods.find((period) => period.id === periodId),
     [periodId, periods]
   );
-
+  const overallCriterion = useMemo(
+    () => criteria.find((criterion) => criterion.name === OVERALL_CRITERION_NAME) || criteria[0],
+    [criteria]
+  );
   const availableEvaluatees = useMemo(
     () =>
       evaluateeDepartments.filter(
@@ -189,34 +150,6 @@ export default function EvaluationForm({
       ),
     [evaluateeDepartments, evaluatorDepartmentId, isDirector]
   );
-
-  const evaluatorDepartment = useMemo(
-    () => departments.find((department) => department.id === evaluatorDepartmentId),
-    [departments, evaluatorDepartmentId]
-  );
-  const overallCriterion = useMemo(
-    () => criteria.find((criterion) => criterion.name === OVERALL_CRITERION_NAME) || criteria[0],
-    [criteria]
-  );
-  const activeCriteria = useMemo<CriterionDefinition[]>(() => {
-    const templates = [
-      ...COMMON_CRITERIA,
-      ...(evaluatorDepartment?.name ? SPECIAL_CRITERIA_BY_EVALUATOR[evaluatorDepartment.name] || [] : [])
-    ];
-
-    return templates.reduce<CriterionDefinition[]>((acc, template) => {
-        const criterion = criteria.find((item) => item.name === template.name);
-        if (!criterion) return acc;
-        acc.push({
-          id: criterion.id,
-          name: criterion.name,
-          shortName: template.shortName,
-          description: criterion.description || template.description
-        });
-        return acc;
-      }, []);
-  }, [criteria, evaluatorDepartment?.name]);
-
   const requiredEvaluateeIds = useMemo(() => {
     const ids = new Set(
       requirements
@@ -232,59 +165,37 @@ export default function EvaluationForm({
     setRows((current) => {
       const next: Record<string, RowState> = {};
       for (const department of availableEvaluatees) {
-        const matchingEvaluations = existingEvaluations.filter((evaluation) => {
+        const existing = existingEvaluations.find((evaluation) => {
           const sameEvaluator = isDirector
             ? evaluation.evaluatorUserId === user.id
             : evaluation.evaluatorDepartmentId === evaluatorDepartmentId;
           return (
             sameEvaluator &&
             evaluation.periodId === periodId &&
+            evaluation.criterionId === overallCriterion?.id &&
             evaluation.evaluateeDepartmentId === department.id
           );
         });
-        const existingOverall = matchingEvaluations.find(
-          (evaluation) => evaluation.criterionId === overallCriterion?.id
-        );
-        const existingComment = matchingEvaluations.find((evaluation) => evaluation.comment)?.comment || "";
-        const existingNoInteraction = Boolean(existingOverall?.noInteraction);
         const currentRow = current[department.id];
-        next[department.id] = matchingEvaluations.length
+        next[department.id] = existing
           ? {
-              scores: {
-                ...Object.fromEntries(activeCriteria.map((criterion) => [criterion.id, 10])),
-                ...(currentRow?.scores || {}),
-                ...Object.fromEntries(
-                  activeCriteria.map((criterion) => {
-                    const criterionEvaluation = matchingEvaluations.find(
-                      (evaluation) => evaluation.criterionId === criterion.id
-                    );
-                    return [criterion.id, criterionEvaluation?.score ?? existingOverall?.score ?? 10];
-                  })
-                )
-              },
-              comment: existingComment || currentRow?.comment || "",
-              noInteraction: existingNoInteraction,
+              score: existing.score ?? currentRow?.score ?? 10,
+              deviationCategories: existing.deviationCategories || currentRow?.deviationCategories || [],
+              comment: existing.comment || currentRow?.comment || "",
+              noInteraction: existing.noInteraction,
               saving: false,
-              message: existingNoInteraction ? "Сохранено: нет взаимодействия" : "Сохранено"
+              message: existing.noInteraction ? "Сохранено: нет взаимодействия" : "Сохранено"
             }
-          : {
-              ...blankRow(),
-              ...(currentRow || {}),
-              scores: {
-                ...Object.fromEntries(activeCriteria.map((criterion) => [criterion.id, 10])),
-                ...(currentRow?.scores || {})
-              }
-            };
+          : currentRow || blankRow();
       }
       return next;
     });
-  }, [activeCriteria, availableEvaluatees, evaluatorDepartmentId, existingEvaluations, isDirector, overallCriterion?.id, periodId, user.id]);
+  }, [availableEvaluatees, evaluatorDepartmentId, existingEvaluations, isDirector, overallCriterion?.id, periodId, user.id]);
 
   const canUseForm =
     (user.role === "ADMIN" || user.role === "LEADER" || user.role === "DIRECTOR") &&
     selectedPeriod?.status === "OPEN" &&
     overallCriterion &&
-    activeCriteria.length > 0 &&
     (isDirector || evaluatorDepartmentId);
 
   function updateRow(departmentId: string, patch: Partial<RowState>) {
@@ -297,13 +208,18 @@ export default function EvaluationForm({
     }));
   }
 
+  function toggleCategory(row: RowState, category: string) {
+    return row.deviationCategories.includes(category)
+      ? row.deviationCategories.filter((item) => item !== category)
+      : [...row.deviationCategories, category];
+  }
+
   function rowCanSave(row: RowState) {
     if (row.noInteraction) return true;
-    const scores = activeCriteria.map((criterion) => Number(row.scores[criterion.id] ?? 10));
-    return (
-      scores.every((score) => Number.isInteger(score) && score >= 1 && score <= 10) &&
-      (scores.every((score) => score > 9) || row.comment.trim().length > 0)
-    );
+    const validScore = Number.isInteger(row.score) && row.score >= 1 && row.score <= 10;
+    if (!validScore) return false;
+    if (row.score === 10) return true;
+    return row.comment.trim().length > 0 && row.deviationCategories.length > 0;
   }
 
   async function saveDepartment(departmentId: string, noInteraction = false) {
@@ -312,58 +228,33 @@ export default function EvaluationForm({
 
     updateRow(departmentId, { saving: true, message: "" });
     try {
-      const criteriaToSave = noInteraction ? [overallCriterion, ...activeCriteria] : activeCriteria;
-      const detailScores = activeCriteria.map((criterion) => Number(row.scores[criterion.id] ?? 10));
-      const averageScore = Math.round(
-        detailScores.reduce((sum, score) => sum + score, 0) / Math.max(detailScores.length, 1)
-      );
-      const payloads = [
-        ...criteriaToSave.map((criterion) => ({
-          criterionId: criterion.id,
-          score: noInteraction ? 10 : Number(row.scores[criterion.id] ?? averageScore)
-        })),
-        ...(noInteraction
-          ? []
-          : [
-              {
-                criterionId: overallCriterion.id,
-                score: averageScore
-              }
-            ])
-      ];
-
-      let firstError = "";
-      for (const payload of payloads) {
-        const response = await fetch("/api/evaluations", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            periodId,
-            evaluatorDepartmentId: isDirector ? "" : evaluatorDepartmentId,
-            evaluateeDepartmentId: departmentId,
-            criterionId: payload.criterionId,
-            score: payload.score,
-            comment: row.comment,
-            noInteraction
-          })
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          firstError = data.error || "Не удалось сохранить";
-          break;
-        }
-      }
+      const response = await fetch("/api/evaluations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          periodId,
+          evaluatorDepartmentId: isDirector ? "" : evaluatorDepartmentId,
+          evaluateeDepartmentId: departmentId,
+          criterionId: overallCriterion.id,
+          score: row.score,
+          comment: row.comment,
+          deviationCategories: noInteraction ? [] : row.deviationCategories,
+          noInteraction
+        })
+      });
+      const data = await response.json().catch(() => ({}));
       updateRow(departmentId, {
         saving: false,
         noInteraction,
+        deviationCategories: noInteraction ? [] : row.deviationCategories,
         comment: noInteraction ? "" : row.comment,
-        message: !firstError
+        message: response.ok
           ? noInteraction
             ? "Сохранено: нет взаимодействия"
             : "Оценка сохранена"
-          : firstError
+          : data.error || "Не удалось сохранить"
       });
-      return !firstError;
+      return response.ok;
     } catch {
       updateRow(departmentId, {
         saving: false,
@@ -378,7 +269,7 @@ export default function EvaluationForm({
       <div className="mb-5">
         <h2 className="text-lg font-semibold text-ink">Поставить оценки подразделениям</h2>
         <p className="mt-1 text-sm text-muted">
-          Оцените подразделения по критериям. Если хотя бы один критерий 9 или ниже, комментарий обязателен.
+          Выставьте одну общую оценку от 1 до 10. Если оценка ниже 10, выберите категорию отклонения и укажите подтверждающий комментарий.
         </p>
       </div>
 
@@ -411,30 +302,19 @@ export default function EvaluationForm({
             </select>
           )}
         </label>
-
       </div>
 
-      <div className="mb-4 rounded-lg border border-line bg-slate-50 px-4 py-3 text-sm text-slate-700">
-        <div className="font-semibold text-ink">Критерии оценки</div>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {activeCriteria.map((criterion) => (
-            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-line" key={criterion.id}>
-              {criterion.shortName}
-            </span>
+      <details className="mb-4 rounded-lg border border-line bg-slate-50 px-4 py-3 text-sm text-slate-700">
+        <summary className="cursor-pointer font-semibold text-ink">Шкала оценки 1-10</summary>
+        <div className="mt-3 grid gap-2 md:grid-cols-2">
+          {SCORE_GUIDE.map(([score, description]) => (
+            <div className="rounded-lg bg-white p-3 ring-1 ring-line" key={score}>
+              <div className="font-semibold text-ink">{score} баллов</div>
+              <div className="mt-1 text-xs leading-5 text-muted">{description}</div>
+            </div>
           ))}
         </div>
-        <details className="mt-2">
-          <summary className="cursor-pointer text-xs font-semibold text-brand">Показать расшифровку критериев</summary>
-          <div className="mt-2 grid gap-2 md:grid-cols-2">
-            {activeCriteria.map((criterion) => (
-              <div className="rounded-lg bg-white p-3 ring-1 ring-line" key={criterion.id}>
-                <div className="font-semibold text-ink">{criterion.name}</div>
-                <div className="mt-1 text-xs leading-5 text-muted">{criterion.description}</div>
-              </div>
-            ))}
-          </div>
-        </details>
-      </div>
+      </details>
 
       {selectedPeriod?.status === "CLOSED" ? <div className="mb-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-muted">Период закрыт, редактирование недоступно.</div> : null}
 
@@ -443,7 +323,8 @@ export default function EvaluationForm({
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-muted">
             <tr>
               <th className="px-4 py-3">Подразделение</th>
-              <th className="px-4 py-3">Критерии</th>
+              <th className="px-4 py-3">Оценка</th>
+              <th className="px-4 py-3">Категории отклонений</th>
               <th className="px-4 py-3">Комментарий</th>
               <th className="px-4 py-3">Действие</th>
               <th className="px-4 py-3">Статус</th>
@@ -453,11 +334,7 @@ export default function EvaluationForm({
             {availableEvaluatees.map((department) => {
               const row = rows[department.id] || blankRow();
               const required = requiredEvaluateeIds.has(department.id);
-              const scores = activeCriteria.map((criterion) => Number(row.scores[criterion.id] ?? 10));
-              const averageScore = Math.round(
-                scores.reduce((sum, score) => sum + score, 0) / Math.max(scores.length, 1)
-              );
-              const commentRequired = !row.noInteraction && scores.some((score) => score <= 9);
+              const needsDetails = !row.noInteraction && row.score < 10;
               return (
                 <tr className={required ? "bg-slate-50" : ""} key={department.id}>
                   <td className="px-4 py-4 align-top">
@@ -465,51 +342,63 @@ export default function EvaluationForm({
                     {required ? <div className="mt-1 text-xs font-semibold text-brandDark">Обязательно оценить</div> : null}
                   </td>
                   <td className="px-4 py-4 align-top">
-                    <div className="grid min-w-[360px] gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                      {activeCriteria.map((criterion) => (
-                        <label className="rounded-lg border border-line bg-white p-2" key={criterion.id}>
-                          <span className="block text-xs font-semibold text-slate-600">{criterion.shortName}</span>
-                          <input
-                            className="focus-ring mt-1 w-full rounded-md border border-line px-2 py-1.5 text-base font-semibold"
-                            disabled={row.noInteraction || !canUseForm}
-                            max={10}
-                            min={1}
-                            type="number"
-                            value={row.scores[criterion.id] ?? 10}
-                            onChange={(event) =>
-                              updateRow(department.id, {
-                                scores: {
-                                  ...row.scores,
-                                  [criterion.id]: Number(event.target.value)
-                                },
-                                noInteraction: false,
-                                message: ""
-                              })
-                            }
-                          />
-                        </label>
-                      ))}
-                    </div>
-                    <div className="mt-2 text-xs font-semibold text-slate-600">Итог: {averageScore} из 10</div>
+                    <input
+                      className="focus-ring w-24 rounded-lg border border-line px-3 py-2 text-lg font-semibold"
+                      disabled={row.noInteraction || !canUseForm}
+                      max={10}
+                      min={1}
+                      type="number"
+                      value={row.score}
+                      onChange={(event) => {
+                        const score = Number(event.target.value);
+                        updateRow(department.id, {
+                          score,
+                          deviationCategories: score === 10 ? [] : row.deviationCategories,
+                          noInteraction: false,
+                          message: ""
+                        });
+                      }}
+                    />
                   </td>
                   <td className="px-4 py-4 align-top">
-                    {commentRequired ? (
-                      <textarea
-                        className="focus-ring min-h-20 w-full rounded-lg border border-amber-200 px-3 py-2"
-                        disabled={!canUseForm}
-                        placeholder="Комментарий обязателен для оценки 9 или ниже"
-                        value={row.comment}
-                        onChange={(event) => updateRow(department.id, { comment: event.target.value, message: "" })}
-                      />
+                    {needsDetails ? (
+                      <div className="grid min-w-[280px] gap-2">
+                        {DEVIATION_CATEGORIES.map((category) => (
+                          <label className="flex items-start gap-2 rounded-lg border border-line bg-white p-2 text-xs font-medium text-slate-700" key={category}>
+                            <input
+                              className="mt-0.5"
+                              checked={row.deviationCategories.includes(category)}
+                              disabled={!canUseForm}
+                              type="checkbox"
+                              onChange={() =>
+                                updateRow(department.id, {
+                                  deviationCategories: toggleCategory(row, category),
+                                  message: ""
+                                })
+                              }
+                            />
+                            <span>{category}</span>
+                          </label>
+                        ))}
+                      </div>
                     ) : (
-                      <textarea
-                        className="focus-ring min-h-20 w-full rounded-lg border border-line px-3 py-2"
-                        disabled={!canUseForm || row.noInteraction}
-                        placeholder={row.noInteraction ? "Отмечено: нет взаимодействия" : "Комментарий не обязателен для оценки 10"}
-                        value={row.comment}
-                        onChange={(event) => updateRow(department.id, { comment: event.target.value, message: "" })}
-                      />
+                      <div className="text-sm text-muted">Для оценки 10 категории не требуются</div>
                     )}
+                  </td>
+                  <td className="px-4 py-4 align-top">
+                    <textarea
+                      className={`focus-ring min-h-24 w-full rounded-lg border px-3 py-2 ${needsDetails ? "border-amber-200" : "border-line"}`}
+                      disabled={!canUseForm || row.noInteraction}
+                      placeholder={
+                        row.noInteraction
+                          ? "Отмечено: нет взаимодействия"
+                          : needsDetails
+                            ? "Укажите факт, нарушенное требование, последствия и источник подтверждения"
+                            : "Комментарий не обязателен для оценки 10"
+                      }
+                      value={row.comment}
+                      onChange={(event) => updateRow(department.id, { comment: event.target.value, message: "" })}
+                    />
                   </td>
                   <td className="px-4 py-4 align-top">
                     <div className="flex flex-col gap-2">
@@ -532,7 +421,12 @@ export default function EvaluationForm({
                     </div>
                   </td>
                   <td className="px-4 py-4 align-top text-slate-700">
-                    {row.saving ? "Сохраняем..." : row.message || (commentRequired ? "Нужен комментарий" : "Готово к сохранению")}
+                    {row.saving
+                      ? "Сохраняем..."
+                      : row.message ||
+                        (needsDetails
+                          ? "Нужны категория и комментарий"
+                          : "Готово к сохранению")}
                   </td>
                 </tr>
               );

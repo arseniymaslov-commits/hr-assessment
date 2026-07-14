@@ -21,6 +21,9 @@ export async function POST(request: Request) {
   const score = Number(body?.score);
   const scoreToSave = noInteraction ? null : score;
   const comment = String(body?.comment || "").trim();
+  const deviationCategories = Array.isArray(body?.deviationCategories)
+    ? body.deviationCategories.map(String).map((item: string) => item.trim()).filter(Boolean)
+    : [];
   const isDirectorEvaluation = user.role === Role.DIRECTOR;
   const effectiveEvaluatorDepartmentId =
     user.role === Role.LEADER ? user.departmentId || "" : evaluatorDepartmentId;
@@ -38,7 +41,11 @@ export async function POST(request: Request) {
   }
 
   if (!noInteraction && score < 10 && !comment) {
-    return NextResponse.json({ error: "Для оценки 9 или ниже комментарий обязателен" }, { status: 400 });
+    return NextResponse.json({ error: "Для оценки ниже 10 комментарий обязателен" }, { status: 400 });
+  }
+
+  if (!noInteraction && score < 10 && deviationCategories.length === 0) {
+    return NextResponse.json({ error: "Для оценки ниже 10 выберите категорию отклонения" }, { status: 400 });
   }
 
   if (user.role === Role.LEADER && !user.departmentId) {
@@ -84,6 +91,7 @@ export async function POST(request: Request) {
     criterionId,
     score: scoreToSave,
     noInteraction,
+    deviationCategories: noInteraction || score === 10 ? [] : deviationCategories,
     comment: comment || (noInteraction ? "Нет взаимодействия за период" : null),
     authorId: user.id
   };

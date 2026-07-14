@@ -88,6 +88,7 @@ model Evaluation {
   criterion             Criterion  @relation(fields: [criterionId], references: [id], onDelete: Cascade)
   score                 Int?
   noInteraction         Boolean    @default(false)
+  deviationCategories   String[]   @default([])
   comment               String?
   authorId              String
   author                User       @relation("EvaluationAuthor", fields: [authorId], references: [id], onDelete: Cascade)

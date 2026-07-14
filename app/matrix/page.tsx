@@ -41,6 +41,7 @@ export default async function MatrixPage({
       evaluateeName: departmentOptionLabel(evaluation.evaluateeDepartment),
       score: evaluation.score,
       noInteraction: evaluation.noInteraction,
+      deviationCategories: evaluation.deviationCategories,
       comment: evaluation.comment,
       authorName: evaluation.author.name,
       updatedAt: evaluation.updatedAt.toISOString()
@@ -69,6 +70,7 @@ export default async function MatrixPage({
         : evaluation.evaluatorUser?.name || "Директор",
       evaluateeName: departmentOptionLabel(evaluation.evaluateeDepartment),
       score: evaluation.score,
+      deviationCategories: evaluation.deviationCategories,
       comment: evaluation.comment,
       authorName: evaluation.author.name,
       updatedAt: evaluation.updatedAt.toISOString()

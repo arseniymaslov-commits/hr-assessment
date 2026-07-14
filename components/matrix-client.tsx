@@ -19,6 +19,7 @@ type MatrixEvaluation = {
   evaluateeName: string;
   score: number | null;
   noInteraction: boolean;
+  deviationCategories: string[];
   comment: string | null;
   authorName: string;
   updatedAt: string;
@@ -36,6 +37,7 @@ type LowComment = {
   evaluatorName: string;
   evaluateeName: string;
   score: number | null;
+  deviationCategories: string[];
   comment: string | null;
   authorName: string;
   updatedAt: string;
@@ -222,6 +224,18 @@ export default function MatrixClient({
                 <div className="text-sm text-muted">Автор</div>
                 <div className="mt-1 text-sm text-slate-700">{selected.authorName}</div>
               </div>
+              {selected.deviationCategories.length ? (
+                <div>
+                  <div className="text-sm text-muted">Категории отклонений</div>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {selected.deviationCategories.map((category) => (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600" key={category}>
+                        {category}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               <div>
                 <div className="text-sm text-muted">Комментарий</div>
                 <p className="mt-1 text-sm leading-6 text-slate-700">
@@ -263,6 +277,15 @@ export default function MatrixClient({
                     </span>
                   </div>
                   <p className="mt-2 text-sm leading-5 text-slate-700">{item.comment || "Комментарий не указан."}</p>
+                  {item.deviationCategories.length ? (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {item.deviationCategories.map((category) => (
+                        <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-slate-600 ring-1 ring-line" key={category}>
+                          {category}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                   <div className="mt-2 text-xs text-muted">{item.authorName}</div>
                 </article>
               ))

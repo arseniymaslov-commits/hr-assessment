@@ -70,6 +70,7 @@ export default async function DashboardPage({
     id: evaluation.id,
     score: evaluation.score,
     comment: evaluation.comment,
+    deviationCategories: evaluation.deviationCategories,
     evaluatorName: evaluation.evaluatorDepartment?.name || evaluation.evaluatorUser?.name || "Директор",
     evaluateeName: evaluation.evaluateeDepartment.name
   }));
@@ -77,6 +78,7 @@ export default async function DashboardPage({
     id: evaluation.id,
     score: evaluation.score,
     comment: evaluation.comment,
+    deviationCategories: evaluation.deviationCategories,
     evaluatorName: evaluation.evaluatorDepartment
       ? departmentOptionLabel(evaluation.evaluatorDepartment)
       : evaluation.evaluatorUser?.name || "Директор",
@@ -318,6 +320,15 @@ export default async function DashboardPage({
                             `${evaluation.evaluatorDepartmentId || evaluation.evaluatorUserId || "director"}:${evaluation.evaluateeDepartmentId}`
                           ]
                         }
+                      </div>
+                    ) : null}
+                    {evaluation.deviationCategories.length ? (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {evaluation.deviationCategories.map((category) => (
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600" key={category}>
+                            {category}
+                          </span>
+                        ))}
                       </div>
                     ) : null}
                     <p className="mt-2 text-sm leading-6 text-slate-700">{evaluation.comment}</p>

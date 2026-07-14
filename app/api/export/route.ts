@@ -123,6 +123,7 @@ export async function GET(request: Request) {
         : evaluation.evaluatorUser?.name || "Директор",
       "Кого оценивают": departmentOptionLabel(evaluation.evaluateeDepartment),
       "Оценка": evaluation.score,
+      "Категории отклонений": evaluation.deviationCategories.join(", "),
       "Комментарий": canExportComments ? evaluation.comment || "" : "",
       "Автор": evaluation.author.name,
       "Дата": evaluation.updatedAt.toISOString()
@@ -140,6 +141,7 @@ export async function GET(request: Request) {
       "Кого оценивают": departmentOptionLabel(evaluation.evaluateeDepartment),
       "Оценка": evaluation.noInteraction ? "" : evaluation.score,
       "Нет взаимодействия": evaluation.noInteraction ? "Да" : "Нет",
+      "Категории отклонений": evaluation.deviationCategories.join(", "),
       "Комментарий": canExportComments ? evaluation.comment || "" : "",
       "Автор": evaluation.author.name,
       "Дата заполнения": evaluation.updatedAt.toISOString()

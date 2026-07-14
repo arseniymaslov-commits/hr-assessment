@@ -29,6 +29,7 @@ export default async function EvaluationsPage() {
       evaluateeDepartmentId: true,
       score: true,
       comment: true,
+      deviationCategories: true,
       noInteraction: true
     }
   });
@@ -60,7 +61,7 @@ export default async function EvaluationsPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-ink">Заполнение оценки</h1>
         <p className="mt-1 text-sm text-muted">
-          Оцените взаимодействие со всеми доступными подразделениями. Оценки 9 или ниже сохраняются только с комментарием.
+          Оцените взаимодействие со всеми доступными подразделениями. Оценка ниже 10 сохраняется только с категорией отклонения и комментарием.
         </p>
       </div>
 
@@ -78,6 +79,7 @@ export default async function EvaluationsPage() {
           evaluateeDepartmentId: evaluation.evaluateeDepartmentId,
           score: evaluation.score,
           comment: evaluation.comment,
+          deviationCategories: evaluation.deviationCategories,
           noInteraction: evaluation.noInteraction
         }))}
         user={{
@@ -101,7 +103,8 @@ export default async function EvaluationsPage() {
               <tr>
                 <th className="px-5 py-3">Кто оценивает</th>
                 <th className="px-5 py-3">Кого оценивают</th>
-                  <th className="px-5 py-3">Оценка / статус</th>
+                <th className="px-5 py-3">Оценка / статус</th>
+                <th className="px-5 py-3">Категории</th>
                 <th className="px-5 py-3">Комментарий</th>
                 <th className="px-5 py-3">Автор</th>
               </tr>
@@ -127,6 +130,9 @@ export default async function EvaluationsPage() {
                     ) : (
                       <ScoreBadge score={evaluation.score} />
                     )}
+                  </td>
+                  <td className="max-w-sm px-5 py-4 text-slate-700">
+                    {evaluation.deviationCategories.length ? evaluation.deviationCategories.join(", ") : "—"}
                   </td>
                   <td className="max-w-md px-5 py-4 text-slate-700">{evaluation.comment || "—"}</td>
                   <td className="px-5 py-4 text-slate-700">{evaluation.author.name}</td>
