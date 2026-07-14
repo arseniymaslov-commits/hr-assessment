@@ -21,7 +21,7 @@ async function handler(request: Request) {
 
   const result = await processEvaluationRequestSchedule();
   return NextResponse.json({
-    message: `Расписание обработано. Уведомленных запусков: ${result.notifiedRequests}. Напоминаний: ${result.reminderRecipients}. Автоматически отмечено: ${result.autoClosed}.`,
+    message: `Расписание обработано. Уведомленных запусков: ${result.notifiedRequests}. Автоматических закрытий нет: оценки доступны до закрытия периода.`,
     ...result
   });
 }

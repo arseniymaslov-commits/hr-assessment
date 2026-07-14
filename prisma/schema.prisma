@@ -96,6 +96,7 @@ model Evaluation {
   updatedAt             DateTime   @updatedAt
 
   @@unique([periodId, evaluatorDepartmentId, evaluateeDepartmentId, criterionId])
+  @@unique([periodId, evaluatorUserId, evaluateeDepartmentId, criterionId])
   @@index([periodId, evaluateeDepartmentId])
   @@index([periodId, evaluatorDepartmentId])
   @@index([periodId, evaluatorUserId])

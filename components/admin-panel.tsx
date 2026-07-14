@@ -305,7 +305,7 @@ export default function AdminPanel({
 
         <section className="rounded-lg border border-line bg-white p-5">
           <h2 className="font-semibold text-ink">Запуск оценки отдела</h2>
-          <p className="mt-1 text-sm text-muted">Запускает оценку выбранного отдела или планирует ее на календарную дату. Срок заполнения всегда 3 дня от даты запуска. За день до дедлайна система отправит напоминание тем, кто не заполнил оценку.</p>
+          <p className="mt-1 text-sm text-muted">Запускает оценку выбранного отдела или планирует ее на календарную дату. Оценки доступны до закрытия периода администратором.</p>
           <div className="mt-4 grid gap-3 lg:grid-cols-2">
             <select className="focus-ring rounded-lg border border-line px-3 py-2" value={launchDepartmentId} onChange={(event) => setLaunchDepartmentId(event.target.value)}>
               {evaluateeDepartments.map((department) => (
@@ -322,7 +322,7 @@ export default function AdminPanel({
               <input className="focus-ring rounded-lg border border-line px-3 py-2 text-ink" type="datetime-local" value={launchScheduledAt} onChange={(event) => setLaunchScheduledAt(event.target.value)} />
             </label>
             <div className="rounded-lg border border-line bg-slate-50 px-3 py-2 text-sm text-muted">
-              Дедлайн: автоматически через 3 дня после запуска
+              Без дедлайна: период закрывается вручную в блоке «Периоды оценки».
             </div>
           </div>
           <div className="mt-4 flex flex-wrap gap-3">

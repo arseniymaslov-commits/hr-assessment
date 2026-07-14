@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
+import { isValidDeviationCategory } from "@/lib/evaluation-categories";
 import { isEvaluatableDepartmentName } from "@/lib/evaluation-scope";
 import { prisma } from "@/lib/prisma";
 
@@ -21,9 +22,10 @@ export async function POST(request: Request) {
   const score = Number(body?.score);
   const scoreToSave = noInteraction ? null : score;
   const comment = String(body?.comment || "").trim();
-  const deviationCategories = Array.isArray(body?.deviationCategories)
+  const deviationCategories: string[] = Array.isArray(body?.deviationCategories)
     ? body.deviationCategories.map(String).map((item: string) => item.trim()).filter(Boolean)
     : [];
+  const normalizedDeviationCategories: string[] = Array.from(new Set(deviationCategories));
   const isDirectorEvaluation = user.role === Role.DIRECTOR;
   const effectiveEvaluatorDepartmentId =
     user.role === Role.LEADER ? user.departmentId || "" : evaluatorDepartmentId;
@@ -44,8 +46,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Для оценки ниже 10 комментарий обязателен" }, { status: 400 });
   }
 
-  if (!noInteraction && score < 10 && deviationCategories.length === 0) {
+  if (!noInteraction && score < 10 && normalizedDeviationCategories.length === 0) {
     return NextResponse.json({ error: "Для оценки ниже 10 выберите категорию отклонения" }, { status: 400 });
+  }
+
+  if (!noInteraction && normalizedDeviationCategories.some((category) => !isValidDeviationCategory(category))) {
+    return NextResponse.json({ error: "Выбрана некорректная категория отклонения" }, { status: 400 });
   }
 
   if (user.role === Role.LEADER && !user.departmentId) {
@@ -58,21 +64,6 @@ export async function POST(request: Request) {
   const period = await prisma.period.findUnique({ where: { id: periodId } });
   if (!period || period.status !== "OPEN") {
     return NextResponse.json({ error: "Период закрыт или не найден" }, { status: 400 });
-  }
-
-  const evaluationRequest = await prisma.evaluationRequest.findFirst({
-    where: {
-      periodId,
-      evaluateeDepartmentId,
-      scheduledAt: { lte: new Date() }
-    },
-    select: { deadlineAt: true, autoClosedAt: true }
-  });
-  if (evaluationRequest && (evaluationRequest.autoClosedAt || evaluationRequest.deadlineAt <= new Date())) {
-    return NextResponse.json(
-      { error: "Дедлайн оценки истек. Редактирование заблокировано." },
-      { status: 400 }
-    );
   }
 
   const evaluateeDepartment = await prisma.department.findUnique({
@@ -91,7 +82,7 @@ export async function POST(request: Request) {
     criterionId,
     score: scoreToSave,
     noInteraction,
-    deviationCategories: noInteraction || score === 10 ? [] : deviationCategories,
+    deviationCategories: noInteraction || score === 10 ? [] : normalizedDeviationCategories,
     comment: comment || (noInteraction ? "Нет взаимодействия за период" : null),
     authorId: user.id
   };

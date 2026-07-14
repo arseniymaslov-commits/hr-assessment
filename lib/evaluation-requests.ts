@@ -54,8 +54,7 @@ export async function notifyEvaluationRequests(requestIds: string[]) {
   const requests = await prisma.evaluationRequest.findMany({
     where: {
       id: { in: requestIds },
-      notificationSentAt: null,
-      autoClosedAt: null
+      notificationSentAt: null
     },
     include: {
       period: true,
@@ -87,14 +86,6 @@ export async function notifyEvaluationRequests(requestIds: string[]) {
   const appUrl = getAppUrl();
   const evaluationUrl = `${appUrl}/evaluations`;
   const period = requests[0].period;
-  const deadlineDate = requests.reduce(
-    (latest, request) => (request.deadlineAt > latest ? request.deadlineAt : latest),
-    requests[0].deadlineAt
-  );
-  const deadline = deadlineDate.toLocaleString("ru-RU", {
-    dateStyle: "medium",
-    timeStyle: "short"
-  });
   const mailResults: Array<{ skipped: boolean; recipientsCount: number }> = [];
   const batchSize = 4;
   for (let index = 0; index < recipients.length; index += batchSize) {
@@ -113,23 +104,18 @@ export async function notifyEvaluationRequests(requestIds: string[]) {
             "",
             "Просим оценить взаимодействие с отделами.",
             `Период: ${formatPeriod(period.month, period.year)}.`,
-            `Срок заполнения: ${deadline}.`,
             uniqueTargets.length ? `Доступно для оценки: ${uniqueTargets.join(", ")}.` : "",
             "",
-            `Перейдите в форму оценки: ${evaluationUrl}`,
-            "",
-            "Если оценка не будет поставлена до срока, система автоматически отметит «Нет взаимодействия»."
+            `Перейдите в форму оценки: ${evaluationUrl}`
           ].filter(Boolean).join("\n"),
           html: [
             `<p>${greeting(recipient.name)}.</p>`,
             "<p>Просим оценить взаимодействие с отделами.</p>",
             "<ul>",
             `<li>Период: ${formatPeriod(period.month, period.year)}</li>`,
-            `<li>Срок заполнения: ${deadline}</li>`,
             uniqueTargets.length ? `<li>Доступно для оценки: ${uniqueTargets.join(", ")}</li>` : "",
             "</ul>",
-            emailActionLink(evaluationUrl, "Перейти к оценке"),
-            "<p>Если оценка не будет поставлена до срока, система автоматически отметит «Нет взаимодействия».</p>"
+            emailActionLink(evaluationUrl, "Перейти к оценке")
           ].filter(Boolean).join("")
         });
       })
@@ -209,8 +195,7 @@ export async function notifyDueEvaluationRequests() {
   const dueRequests = await prisma.evaluationRequest.findMany({
     where: {
       scheduledAt: { lte: new Date() },
-      notificationSentAt: null,
-      autoClosedAt: null
+      notificationSentAt: null
     },
     select: { id: true, periodId: true }
   });
@@ -233,168 +218,17 @@ export async function notifyDueEvaluationRequests() {
 }
 
 export async function sendDeadlineReminders() {
-  const now = new Date();
-  const until = new Date(now.getTime() + MS_IN_DAY);
-  const requests = await prisma.evaluationRequest.findMany({
-    where: {
-      scheduledAt: { lte: now },
-      deadlineAt: { gt: now, lte: until },
-      notificationSentAt: { not: null },
-      reminderSentAt: null,
-      autoClosedAt: null
-    },
-    include: { period: true, evaluateeDepartment: true }
-  });
-  if (!requests.length) return { reminderRequests: 0, reminderRecipients: 0 };
-
-  const criterion =
-    (await prisma.criterion.findFirst({ where: { name: "Общая оценка взаимодействия" } })) ||
-    (await prisma.criterion.findFirst({ where: { isActive: true } }));
-  if (!criterion) return { reminderRequests: 0, reminderRecipients: 0 };
-
-  const appUrl = getAppUrl();
-  const evaluationUrl = `${appUrl}/evaluations`;
-  let reminderRecipients = 0;
-
-  for (const request of requests) {
-    const requirements = await prisma.evaluationRequirement.findMany({
-      where: { evaluateeDepartmentId: request.evaluateeDepartmentId, isActive: true },
-      include: { evaluatorDepartment: true }
-    });
-    const missingEvaluatorDepartmentIds: string[] = [];
-    for (const requirement of requirements) {
-      const existing = await prisma.evaluation.findFirst({
-        where: {
-          periodId: request.periodId,
-          evaluatorDepartmentId: requirement.evaluatorDepartmentId,
-          evaluateeDepartmentId: request.evaluateeDepartmentId,
-          criterionId: criterion.id
-        },
-        select: { id: true }
-      });
-      if (!existing) missingEvaluatorDepartmentIds.push(requirement.evaluatorDepartmentId);
-    }
-    if (!missingEvaluatorDepartmentIds.length) {
-      await prisma.evaluationRequest.update({
-        where: { id: request.id },
-        data: { reminderSentAt: now }
-      });
-      continue;
-    }
-
-    const recipients = await prisma.user.findMany({
-      where: {
-        isActive: true,
-        receivesNotifications: true,
-        role: Role.LEADER,
-        departmentId: { in: missingEvaluatorDepartmentIds }
-      }
-    });
-    const deadline = request.deadlineAt.toLocaleString("ru-RU", {
-      dateStyle: "medium",
-      timeStyle: "short"
-    });
-
-    for (const recipient of recipients) {
-      const result = await sendMail({
-        to: [recipient.email],
-        subject: "Напоминание: осталось меньше суток на оценку взаимодействия",
-        text: [
-          `${greeting(recipient.name)}.`,
-          "",
-          `Напоминаем, что нужно оценить взаимодействие с отделом ${request.evaluateeDepartment.name}.`,
-          `Период: ${formatPeriod(request.period.month, request.period.year)}.`,
-          `Дедлайн: ${deadline}.`,
-          "",
-          `Форма оценки: ${evaluationUrl}`
-        ].join("\n"),
-        html: [
-          `<p>${greeting(recipient.name)}.</p>`,
-          `<p>Напоминаем, что нужно оценить взаимодействие с отделом <strong>${request.evaluateeDepartment.name}</strong>.</p>`,
-          "<ul>",
-          `<li>Период: ${formatPeriod(request.period.month, request.period.year)}</li>`,
-          `<li>Дедлайн: ${deadline}</li>`,
-          "</ul>",
-          emailActionLink(evaluationUrl, "Перейти к оценке")
-        ].join("")
-      });
-      if (!result.skipped) reminderRecipients += 1;
-    }
-
-    await prisma.evaluationRequest.update({
-      where: { id: request.id },
-      data: { reminderSentAt: now }
-    });
-  }
-
-  return { reminderRequests: requests.length, reminderRecipients };
+  return { reminderRequests: 0, reminderRecipients: 0 };
 }
 
 export async function finalizeExpiredEvaluationRequests() {
-  const criterion =
-    (await prisma.criterion.findFirst({
-      where: { name: "Общая оценка взаимодействия" }
-    })) || (await prisma.criterion.findFirst({ where: { isActive: true } }));
-  if (!criterion) return { autoClosed: 0 };
-
-  const expiredRequests = await prisma.evaluationRequest.findMany({
-    where: {
-      deadlineAt: { lt: new Date() },
-      scheduledAt: { lte: new Date() },
-      autoClosedAt: null
-    }
-  });
-
-  let autoClosed = 0;
-  for (const request of expiredRequests) {
-    const requirements = await prisma.evaluationRequirement.findMany({
-      where: {
-        evaluateeDepartmentId: request.evaluateeDepartmentId,
-        isActive: true
-      }
-    });
-
-    for (const requirement of requirements) {
-      const existing = await prisma.evaluation.findFirst({
-        where: {
-          periodId: request.periodId,
-          evaluatorDepartmentId: requirement.evaluatorDepartmentId,
-          evaluateeDepartmentId: request.evaluateeDepartmentId,
-          criterionId: criterion.id
-        }
-      });
-      if (existing) continue;
-
-      await prisma.evaluation.create({
-        data: {
-          periodId: request.periodId,
-          evaluatorDepartmentId: requirement.evaluatorDepartmentId,
-          evaluateeDepartmentId: request.evaluateeDepartmentId,
-          criterionId: criterion.id,
-          noInteraction: true,
-          score: null,
-          comment: "Автоматически отмечено: оценка не заполнена до установленного срока",
-          authorId: request.initiatedById
-        }
-      });
-      autoClosed += 1;
-    }
-
-    await prisma.evaluationRequest.update({
-      where: { id: request.id },
-      data: { autoClosedAt: new Date() }
-    });
-  }
-
-  return { autoClosed };
+  return { autoClosed: 0 };
 }
 
 export async function processEvaluationRequestSchedule() {
   const autoLaunch = await autoLaunchCurrentMonthIfNeeded();
   const notified = await notifyDueEvaluationRequests();
-  const reminded = await sendDeadlineReminders();
-  const finalized = await finalizeExpiredEvaluationRequests();
-  return { ...autoLaunch, ...notified, ...reminded, ...finalized };
+  return { ...autoLaunch, ...notified, reminderRequests: 0, reminderRecipients: 0, autoClosed: 0 };
 }
 
 function almatyDateParts(date = new Date()) {

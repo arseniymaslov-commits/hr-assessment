@@ -68,9 +68,7 @@ export async function POST(request: Request) {
           `Период оценки: ${formatPeriod(period.month, period.year)}.`,
           recipient.department?.name ? `Ваше подразделение: ${recipient.department.name}.` : "",
           "",
-          `Форма оценки: ${evaluationUrl}`,
-          "",
-          "Если оценка не будет заполнена в установленный срок, система отметит отсутствие взаимодействия автоматически."
+          `Форма оценки: ${evaluationUrl}`
         ].filter(Boolean).join("\n"),
         html: [
           `<p>Здравствуйте, ${recipient.name}.</p>`,
@@ -79,8 +77,7 @@ export async function POST(request: Request) {
           `<li>Период оценки: ${formatPeriod(period.month, period.year)}</li>`,
           recipient.department?.name ? `<li>Ваше подразделение: ${recipient.department.name}</li>` : "",
           "</ul>",
-          emailActionLink(evaluationUrl, "Перейти к оценке"),
-          "<p>Если оценка не будет заполнена в установленный срок, система отметит отсутствие взаимодействия автоматически.</p>"
+          emailActionLink(evaluationUrl, "Перейти к оценке")
         ].filter(Boolean).join("")
       });
       sent += 1;

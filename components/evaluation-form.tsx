@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Ban, Save } from "lucide-react";
 import DepartmentLabel from "@/components/department-label";
 import { departmentOptionLabel } from "@/lib/department-decodings";
+import { DEVIATION_CATEGORIES } from "@/lib/evaluation-categories";
 
 type Department = {
   id: string;
@@ -74,17 +75,6 @@ const monthNames = [
 ];
 
 const OVERALL_CRITERION_NAME = "Общая оценка взаимодействия";
-
-const DEVIATION_CATEGORIES = [
-  "Нарушение сроков исполнения",
-  "Несвоевременная или неполная обратная связь",
-  "Неполные или некорректные данные и документы",
-  "Недостаточная координация действий",
-  "Некорректная деловая коммуникация",
-  "Несоответствие результата требованиям",
-  "Неисполнение обязательного требования или поручения",
-  "Иное"
-];
 
 const SCORE_GUIDE = [
   [10, "Результат полностью соответствует требованиям, принят с первого раза и может использоваться без исправлений."],
@@ -318,121 +308,136 @@ export default function EvaluationForm({
 
       {selectedPeriod?.status === "CLOSED" ? <div className="mb-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-muted">Период закрыт, редактирование недоступно.</div> : null}
 
-      <div className="overflow-x-auto rounded-lg border border-line">
-        <table className="w-full min-w-[1080px] text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-muted">
-            <tr>
-              <th className="px-4 py-3">Подразделение</th>
-              <th className="px-4 py-3">Оценка</th>
-              <th className="px-4 py-3">Категории отклонений</th>
-              <th className="px-4 py-3">Комментарий</th>
-              <th className="px-4 py-3">Действие</th>
-              <th className="px-4 py-3">Статус</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {availableEvaluatees.map((department) => {
-              const row = rows[department.id] || blankRow();
-              const required = requiredEvaluateeIds.has(department.id);
-              const needsDetails = !row.noInteraction && row.score < 10;
-              return (
-                <tr className={required ? "bg-slate-50" : ""} key={department.id}>
-                  <td className="px-4 py-4 align-top">
-                    <DepartmentLabel department={department} className="font-semibold text-ink" />
-                    {required ? <div className="mt-1 text-xs font-semibold text-brandDark">Обязательно оценить</div> : null}
-                  </td>
-                  <td className="px-4 py-4 align-top">
-                    <input
-                      className="focus-ring w-24 rounded-lg border border-line px-3 py-2 text-lg font-semibold"
-                      disabled={row.noInteraction || !canUseForm}
-                      max={10}
-                      min={1}
-                      type="number"
-                      value={row.score}
-                      onChange={(event) => {
-                        const score = Number(event.target.value);
-                        updateRow(department.id, {
-                          score,
-                          deviationCategories: score === 10 ? [] : row.deviationCategories,
-                          noInteraction: false,
-                          message: ""
-                        });
-                      }}
-                    />
-                  </td>
-                  <td className="px-4 py-4 align-top">
-                    {needsDetails ? (
-                      <div className="grid min-w-[280px] gap-2">
-                        {DEVIATION_CATEGORIES.map((category) => (
-                          <label className="flex items-start gap-2 rounded-lg border border-line bg-white p-2 text-xs font-medium text-slate-700" key={category}>
-                            <input
-                              className="mt-0.5"
-                              checked={row.deviationCategories.includes(category)}
-                              disabled={!canUseForm}
-                              type="checkbox"
-                              onChange={() =>
-                                updateRow(department.id, {
-                                  deviationCategories: toggleCategory(row, category),
-                                  message: ""
-                                })
-                              }
-                            />
-                            <span>{category}</span>
-                          </label>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-sm text-muted">Для оценки 10 категории не требуются</div>
-                    )}
-                  </td>
-                  <td className="px-4 py-4 align-top">
-                    <textarea
-                      className={`focus-ring min-h-24 w-full rounded-lg border px-3 py-2 ${needsDetails ? "border-amber-200" : "border-line"}`}
-                      disabled={!canUseForm || row.noInteraction}
-                      placeholder={
-                        row.noInteraction
-                          ? "Отмечено: нет взаимодействия"
-                          : needsDetails
-                            ? "Укажите факт, нарушенное требование, последствия и источник подтверждения"
-                            : "Комментарий не обязателен для оценки 10"
-                      }
-                      value={row.comment}
-                      onChange={(event) => updateRow(department.id, { comment: event.target.value, message: "" })}
-                    />
-                  </td>
-                  <td className="px-4 py-4 align-top">
-                    <div className="flex flex-col gap-2">
-                      <button
-                        className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-brand/30 bg-white px-3 py-2 font-semibold text-brand transition hover:bg-brand/5 disabled:opacity-50"
-                        disabled={!canUseForm || row.saving || !rowCanSave(row)}
-                        type="button"
-                        onClick={() => saveDepartment(department.id)}
+      <div className="space-y-3">
+        {availableEvaluatees.map((department) => {
+          const row = rows[department.id] || blankRow();
+          const required = requiredEvaluateeIds.has(department.id);
+          const needsDetails = !row.noInteraction && row.score < 10;
+          const statusText = row.saving
+            ? "Сохраняем..."
+            : row.message ||
+              (needsDetails ? "Нужны категория и комментарий" : "Готово к сохранению");
+
+          return (
+            <article
+              className={`rounded-lg border bg-white p-4 transition ${
+                required ? "border-brand/20 bg-brand/5" : "border-line"
+              }`}
+              key={department.id}
+            >
+              <div className="grid gap-4 lg:grid-cols-[minmax(220px,1fr)_120px_minmax(260px,1.2fr)_220px] lg:items-start">
+                <div>
+                  <DepartmentLabel department={department} className="font-semibold text-ink" />
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {required ? (
+                      <span className="rounded-full bg-brand/10 px-2.5 py-1 text-xs font-semibold text-brand">
+                        Обязательно
+                      </span>
+                    ) : null}
+                    {row.noInteraction ? (
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                        Нет взаимодействия
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+
+                <label className="grid gap-1 text-sm font-medium text-slate-700">
+                  <span>Оценка</span>
+                  <select
+                    className="focus-ring rounded-lg border border-line bg-white px-3 py-2 text-lg font-semibold text-ink"
+                    disabled={row.noInteraction || !canUseForm}
+                    value={row.score}
+                    onChange={(event) => {
+                      const score = Number(event.target.value);
+                      updateRow(department.id, {
+                        score,
+                        deviationCategories: score === 10 ? [] : row.deviationCategories,
+                        noInteraction: false,
+                        message: ""
+                      });
+                    }}
+                  >
+                    {SCORE_GUIDE.map(([score]) => (
+                      <option key={score} value={score}>
+                        {score}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <div>
+                  <div className="text-sm font-medium text-slate-700">Комментарий</div>
+                  <textarea
+                    className={`focus-ring mt-1 min-h-24 w-full rounded-lg border px-3 py-2 text-sm ${
+                      needsDetails ? "border-amber-200" : "border-line"
+                    }`}
+                    disabled={!canUseForm || row.noInteraction}
+                    placeholder={
+                      row.noInteraction
+                        ? "Отмечено: нет взаимодействия"
+                        : needsDetails
+                          ? "Кратко укажите факт и последствия"
+                          : "Комментарий не обязателен для оценки 10"
+                    }
+                    value={row.comment}
+                    onChange={(event) => updateRow(department.id, { comment: event.target.value, message: "" })}
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">
+                    {statusText}
+                  </div>
+                  <button
+                    className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-brand/30 bg-white px-3 py-2 text-sm font-semibold text-brand transition hover:bg-brand/5 disabled:opacity-50"
+                    disabled={!canUseForm || row.saving || !rowCanSave(row)}
+                    type="button"
+                    onClick={() => saveDepartment(department.id)}
+                  >
+                    <Save size={15} /> Сохранить
+                  </button>
+                  <button
+                    className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
+                    disabled={!canUseForm || row.saving}
+                    type="button"
+                    onClick={() => saveDepartment(department.id, true)}
+                  >
+                    <Ban size={15} /> Нет взаимодействия
+                  </button>
+                </div>
+              </div>
+
+              {needsDetails ? (
+                <div className="mt-4 rounded-lg border border-amber-100 bg-amber-50/40 p-3">
+                  <div className="mb-2 text-sm font-semibold text-ink">Категории отклонений</div>
+                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                    {DEVIATION_CATEGORIES.map((category) => (
+                      <label
+                        className="flex items-start gap-2 rounded-lg border border-line bg-white p-2 text-xs font-medium text-slate-700"
+                        key={category}
                       >
-                        <Save size={16} /> Сохранить
-                      </button>
-                      <button
-                        className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-white px-3 py-2 font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
-                        disabled={!canUseForm || row.saving}
-                        type="button"
-                        onClick={() => saveDepartment(department.id, true)}
-                      >
-                        <Ban size={16} /> Нет взаимодействия
-                      </button>
-                    </div>
-                  </td>
-                  <td className="px-4 py-4 align-top text-slate-700">
-                    {row.saving
-                      ? "Сохраняем..."
-                      : row.message ||
-                        (needsDetails
-                          ? "Нужны категория и комментарий"
-                          : "Готово к сохранению")}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                        <input
+                          className="mt-0.5"
+                          checked={row.deviationCategories.includes(category)}
+                          disabled={!canUseForm}
+                          type="checkbox"
+                          onChange={() =>
+                            updateRow(department.id, {
+                              deviationCategories: toggleCategory(row, category),
+                              message: ""
+                            })
+                          }
+                        />
+                        <span>{category}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </article>
+          );
+        })}
       </div>
     </section>
   );
