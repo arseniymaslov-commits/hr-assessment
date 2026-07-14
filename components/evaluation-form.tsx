@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Ban, Save } from "lucide-react";
 import DepartmentLabel from "@/components/department-label";
 import { departmentOptionLabel } from "@/lib/department-decodings";
@@ -137,6 +137,8 @@ export default function EvaluationForm({
   const [periodId, setPeriodId] = useState(openPeriod?.id || "");
   const [evaluatorDepartmentId, setEvaluatorDepartmentId] = useState(defaultEvaluatorId);
   const [rows, setRows] = useState<Record<string, RowState>>({});
+  const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const savedSignatures = useRef<Record<string, string>>({});
 
   const selectedPeriod = useMemo(
     () => periods.find((period) => period.id === periodId),
@@ -164,6 +166,26 @@ export default function EvaluationForm({
     return ids;
   }, [evaluateeDepartments, evaluatorDepartmentId, requirements]);
 
+  function rowSignature(departmentId: string, row: RowState, noInteraction = row.noInteraction) {
+    return JSON.stringify({
+      periodId,
+      evaluatorDepartmentId: isDirector ? null : evaluatorDepartmentId,
+      evaluatorUserId: isDirector ? user.id : null,
+      evaluateeDepartmentId: departmentId,
+      criterionId: overallCriterion?.id || "",
+      score: noInteraction ? null : row.score,
+      comment: noInteraction ? "" : row.comment.trim(),
+      deviationCategories: noInteraction || row.score === 10 ? [] : row.deviationCategories.slice().sort(),
+      noInteraction
+    });
+  }
+
+  const canUseForm =
+    (user.role === "ADMIN" || user.role === "LEADER" || user.role === "DIRECTOR") &&
+    selectedPeriod?.status === "OPEN" &&
+    overallCriterion &&
+    (isDirector || evaluatorDepartmentId);
+
   useEffect(() => {
     setRows((current) => {
       const next: Record<string, RowState> = {};
@@ -190,16 +212,32 @@ export default function EvaluationForm({
               message: existing.noInteraction ? "Сохранено: нет взаимодействия" : "Сохранено"
             }
           : currentRow || blankRow();
+        savedSignatures.current[department.id] = rowSignature(department.id, next[department.id]);
       }
       return next;
     });
   }, [availableEvaluatees, evaluatorDepartmentId, existingEvaluations, isDirector, overallCriterion?.id, periodId, user.id]);
 
-  const canUseForm =
-    (user.role === "ADMIN" || user.role === "LEADER" || user.role === "DIRECTOR") &&
-    selectedPeriod?.status === "OPEN" &&
-    overallCriterion &&
-    (isDirector || evaluatorDepartmentId);
+  useEffect(() => {
+    if (!canUseForm || !overallCriterion) return;
+
+    for (const department of availableEvaluatees) {
+      const row = rows[department.id];
+      if (!row || row.saving || row.noInteraction || !rowCanSave(row)) continue;
+
+      const signature = rowSignature(department.id, row, false);
+      if (signature === savedSignatures.current[department.id]) continue;
+
+      if (saveTimers.current[department.id]) clearTimeout(saveTimers.current[department.id]);
+      saveTimers.current[department.id] = setTimeout(() => {
+        saveDepartment(department.id, false, row, signature);
+      }, 900);
+    }
+
+    return () => {
+      for (const timer of Object.values(saveTimers.current)) clearTimeout(timer);
+    };
+  }, [rows, canUseForm, overallCriterion?.id, periodId, evaluatorDepartmentId, isDirector, user.id, availableEvaluatees]);
 
   function updateRow(departmentId: string, patch: Partial<RowState>) {
     setRows((current) => ({
@@ -225,11 +263,19 @@ export default function EvaluationForm({
     return row.comment.trim().length > 0 && row.deviationCategories.length > 0;
   }
 
-  async function saveDepartment(departmentId: string, noInteraction = false) {
-    const row = rows[departmentId] || blankRow();
+  async function saveDepartment(
+    departmentId: string,
+    noInteraction = false,
+    rowOverride?: RowState,
+    signatureOverride?: string
+  ) {
+    const row = rowOverride || rows[departmentId] || blankRow();
     if (!canUseForm || !overallCriterion || (!noInteraction && !rowCanSave(row))) return false;
 
-    updateRow(departmentId, { saving: true, message: "" });
+    if (saveTimers.current[departmentId]) clearTimeout(saveTimers.current[departmentId]);
+    const sentSignature = signatureOverride || rowSignature(departmentId, row, noInteraction);
+
+    updateRow(departmentId, { saving: true, message: "Сохраняем..." });
     try {
       const response = await fetch("/api/evaluations", {
         method: "POST",
@@ -246,6 +292,9 @@ export default function EvaluationForm({
         })
       });
       const data = await response.json().catch(() => ({}));
+      if (response.ok) {
+        savedSignatures.current[departmentId] = sentSignature;
+      }
       updateRow(departmentId, {
         saving: false,
         noInteraction,
@@ -254,7 +303,7 @@ export default function EvaluationForm({
         message: response.ok
           ? noInteraction
             ? "Сохранено: нет взаимодействия"
-            : "Оценка сохранена"
+            : "Сохранено"
           : data.error || "Не удалось сохранить"
       });
       return response.ok;
@@ -367,8 +416,10 @@ export default function EvaluationForm({
                         score,
                         deviationCategories: score === 10 ? [] : row.deviationCategories,
                         noInteraction: false,
-                        message: ""
-                      });
+                          message: rowCanSave({ ...row, score, deviationCategories: score === 10 ? [] : row.deviationCategories, noInteraction: false })
+                            ? "Ожидание автосохранения..."
+                            : ""
+                        });
                     }}
                   >
                     {SCORE_GUIDE.map(([score]) => (
@@ -394,7 +445,12 @@ export default function EvaluationForm({
                           : "Комментарий не обязателен для оценки 10"
                     }
                     value={row.comment}
-                    onChange={(event) => updateRow(department.id, { comment: event.target.value, message: "" })}
+                    onChange={(event) =>
+                      updateRow(department.id, {
+                        comment: event.target.value,
+                        message: needsDetails ? "Ожидание автосохранения..." : "Ожидание автосохранения..."
+                      })
+                    }
                   />
                 </div>
 
@@ -408,7 +464,7 @@ export default function EvaluationForm({
                     type="button"
                     onClick={() => saveDepartment(department.id)}
                   >
-                    <Save size={14} /> Сохранить
+                    <Save size={14} /> Сохранить сейчас
                   </button>
                   <button
                     className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
@@ -418,6 +474,24 @@ export default function EvaluationForm({
                   >
                     <Ban size={14} /> Нет взаимодействия
                   </button>
+                  {row.noInteraction ? (
+                    <button
+                      className="focus-ring rounded-lg border border-line bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+                      disabled={!canUseForm || row.saving}
+                      type="button"
+                      onClick={() =>
+                        updateRow(department.id, {
+                          noInteraction: false,
+                          score: 10,
+                          comment: "",
+                          deviationCategories: [],
+                          message: "Ожидание автосохранения..."
+                        })
+                      }
+                    >
+                      Поставить оценку
+                    </button>
+                  ) : null}
                 </div>
               </div>
 
@@ -452,7 +526,7 @@ export default function EvaluationForm({
                           onChange={() =>
                             updateRow(department.id, {
                               deviationCategories: toggleCategory(row, category),
-                              message: ""
+                              message: "Ожидание автосохранения..."
                             })
                           }
                         />
