@@ -192,11 +192,11 @@ export default function MatrixClient({
                             </button>
                           ) : (
                             <button
-                              className="focus-ring w-full rounded-lg bg-slate-50 px-2 py-3 text-slate-400 ring-1 ring-slate-200"
+                              className="focus-ring w-full rounded-lg bg-red-50 px-2 py-3 text-xs font-semibold text-red-700 ring-1 ring-red-100 transition hover:bg-red-100/60"
                               type="button"
                               onClick={() => setSelected(null)}
                             >
-                              нет
+                              Оценки нет
                             </button>
                           )}
                         </td>
