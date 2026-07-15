@@ -442,7 +442,7 @@ export default function EvaluationForm({
                   <span>Оценка</span>
                   <select
                     className="focus-ring rounded-lg border border-line bg-white px-3 py-2 text-lg font-semibold text-ink"
-                    disabled={row.noInteraction || !canUseForm}
+                    disabled={!canUseForm}
                     value={row.score}
                     onChange={(event) => {
                       const score = Number(event.target.value);
@@ -470,10 +470,10 @@ export default function EvaluationForm({
                     className={`focus-ring mt-1 min-h-24 w-full rounded-lg border px-3 py-2 text-sm ${
                       needsDetails ? "border-amber-200" : "border-line"
                     }`}
-                    disabled={!canUseForm || row.noInteraction}
+                    disabled={!canUseForm}
                     placeholder={
                       row.noInteraction
-                        ? "Отмечено: нет взаимодействия"
+                        ? "Измените оценку или комментарий, чтобы снять статус «Нет взаимодействия»"
                         : needsDetails
                           ? "Кратко укажите факт и последствия"
                           : "Комментарий не обязателен для оценки 10"
@@ -482,6 +482,7 @@ export default function EvaluationForm({
                     onChange={(event) =>
                       updateRow(department.id, {
                         comment: event.target.value,
+                        noInteraction: false,
                         message: needsDetails ? "Ожидание автосохранения..." : "Ожидание автосохранения..."
                       })
                     }
