@@ -3,26 +3,44 @@ import { Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+const RESTORE_ROWS: Array<{ label: string; score: number | null; noInteraction?: boolean }> = [
+  { label: "Бухгалтерия", score: 9 },
+  { label: "Маркетинг", score: 9 },
+  { label: "ОДТ", score: 9 },
+  { label: "ОИАР", score: 10 },
+  { label: "ОИБ", score: 9 },
+  { label: "ОК", score: 9 },
+  { label: "ОКИ", score: 9 },
+  { label: "ОКП", score: 9 },
+  { label: "ОКС", score: 10 },
+  { label: "ОМТС", score: 8 },
+  { label: "ОП", score: 9 },
+  { label: "ОПЗИ", score: 8 },
+  { label: "ОПРМ", score: 10 },
+  { label: "ОРС", score: 9 },
+  { label: "ОРП", score: 9 },
+  { label: "ОРСБ", score: 10 },
+  { label: "Отдел электрозарядных станций", score: null, noInteraction: true },
+  { label: "ОТТБПБ", score: 9 },
+  { label: "ОЦП", score: 7 },
+  { label: "ПЭО", score: 10 },
+  { label: "СБ", score: 10 },
+  { label: "СВКА", score: 10 },
+  { label: "СиСО", score: 10 },
+  { label: "ССБН", score: 9 },
+  { label: "СЭТС", score: 8 },
+  { label: "ТД", score: 10 },
+  { label: "ТС", score: 9 },
+  { label: "УНБХ", score: 9 }
+];
+
 function normalize(value: string) {
   return value.toLowerCase().replace(/[«»"]/g, "").replace(/\s+/g, " ").trim();
 }
 
 function departmentMatches(department: { name: string; shortName: string }, label: string) {
   const target = normalize(label);
-  const name = normalize(department.name);
-  const shortName = normalize(department.shortName);
-  return name === target || shortName === target || name.includes(target) || shortName.includes(target);
-}
-
-function parseEvaluationDetails(details: string | null) {
-  const match = String(details || "").match(/^Оцениваемый отдел:\s*(.+?)\.\s*Оценка:\s*(.+?)\.$/);
-  if (!match) return null;
-  const [, departmentLabel, scoreLabel] = match;
-  return {
-    departmentLabel: departmentLabel.trim(),
-    noInteraction: scoreLabel.trim() === "Нет взаимодействия",
-    score: /^\d+$/.test(scoreLabel.trim()) ? Number(scoreLabel.trim()) : null
-  };
+  return normalize(department.name) === target || normalize(department.shortName) === target;
 }
 
 export async function POST() {
@@ -31,24 +49,13 @@ export async function POST() {
     return NextResponse.json({ error: "Недостаточно прав" }, { status: 403 });
   }
 
-  const [period, criterion, departments, zarina, logs] = await Promise.all([
+  const [period, criterion, departments, zarina] = await Promise.all([
     prisma.period.findFirst({ where: { status: "OPEN" }, orderBy: [{ year: "desc" }, { month: "desc" }] }),
     prisma.criterion.findFirst({ where: { name: "Общая оценка взаимодействия" } }),
     prisma.department.findMany({ select: { id: true, name: true, shortName: true } }),
     prisma.user.findFirst({
       where: { email: "zarina.akmatova@redpetroleum.kg" },
       select: { id: true, name: true, departmentId: true }
-    }),
-    prisma.auditLog.findMany({
-      where: {
-        userName: "Акматова Зарина",
-        action: { in: ["evaluation.create", "evaluation.update"] },
-        createdAt: {
-          gte: new Date("2026-07-03T00:00:00.000Z"),
-          lt: new Date("2026-07-07T03:10:00.000Z")
-        }
-      },
-      orderBy: { createdAt: "desc" }
     })
   ]);
 
@@ -60,27 +67,14 @@ export async function POST() {
     return NextResponse.json({ error: "Не найден открытый период, критерий, УЧР или пользователь Акматова Зарина" }, { status: 400 });
   }
 
-  const latestByDepartment = new Map<
-    string,
-    { departmentLabel: string; score: number | null; noInteraction: boolean; createdAt: Date }
-  >();
-
-  for (const log of logs) {
-    const parsed = parseEvaluationDetails(log.details);
-    if (!parsed || (!parsed.noInteraction && parsed.score == null)) continue;
-    if (!latestByDepartment.has(parsed.departmentLabel)) {
-      latestByDepartment.set(parsed.departmentLabel, { ...parsed, createdAt: log.createdAt });
-    }
-  }
-
   let restored = 0;
   const skipped: string[] = [];
   const restoredRows: Array<{ evaluatee: string; score: number | null; noInteraction: boolean }> = [];
 
-  for (const row of latestByDepartment.values()) {
-    const evaluatee = departments.find((department) => departmentMatches(department, row.departmentLabel));
+  for (const row of RESTORE_ROWS) {
+    const evaluatee = departments.find((department) => departmentMatches(department, row.label));
     if (!evaluatee || evaluatee.id === uchr.id) {
-      skipped.push(row.departmentLabel);
+      skipped.push(row.label);
       continue;
     }
 
@@ -100,7 +94,7 @@ export async function POST() {
       evaluateeDepartmentId: evaluatee.id,
       criterionId: criterion.id,
       score: row.noInteraction ? null : row.score,
-      noInteraction: row.noInteraction,
+      noInteraction: Boolean(row.noInteraction),
       deviationCategories: [] as string[],
       comment: row.noInteraction ? "Нет взаимодействия за период" : null,
       authorId: zarina.id
