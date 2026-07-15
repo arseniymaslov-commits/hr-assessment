@@ -126,6 +126,16 @@ function isAutomaticComment(comment: string | null) {
   return Boolean(comment?.includes("Автоматически отмечено"));
 }
 
+function findDepartmentByLabel(
+  departments: Array<{ id: string; name: string; shortName: string }>,
+  label: string
+) {
+  return (
+    departments.find((department) => department.name === label) ||
+    departments.find((department) => department.shortName === label)
+  );
+}
+
 export async function POST() {
   const user = await getCurrentUser();
   if (user?.role !== Role.ADMIN) {
@@ -184,11 +194,10 @@ export async function POST() {
 
   const updated: Array<{ evaluatee: string; score: number | null; noInteraction: boolean; preservedComment: boolean }> = [];
   const skipped: string[] = [];
+  const restoredEvaluateeIds = new Set<string>();
 
   for (const [evaluateeLabel, value] of latestByEvaluatee) {
-    const evaluateeDepartment = departments.find(
-      (department) => department.name === evaluateeLabel || department.shortName === evaluateeLabel
-    );
+    const evaluateeDepartment = findDepartmentByLabel(departments, evaluateeLabel);
     if (!evaluateeDepartment || evaluateeDepartment.id === ovaDepartment.id) {
       skipped.push(evaluateeLabel);
       continue;
@@ -239,6 +248,24 @@ export async function POST() {
       noInteraction: value.noInteraction,
       preservedComment: Boolean(preservedComment)
     });
+    restoredEvaluateeIds.add(evaluateeDepartment.id);
+  }
+
+  const mistakenMarketingMatch = departments.find((department) => department.name === "ОМ");
+  if (mistakenMarketingMatch && !latestByEvaluatee.has(mistakenMarketingMatch.name)) {
+    const mistakenEvaluation = await prisma.evaluation.findFirst({
+      where: {
+        periodId: period.id,
+        evaluatorDepartmentId: ovaDepartment.id,
+        evaluateeDepartmentId: mistakenMarketingMatch.id,
+        criterionId: criterion.id,
+        authorId: nurzat.id
+      }
+    });
+    if (mistakenEvaluation && !restoredEvaluateeIds.has(mistakenMarketingMatch.id)) {
+      await prisma.evaluation.delete({ where: { id: mistakenEvaluation.id } });
+      skipped.push("deleted mistaken ОМ score from previous restore");
+    }
   }
 
   await prisma.auditLog.create({
