@@ -130,9 +130,17 @@ function findDepartmentByLabel(
   departments: Array<{ id: string; name: string; shortName: string }>,
   label: string
 ) {
+  const normalizedLabel = label.trim().normalize("NFC");
+  if (normalizedLabel === "Маркетинг") {
+    return (
+      departments.find((department) => department.name.trim().normalize("NFC") === "Маркетинг") ||
+      departments.find((department) => department.shortName.trim().normalize("NFC") === "Маркетинг")
+    );
+  }
+
   return (
-    departments.find((department) => department.name === label) ||
-    departments.find((department) => department.shortName === label)
+    departments.find((department) => department.name.trim().normalize("NFC") === normalizedLabel) ||
+    departments.find((department) => department.shortName.trim().normalize("NFC") === normalizedLabel)
   );
 }
 
