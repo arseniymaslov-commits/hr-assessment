@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
+import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
@@ -21,6 +22,14 @@ export async function POST(request: Request) {
     where: { name },
     update: { description: description || null, isActive: true },
     create: { name, description: description || null, isActive: true }
+  });
+
+  await writeAuditLog({
+    action: "criterion.save",
+    summary: "Критерий сохранен",
+    details: description ? `${name}: ${description}` : name,
+    user,
+    request
   });
 
   return NextResponse.json({ message: "Критерий сохранен" });

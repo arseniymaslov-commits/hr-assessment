@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import * as XLSX from "xlsx";
 import { getCurrentUser } from "@/lib/auth";
+import { writeAuditLog } from "@/lib/audit";
 import { departmentOptionLabel, getDepartmentFullName } from "@/lib/department-decodings";
 import { DEVIATION_CATEGORIES } from "@/lib/evaluation-categories";
 import { fixed, periodLabel } from "@/lib/format";
@@ -31,6 +32,13 @@ export async function GET(request: Request) {
   const canExportComments =
     user.role === Role.ADMIN || user.role === Role.DIRECTOR || user.role === Role.LEADER;
   const periodName = metrics.selectedPeriod ? periodLabel(metrics.selectedPeriod) : "period";
+  await writeAuditLog({
+    action: "export.excel",
+    summary: "Экспорт результатов в Excel",
+    details: `Период: ${periodName}`,
+    user,
+    request
+  });
   const evaluatorDepartments = metrics.departments;
   const evaluateeDepartments = leaderDepartmentId
     ? metrics.evaluateeDepartments.filter((department) => department.id === leaderDepartmentId)

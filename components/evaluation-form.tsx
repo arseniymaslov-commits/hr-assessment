@@ -41,6 +41,7 @@ type ExistingEvaluation = {
   comment?: string | null;
   deviationCategories?: string[];
   noInteraction: boolean;
+  updatedAt?: string | null;
 };
 
 type UserContext = {
@@ -58,6 +59,7 @@ type RowState = {
   noInteraction: boolean;
   saving: boolean;
   message: string;
+  savedAt: string | null;
 };
 
 const monthNames = [
@@ -97,7 +99,8 @@ function blankRow(): RowState {
     comment: "",
     noInteraction: false,
     saving: false,
-    message: ""
+    message: "",
+    savedAt: null
   };
 }
 
@@ -107,6 +110,19 @@ function formatDateLabel(value?: string | null) {
     day: "numeric",
     month: "long",
     year: "numeric"
+  }).format(date);
+}
+
+function formatDateTimeLabel(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
   }).format(date);
 }
 
@@ -229,7 +245,8 @@ export default function EvaluationForm({
               comment: existing.comment || currentRow?.comment || "",
               noInteraction: existing.noInteraction,
               saving: false,
-              message: existing.noInteraction ? "Сохранено: нет взаимодействия" : "Сохранено"
+              message: existing.noInteraction ? "Сохранено: нет взаимодействия" : "Сохранено",
+              savedAt: existing.updatedAt || null
             }
           : currentRow || blankRow();
         savedSignatures.current[department.id] = rowSignature(department.id, next[department.id]);
@@ -324,7 +341,8 @@ export default function EvaluationForm({
           ? noInteraction
             ? "Сохранено: нет взаимодействия"
             : "Сохранено"
-          : data.error || "Не удалось сохранить"
+          : data.error || "Не удалось сохранить",
+        savedAt: response.ok ? data.evaluation?.updatedAt || new Date().toISOString() : row.savedAt
       });
       return response.ok;
     } catch {
@@ -492,6 +510,11 @@ export default function EvaluationForm({
                 <div className="grid gap-2">
                   <div className={`rounded-lg border px-3 py-2 text-xs font-medium leading-5 ${statusTone(row, needsDetails)}`}>
                     {statusText}
+                    {row.savedAt ? (
+                      <div className="mt-1 font-normal text-slate-500">
+                        Дата и время оценки: {formatDateTimeLabel(row.savedAt)}
+                      </div>
+                    ) : null}
                   </div>
                   <button
                     className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-brand/30 bg-white px-2.5 py-1.5 text-xs font-semibold text-brand transition hover:bg-brand/5 disabled:opacity-50"

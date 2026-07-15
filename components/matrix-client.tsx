@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { MessageSquareWarning } from "lucide-react";
 import DepartmentLabel from "@/components/department-label";
+import { getDepartmentDisplayParts } from "@/lib/department-decodings";
 import { fixed, scoreClass } from "@/lib/format";
 
 type Department = {
@@ -134,10 +135,11 @@ export default function MatrixClient({
                 </th>
                 {columnDepartments.map((department) => {
                   const summary = summaryByDepartment.get(department.id);
+                  const display = getDepartmentDisplayParts(department);
                   return (
                     <th className="border-b border-line px-3 py-3 text-center align-bottom" key={department.id}>
-                      <span className="block font-semibold text-ink" title={department.shortName || undefined}>
-                        {department.name}
+                      <span className="block font-semibold text-ink" title={display.fullName || undefined}>
+                        {display.name}
                       </span>
                       <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${scoreClass(summary?.average)}`}>
                         {fixed(summary?.average)}

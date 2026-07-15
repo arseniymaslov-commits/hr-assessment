@@ -30,7 +30,8 @@ export default async function EvaluationsPage() {
       score: true,
       comment: true,
       deviationCategories: true,
-      noInteraction: true
+      noInteraction: true,
+      updatedAt: true
     }
   });
 
@@ -81,7 +82,8 @@ export default async function EvaluationsPage() {
           score: evaluation.score,
           comment: evaluation.comment,
           deviationCategories: evaluation.deviationCategories,
-          noInteraction: evaluation.noInteraction
+          noInteraction: evaluation.noInteraction,
+          updatedAt: evaluation.updatedAt.toISOString()
         }))}
         user={{
           id: user.id,

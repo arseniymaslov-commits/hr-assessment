@@ -1,4 +1,4 @@
-import { getDepartmentFullName } from "@/lib/department-decodings";
+import { getDepartmentDisplayParts } from "@/lib/department-decodings";
 
 type DepartmentLabelProps = {
   department: {
@@ -14,11 +14,11 @@ export default function DepartmentLabel({
   className = "font-medium text-ink",
   mutedClassName = "mt-1 text-xs leading-5 text-muted"
 }: DepartmentLabelProps) {
-  const fullName = getDepartmentFullName(department.name, department.shortName);
+  const { name, fullName } = getDepartmentDisplayParts(department);
 
   return (
     <div>
-      <div className={className}>{department.name}</div>
+      <div className={className}>{name}</div>
       {fullName ? <div className={mutedClassName}>{fullName}</div> : null}
     </div>
   );

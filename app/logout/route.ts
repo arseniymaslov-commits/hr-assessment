@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { clearSessionCookie } from "@/lib/auth";
+import { clearSessionCookie, getCurrentUser } from "@/lib/auth";
+import { writeAuditLog } from "@/lib/audit";
 
 function getRedirectBaseUrl(request: Request) {
   if (process.env.APP_URL) return process.env.APP_URL;
@@ -13,6 +14,16 @@ function getRedirectBaseUrl(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const user = await getCurrentUser();
+  if (user) {
+    await writeAuditLog({
+      action: "auth.logout",
+      summary: "Выход из системы",
+      details: `Email: ${user.email}`,
+      user,
+      request
+    });
+  }
   clearSessionCookie();
   return NextResponse.redirect(new URL("/login", getRedirectBaseUrl(request)), { status: 303 });
 }

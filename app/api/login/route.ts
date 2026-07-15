@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { defaultPathForRole, setSessionCookie } from "@/lib/auth";
+import { writeAuditLog } from "@/lib/audit";
 import { hashPassword, verifyPassword } from "@/lib/password";
 
 export async function POST(request: Request) {
@@ -15,6 +16,12 @@ export async function POST(request: Request) {
 
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user || !user.isActive) {
+    await writeAuditLog({
+      action: "auth.login_failed",
+      summary: "Неудачная попытка входа",
+      details: `Email: ${email}`,
+      request
+    });
     return NextResponse.json({ error: "Пользователь не найден или отключен" }, { status: 401 });
   }
 
@@ -36,14 +43,42 @@ export async function POST(request: Request) {
         mustChangePassword: false
       }
     });
+    await writeAuditLog({
+      action: "auth.password_set",
+      summary: "Пароль задан при первом входе",
+      details: `Email: ${user.email}`,
+      user,
+      request
+    });
+    await writeAuditLog({
+      action: "auth.login",
+      summary: "Вход в систему",
+      details: `Email: ${user.email}`,
+      user,
+      request
+    });
     setSessionCookie(user.id);
     return NextResponse.json({ ok: true, redirectTo: defaultPathForRole(user.role) });
   }
 
   if (!password || !verifyPassword(password, user.passwordHash)) {
+    await writeAuditLog({
+      action: "auth.login_failed",
+      summary: "Неудачная попытка входа",
+      details: `Email: ${user.email}`,
+      user,
+      request
+    });
     return NextResponse.json({ error: "Неверный email или пароль" }, { status: 401 });
   }
 
+  await writeAuditLog({
+    action: "auth.login",
+    summary: "Вход в систему",
+    details: `Email: ${user.email}`,
+    user,
+    request
+  });
   setSessionCookie(user.id);
   return NextResponse.json({ ok: true, redirectTo: defaultPathForRole(user.role) });
 }

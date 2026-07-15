@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
+import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
@@ -21,6 +22,14 @@ export async function POST(request: Request) {
     where: { name },
     update: { shortName, isActive: true },
     create: { name, shortName, isActive: true }
+  });
+
+  await writeAuditLog({
+    action: "department.save",
+    summary: "Подразделение сохранено",
+    details: `${name} — ${shortName}`,
+    user,
+    request
   });
 
   return NextResponse.json({ message: "Подразделение сохранено" });

@@ -52,6 +52,17 @@ export function getDepartmentFullName(name: string, storedFullName?: string | nu
 }
 
 export function departmentOptionLabel(department: { name: string; shortName?: string | null }) {
-  const fullName = getDepartmentFullName(department.name, department.shortName);
-  return fullName ? `${department.name} — ${fullName}` : department.name;
+  const { name, fullName } = getDepartmentDisplayParts(department);
+  return fullName ? `${name} — ${fullName}` : name;
+}
+
+export function getDepartmentDisplayParts(department: { name: string; shortName?: string | null }) {
+  const name = department.name.trim();
+  const shortName = department.shortName?.trim() || "";
+
+  if (name === "Отдел электрозарядных станций" && shortName === "ОЭС") {
+    return { name: shortName, fullName: name };
+  }
+
+  return { name, fullName: getDepartmentFullName(name, shortName) };
 }

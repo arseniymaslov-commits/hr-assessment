@@ -113,7 +113,8 @@ export async function POST(request: Request) {
     details: `Оцениваемый отдел: ${evaluateeDepartment.name}. Оценка: ${
       noInteraction ? "Нет взаимодействия" : scoreToSave
     }.`,
-    user
+    user,
+    request
   });
 
   return NextResponse.json({ evaluation });
