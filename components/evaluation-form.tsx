@@ -530,7 +530,7 @@ export default function EvaluationForm({
               </div>
 
               {needsDetails ? (
-                <details className="mt-4 rounded-lg border border-amber-100 bg-amber-50/40">
+                <details open className="mt-4 rounded-lg border border-amber-100 bg-amber-50/40">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-semibold text-ink">
                     <span>Категории отклонений</span>
                     <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-slate-600 ring-1 ring-amber-100">

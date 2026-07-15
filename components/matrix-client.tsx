@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { MessageSquareWarning } from "lucide-react";
 import DepartmentLabel from "@/components/department-label";
 import { fixed, scoreClass } from "@/lib/format";
@@ -59,6 +59,8 @@ export default function MatrixClient({
   canViewComments: boolean;
 }) {
   const [selected, setSelected] = useState<MatrixEvaluation | null>(null);
+  const topScrollRef = useRef<HTMLDivElement | null>(null);
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
   const map = useMemo(() => {
     const next = new Map<string, MatrixEvaluation>();
     for (const evaluation of evaluations) {
@@ -71,6 +73,14 @@ export default function MatrixClient({
     for (const summary of summaries) next.set(summary.departmentId, summary);
     return next;
   }, [summaries]);
+  const matrixWidth = Math.max(940, 260 + columnDepartments.length * 118 + 140);
+
+  function syncHorizontalScroll(source: "top" | "table", scrollLeft: number) {
+    const target = source === "top" ? tableScrollRef.current : topScrollRef.current;
+    if (target && Math.abs(target.scrollLeft - scrollLeft) > 1) {
+      target.scrollLeft = scrollLeft;
+    }
+  }
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_390px]">
@@ -97,8 +107,26 @@ export default function MatrixClient({
             })}
         </div>
 
-        <div className="overflow-x-auto rounded-lg border border-line bg-white shadow-sm">
-          <table className="w-full min-w-[940px] border-collapse text-sm">
+        <div className="rounded-lg border border-line bg-white shadow-sm">
+          <div className="border-b border-line bg-slate-50 px-4 py-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm font-medium text-ink">Прокрутка матрицы</div>
+              <div className="text-xs text-muted">Передвигайте полосу, чтобы увидеть отделы справа</div>
+            </div>
+            <div
+              ref={topScrollRef}
+              className="mt-2 overflow-x-auto pb-1"
+              onScroll={(event) => syncHorizontalScroll("top", event.currentTarget.scrollLeft)}
+            >
+              <div className="h-1" style={{ width: matrixWidth }} />
+            </div>
+          </div>
+          <div
+            ref={tableScrollRef}
+            className="overflow-x-auto"
+            onScroll={(event) => syncHorizontalScroll("table", event.currentTarget.scrollLeft)}
+          >
+          <table className="border-collapse text-sm" style={{ width: matrixWidth }}>
             <thead>
               <tr className="bg-slate-50 text-xs uppercase tracking-wide text-muted">
                 <th className="sticky left-0 z-10 border-b border-line bg-slate-50 px-4 py-3 text-left">
@@ -201,6 +229,7 @@ export default function MatrixClient({
             </tbody>
           </table>
         </div>
+      </div>
       </div>
 
       <aside className="space-y-4">
