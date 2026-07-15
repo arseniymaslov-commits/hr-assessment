@@ -39,10 +39,9 @@ export async function POST(request: Request) {
     where: { status: "OPEN" },
     orderBy: [{ year: "desc" }, { month: "desc" }]
   });
-  const criterion = await prisma.criterion.findFirst({
-    where: { isActive: true },
-    orderBy: { name: "asc" }
-  });
+  const criterion =
+    (await prisma.criterion.findFirst({ where: { name: "Общая оценка взаимодействия" } })) ||
+    (await prisma.criterion.findFirst({ where: { isActive: true } }));
   if (!period || !criterion) {
     return NextResponse.json({ error: "Открытый период или критерий не найдены" }, { status: 400 });
   }
@@ -104,6 +103,16 @@ export async function POST(request: Request) {
       comment: row.comment.trim(),
       authorId
     };
+
+    await prisma.evaluation.deleteMany({
+      where: {
+        periodId: period.id,
+        evaluatorDepartmentId: evaluatorId,
+        evaluateeDepartmentId: evaluateeId,
+        criterionId: { not: criterion.id },
+        comment: row.comment.trim()
+      }
+    });
 
     if (existing) {
       await prisma.evaluation.update({ where: { id: existing.id }, data });
