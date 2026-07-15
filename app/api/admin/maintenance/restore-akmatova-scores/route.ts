@@ -43,6 +43,14 @@ function departmentMatches(department: { name: string; shortName: string }, labe
   return normalize(department.name) === target || normalize(department.shortName) === target;
 }
 
+function findDepartment(departments: Array<{ id: string; name: string; shortName: string }>, label: string) {
+  const target = normalize(label);
+  return (
+    departments.find((department) => normalize(department.name) === target) ||
+    departments.find((department) => normalize(department.shortName) === target)
+  );
+}
+
 export async function POST() {
   const user = await getCurrentUser();
   if (!user || user.role !== Role.ADMIN) {
@@ -70,13 +78,15 @@ export async function POST() {
   let restored = 0;
   const skipped: string[] = [];
   const restoredRows: Array<{ evaluatee: string; score: number | null; noInteraction: boolean }> = [];
+  const targetEvaluateeIds = new Set<string>();
 
   for (const row of RESTORE_ROWS) {
-    const evaluatee = departments.find((department) => departmentMatches(department, row.label));
+    const evaluatee = findDepartment(departments, row.label);
     if (!evaluatee || evaluatee.id === uchr.id) {
       skipped.push(row.label);
       continue;
     }
+    targetEvaluateeIds.add(evaluatee.id);
 
     const existing = await prisma.evaluation.findFirst({
       where: {
@@ -110,8 +120,21 @@ export async function POST() {
     restoredRows.push({ evaluatee: evaluatee.name, score: data.score, noInteraction: data.noInteraction });
   }
 
+  const cleanup = targetEvaluateeIds.size
+    ? await prisma.evaluation.deleteMany({
+        where: {
+          periodId: period.id,
+          evaluatorDepartmentId: uchr.id,
+          criterionId: criterion.id,
+          authorId: zarina.id,
+          evaluateeDepartmentId: { notIn: Array.from(targetEvaluateeIds) }
+        }
+      })
+    : { count: 0 };
+
   return NextResponse.json({
     restored,
+    cleanedExtraRows: cleanup.count,
     skipped,
     restoredRows: restoredRows.sort((a, b) => a.evaluatee.localeCompare(b.evaluatee, "ru"))
   });
