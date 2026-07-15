@@ -23,8 +23,10 @@ export async function GET() {
   const uchrDepartments = await prisma.department.findMany({
     where: {
       OR: [
+        { name: { equals: "УЧР", mode: "insensitive" } },
+        { name: { contains: "Управление человеческими ресурсами", mode: "insensitive" } },
         { shortName: { equals: "УЧР", mode: "insensitive" } },
-        { name: { contains: "человеческими ресурсами", mode: "insensitive" } }
+        { shortName: { contains: "Управление человеческими ресурсами", mode: "insensitive" } }
       ]
     },
     select: { id: true, name: true, shortName: true }
@@ -60,10 +62,24 @@ export async function GET() {
     return acc;
   }, {});
 
+  const auditLogs = await prisma.auditLog.findMany({
+    where: {
+      OR: [
+        { userId: { in: userIds } },
+        { userName: { contains: "Акматова", mode: "insensitive" } },
+        { userName: { contains: "Зарина", mode: "insensitive" } },
+        { details: { contains: "УЧР", mode: "insensitive" } }
+      ]
+    },
+    orderBy: { createdAt: "desc" },
+    take: 100
+  });
+
   return NextResponse.json({
     users,
     uchrDepartments,
     grouped,
+    auditLogs,
     total: evaluations.length,
     evaluations: evaluations.map((evaluation) => ({
       id: evaluation.id,
