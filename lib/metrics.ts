@@ -14,7 +14,16 @@ type RequirementPair = {
 export async function getReferenceData() {
   const [departments, periods, criteria, users, requirements] = await Promise.all([
     prisma.department.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
-    prisma.period.findMany({ orderBy: [{ year: "desc" }, { month: "desc" }] }),
+    prisma.period.findMany({
+      orderBy: [{ year: "desc" }, { month: "desc" }],
+      include: {
+        requests: {
+          orderBy: [{ scheduledAt: "desc" }, { createdAt: "desc" }],
+          take: 1,
+          select: { scheduledAt: true, createdAt: true }
+        }
+      }
+    }),
     prisma.criterion.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
     prisma.user.findMany({ orderBy: { name: "asc" }, include: { department: true } }),
     prisma.evaluationRequirement.findMany({

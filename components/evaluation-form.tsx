@@ -17,6 +17,7 @@ type Period = {
   month: number;
   year: number;
   status: "OPEN" | "CLOSED";
+  assessmentDate?: string | null;
 };
 
 type Criterion = {
@@ -100,6 +101,22 @@ function blankRow(): RowState {
   };
 }
 
+function formatDateLabel(value?: string | null) {
+  const date = value ? new Date(value) : new Date();
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric",
+    month: "long",
+    year: "numeric"
+  }).format(date);
+}
+
+function assessedPeriodLabel(period?: Period) {
+  if (!period) return "активный период";
+  const assessedDate = new Date(period.year, period.month - 2, 1);
+  const month = new Intl.DateTimeFormat("ru-RU", { month: "long" }).format(assessedDate);
+  return `${month} ${assessedDate.getFullYear()}`;
+}
+
 function statusTone(row: RowState, needsDetails: boolean) {
   if (row.saving) return "border-amber-100 bg-amber-50 text-amber-800";
   if (row.noInteraction) return "border-slate-200 bg-slate-100 text-slate-600";
@@ -132,6 +149,7 @@ export default function EvaluationForm({
 }) {
   const openPeriod = periods.find((period) => period.status === "OPEN") || periods[0];
   const isDirector = user.role === "DIRECTOR";
+  const canSelectPeriod = user.role === "ADMIN";
   const defaultEvaluatorId = user.role === "LEADER" ? user.departmentId || "" : departments[0]?.id || "";
 
   const [periodId, setPeriodId] = useState(openPeriod?.id || "");
@@ -144,6 +162,8 @@ export default function EvaluationForm({
     () => periods.find((period) => period.id === periodId),
     [periodId, periods]
   );
+  const assessmentDate = formatDateLabel(selectedPeriod?.assessmentDate);
+  const assessedPeriod = assessedPeriodLabel(selectedPeriod);
   const overallCriterion = useMemo(
     () => criteria.find((criterion) => criterion.name === OVERALL_CRITERION_NAME) || criteria[0],
     [criteria]
@@ -325,7 +345,20 @@ export default function EvaluationForm({
         </p>
       </div>
 
-      <div className="mb-5 grid gap-4 md:grid-cols-2">
+      <div className="mb-5 rounded-lg border border-line bg-slate-50 px-4 py-3">
+        <div className="grid gap-3 md:grid-cols-[minmax(180px,0.7fr)_1fr] md:items-center">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted">Дата оценки</div>
+            <div className="mt-1 text-lg font-semibold text-ink">{assessmentDate}</div>
+          </div>
+          <div className="rounded-lg bg-white px-3 py-2 text-sm font-medium text-slate-700 ring-1 ring-line">
+            Оценивается взаимодействие за {assessedPeriod}
+          </div>
+        </div>
+      </div>
+
+      <div className={`mb-5 grid gap-4 ${canSelectPeriod ? "md:grid-cols-2" : ""}`}>
+        {canSelectPeriod ? (
         <label className="block">
           <span className="text-sm font-medium text-slate-700">Период оценки</span>
           <select className="focus-ring mt-1 w-full rounded-lg border border-line px-3 py-2" value={periodId} onChange={(event) => setPeriodId(event.target.value)}>
@@ -336,6 +369,7 @@ export default function EvaluationForm({
             ))}
           </select>
         </label>
+        ) : null}
 
         <label className="block">
           <span className="text-sm font-medium text-slate-700">Кто оценивает</span>

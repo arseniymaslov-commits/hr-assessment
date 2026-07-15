@@ -42,11 +42,12 @@ export default async function EvaluationsPage() {
         : metrics.evaluations;
   const departmentOptions = departments.map(({ id, name, shortName }) => ({ id, name, shortName }));
   const evaluateeDepartmentOptions = evaluateeDepartments.map(({ id, name, shortName }) => ({ id, name, shortName }));
-  const periodOptions = periods.map(({ id, month, year, status }) => ({
+  const periodOptions = periods.map(({ id, month, year, status, createdAt, requests }) => ({
     id,
     month,
     year,
-    status
+    status,
+    assessmentDate: (requests[0]?.scheduledAt || createdAt).toISOString()
   }));
   const criterionOptions = criteria.map(({ id, name, description }) => ({ id, name, description }));
   const requirementOptions = requirements.map(
