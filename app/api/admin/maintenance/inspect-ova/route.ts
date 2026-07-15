@@ -276,6 +276,19 @@ export async function POST() {
     }
   }
 
+  const orphanedEvaluations = await prisma.evaluation.deleteMany({
+    where: {
+      periodId: period.id,
+      evaluatorDepartmentId: ovaDepartment.id,
+      criterionId: criterion.id,
+      evaluateeDepartmentId: { notIn: Array.from(restoredEvaluateeIds) },
+      authorId: { not: nurzat.id }
+    }
+  });
+  if (orphanedEvaluations.count > 0) {
+    skipped.push(`deleted orphaned technical rows: ${orphanedEvaluations.count}`);
+  }
+
   await prisma.auditLog.create({
     data: {
       action: "maintenance.restoreOvaScores",
