@@ -98,7 +98,7 @@ export async function POST(request: Request) {
     authorId: user.id
   };
 
-  const existing = await prisma.evaluation.findFirst({
+  const existingRows = await prisma.evaluation.findMany({
     where: isDirectorEvaluation
       ? {
           periodId,
@@ -112,22 +112,15 @@ export async function POST(request: Request) {
           evaluateeDepartmentId,
           criterionId
         },
+    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
     select: { id: true }
   });
+  const existing = existingRows[0] || null;
 
   const evaluation = isDirectorEvaluation
-    ? await prisma.evaluation.upsert({
-        where: {
-          periodId_evaluatorUserId_evaluateeDepartmentId_criterionId: {
-            periodId,
-            evaluatorUserId: user.id,
-            evaluateeDepartmentId,
-            criterionId
-          }
-        },
-        create: payload,
-        update: payload
-      })
+    ? existing
+      ? await prisma.evaluation.update({ where: { id: existing.id }, data: payload })
+      : await prisma.evaluation.create({ data: payload })
     : await prisma.evaluation.upsert({
         where: {
           periodId_evaluatorDepartmentId_evaluateeDepartmentId_criterionId: {
@@ -140,6 +133,11 @@ export async function POST(request: Request) {
         create: payload,
         update: payload
       });
+
+  const duplicateIds = existingRows.slice(1).map((row) => row.id);
+  if (isDirectorEvaluation && duplicateIds.length) {
+    await prisma.evaluation.deleteMany({ where: { id: { in: duplicateIds } } });
+  }
 
   await writeAuditLog({
     action: existing ? "evaluation.update" : "evaluation.create",
