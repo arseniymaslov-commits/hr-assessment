@@ -76,6 +76,23 @@ function deltaText(value?: number | null) {
   return `${value > 0 ? "+" : ""}${value.toFixed(2)}`;
 }
 
+function splitDepartmentName(name: string) {
+  const parts = name.split(" — ");
+  if (parts.length < 2) return { code: name, description: "" };
+  return { code: parts[0], description: parts.slice(1).join(" — ") };
+}
+
+function DepartmentName({ name, strong = true }: { name: string; strong?: boolean }) {
+  const { code, description } = splitDepartmentName(name);
+
+  return (
+    <span className="min-w-0 flex-1" title={name}>
+      <span className={`block truncate ${strong ? "font-semibold text-ink" : "font-medium text-slate-700"}`}>{code}</span>
+      {description ? <span className="mt-0.5 block truncate text-xs font-normal text-muted">{description}</span> : null}
+    </span>
+  );
+}
+
 export default function CompanyDashboardPanel({
   mode = "company",
   title,
@@ -172,7 +189,7 @@ export default function CompanyDashboardPanel({
 
       <div className="p-5">
         {activeTab === "overview" ? (
-          <div className="grid gap-5 xl:grid-cols-[1fr_1.1fr]">
+          <div className="grid gap-5 2xl:grid-cols-[0.9fr_1.35fr]">
             <div className="grid gap-3 sm:grid-cols-2">
               <OverviewCard
                 label={isDepartment ? "Средний балл подразделения" : "Средний балл компании"}
@@ -188,7 +205,7 @@ export default function CompanyDashboardPanel({
               <OverviewCard label="Осталось оценок" value={String(missingCount)} hint="по обязательным связям" />
             </div>
 
-            <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-3">
+            <div className="grid gap-5 lg:grid-cols-3">
               <CompactList
                 title={isDepartment ? "Контекст рейтинга" : "Лидеры рейтинга"}
                 rows={overviewRanking}
@@ -205,7 +222,7 @@ export default function CompanyDashboardPanel({
                       >
                         {rowIndex || index + 1}
                       </span>
-                      <span className="min-w-0 flex-1 truncate font-medium text-ink">{row.name}</span>
+                      <DepartmentName name={row.name} strong={false} />
                       <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${scoreTone(row.average)}`}>
                         {fixed(row.average)}
                       </span>
@@ -220,7 +237,7 @@ export default function CompanyDashboardPanel({
                   emptyText="Оценок 9 и ниже нет"
                   render={(row) => (
                     <>
-                      <span className="min-w-0 flex-1 break-words font-medium text-ink">{row.evaluatorName}</span>
+                      <DepartmentName name={row.evaluatorName} />
                       <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${scoreTone(row.score)}`}>
                         {row.score ?? "-"}
                       </span>
@@ -234,7 +251,7 @@ export default function CompanyDashboardPanel({
                   emptyText="Проблемных зон нет"
                   render={(row) => (
                     <>
-                      <span className="min-w-0 flex-1 break-words font-medium text-ink">{row.name}</span>
+                      <DepartmentName name={row.name} />
                       <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 ring-1 ring-red-100">
                         9 и ниже: {row.lowCount}
                       </span>
@@ -251,7 +268,7 @@ export default function CompanyDashboardPanel({
                 emptyText="Все обязательные оценки заполнены"
                 render={(row) => (
                   <>
-                    <span className="min-w-0 flex-1 break-words font-medium text-ink">{row.name}</span>
+                    <DepartmentName name={row.name} />
                     <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-100">
                       осталось {row.missing}
                     </span>
@@ -377,7 +394,7 @@ export default function CompanyDashboardPanel({
               emptyText="Все обязательные оценки заполнены"
               render={(row) => (
                 <>
-                  <span className="min-w-0 flex-1 break-words font-medium text-ink">{row.name}</span>
+                  <DepartmentName name={row.name} />
                   <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 ring-1 ring-red-100">
                     осталось {row.missing}
                   </span>
