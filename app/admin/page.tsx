@@ -14,12 +14,16 @@ export default async function AdminPage({
   searchParams: { tab?: string };
 }) {
   const user = await requireUser([Role.ADMIN]);
-  const [{ departments, evaluateeDepartments, periods, users, criteria }, metrics, auditLogs] = await Promise.all([
+  const [{ departments, evaluateeDepartments, periods, users, criteria }, metrics, auditLogs, emailDeliveries] = await Promise.all([
     getReferenceData(),
     getPeriodMetrics(),
     prisma.auditLog.findMany({
       orderBy: { createdAt: "desc" },
       take: 200
+    }),
+    prisma.emailDelivery.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 80
     })
   ]);
   const departmentOptions = departments.map(({ id, name, shortName }) => ({ id, name, shortName }));
@@ -52,7 +56,7 @@ export default async function AdminPage({
       evaluateeDepartmentId
     })
   );
-  const activeTab = ["settings", "comments", "actions"].includes(searchParams.tab || "")
+  const activeTab = ["settings", "comments", "actions", "mail"].includes(searchParams.tab || "")
     ? searchParams.tab
     : "settings";
   const tabClass = (tab: string) =>
@@ -74,6 +78,7 @@ export default async function AdminPage({
       <nav className="mb-6 flex flex-wrap gap-2">
         <a className={tabClass("settings")} href="/admin?tab=settings">Настройки</a>
         <a className={tabClass("comments")} href="/admin?tab=comments">Комментарии</a>
+        <a className={tabClass("mail")} href="/admin?tab=mail">Почта</a>
         <a className={tabClass("actions")} href="/admin?tab=actions">Недавние действия</a>
       </nav>
 
@@ -146,6 +151,65 @@ export default async function AdminPage({
                     <td className="px-5 py-4 text-slate-700">{evaluation.author.name}</td>
                   </tr>
                 ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      ) : null}
+
+      {activeTab === "mail" ? (
+      <section className="rounded-lg border border-line bg-white">
+        <div className="border-b border-line px-5 py-4">
+          <h2 className="font-semibold text-ink">Журнал почтовой рассылки</h2>
+          <p className="mt-1 text-sm text-muted">Последние попытки отправки уведомлений. Если письмо не ушло, статус будет «Ошибка».</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[880px] text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-muted">
+              <tr>
+                <th className="px-5 py-3">Дата</th>
+                <th className="px-5 py-3">Получатель</th>
+                <th className="px-5 py-3">Тема</th>
+                <th className="px-5 py-3">Статус</th>
+                <th className="px-5 py-3">Попыток</th>
+                <th className="px-5 py-3">Ошибка</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {emailDeliveries.length ? (
+                emailDeliveries.map((delivery) => (
+                  <tr key={delivery.id}>
+                    <td className="px-5 py-4 text-muted">
+                      {delivery.createdAt.toLocaleString("ru-RU", {
+                        dateStyle: "short",
+                        timeStyle: "short",
+                        timeZone: "Asia/Bishkek"
+                      })}
+                    </td>
+                    <td className="px-5 py-4 font-medium text-ink">{delivery.to}</td>
+                    <td className="px-5 py-4 text-slate-700">{delivery.subject}</td>
+                    <td className="px-5 py-4">
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${
+                          delivery.status === "SENT"
+                            ? "bg-emerald-50 text-emerald-700 ring-emerald-100"
+                            : delivery.status === "FAILED"
+                              ? "bg-red-50 text-red-700 ring-red-100"
+                              : "bg-amber-50 text-amber-700 ring-amber-100"
+                        }`}
+                      >
+                        {delivery.status === "SENT" ? "Отправлено" : delivery.status === "FAILED" ? "Ошибка" : "В очереди"}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 text-slate-700">{delivery.attempts}</td>
+                    <td className="max-w-md px-5 py-4 text-muted">{delivery.lastError || "—"}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td className="px-5 py-8 text-center text-sm text-muted" colSpan={6}>Записей пока нет.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

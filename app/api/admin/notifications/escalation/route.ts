@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
-import { emailActionLink, sendMail } from "@/lib/email";
+import { emailActionLink } from "@/lib/email";
+import { sendTrackedMail } from "@/lib/email-delivery";
 import { periodLabel } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 
@@ -55,28 +56,34 @@ export async function POST(request: Request) {
   const failed: string[] = [];
 
   for (const recipient of recipients) {
+    const subject = "Эскалация: необходимо оценить взаимодействие всех подразделений";
+    const text = [
+      `Здравствуйте, ${recipient.name}.`,
+      "",
+      "Просим в приоритетном порядке пройти оценку взаимодействия подразделений.",
+      periodLabel(period),
+      recipient.department?.name ? `Ваше подразделение: ${recipient.department.name}.` : "",
+      "",
+      `Форма оценки: ${evaluationUrl}`
+    ].filter(Boolean).join("\n");
+    const html = [
+      `<p>Здравствуйте, ${recipient.name}.</p>`,
+      "<p>Просим в приоритетном порядке пройти оценку взаимодействия подразделений.</p>",
+      "<ul>",
+      `<li>${periodLabel(period)}</li>`,
+      recipient.department?.name ? `<li>Ваше подразделение: ${recipient.department.name}</li>` : "",
+      "</ul>",
+      emailActionLink(evaluationUrl, "Перейти к оценке")
+    ].filter(Boolean).join("");
+
     try {
-      const delivery = await sendMail({
-        to: [recipient.email],
-        subject: "Эскалация: необходимо оценить взаимодействие всех подразделений",
-        text: [
-          `Здравствуйте, ${recipient.name}.`,
-          "",
-          "Просим в приоритетном порядке пройти оценку взаимодействия подразделений.",
-          periodLabel(period),
-          recipient.department?.name ? `Ваше подразделение: ${recipient.department.name}.` : "",
-          "",
-          `Форма оценки: ${evaluationUrl}`
-        ].filter(Boolean).join("\n"),
-        html: [
-          `<p>Здравствуйте, ${recipient.name}.</p>`,
-          "<p>Просим в приоритетном порядке пройти оценку взаимодействия подразделений.</p>",
-          "<ul>",
-          `<li>${periodLabel(period)}</li>`,
-          recipient.department?.name ? `<li>Ваше подразделение: ${recipient.department.name}</li>` : "",
-          "</ul>",
-          emailActionLink(evaluationUrl, "Перейти к оценке")
-        ].filter(Boolean).join("")
+      const delivery = await sendTrackedMail({
+        to: recipient.email,
+        subject,
+        text,
+        html,
+        context: "evaluation_escalation",
+        periodId: period.id
       });
       if (delivery.skipped) {
         failed.push(recipient.email);

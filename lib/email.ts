@@ -26,7 +26,11 @@ function extractAddress(value: string | undefined, fallback: string) {
   return (match?.[1] || value).trim() || fallback;
 }
 
-export async function sendMail(input: MailInput) {
+export async function sendMail(input: MailInput): Promise<{
+  skipped: boolean;
+  recipientsCount: number;
+  error?: string;
+}> {
   const host = process.env.SMTP_HOST;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASSWORD;
@@ -37,7 +41,7 @@ export async function sendMail(input: MailInput) {
 
   if (!host || !user || !pass || !recipients.length) {
     console.log(`[mail skipped] ${input.subject}: ${input.to.join(", ")}`);
-    return { skipped: true, recipientsCount: recipients.length };
+    return { skipped: true, recipientsCount: recipients.length, error: "SMTP is not configured or recipient list is empty" };
   }
 
   for (let attempt = 1; attempt <= 3; attempt += 1) {
@@ -74,7 +78,11 @@ export async function sendMail(input: MailInput) {
       transporterPromise = null;
 
       if (!isTemporary || attempt === 3) {
-        return { skipped: true, recipientsCount: recipients.length };
+        return {
+          skipped: true,
+          recipientsCount: recipients.length,
+          error: error instanceof Error ? error.message : "Unknown SMTP error"
+        };
       }
 
       await new Promise((resolve) => setTimeout(resolve, attempt * 1000));

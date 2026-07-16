@@ -15,6 +15,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed",
     "db:push": "prisma db push",
+    "db:backup": "powershell -ExecutionPolicy Bypass -File scripts/backup-database.ps1",
+    "db:restore": "powershell -ExecutionPolicy Bypass -File scripts/restore-database.ps1",
     "db:studio": "prisma studio"
   },
   "dependencies": {

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import * as XLSX from "xlsx";
 import { DEVIATION_CATEGORIES } from "../lib/evaluation-categories";
 import { validateEvaluationInput } from "../lib/evaluation-validation";
+import { sendMail } from "../lib/email";
 import { hashPassword, verifyPassword } from "../lib/password";
 
 test("login password flow accepts the right password and rejects a wrong one", async () => {
@@ -71,4 +72,35 @@ test("excel export smoke test creates workbook with required sheets", () => {
 
   assert.deepEqual(workbook.SheetNames, ["Сводка", "Категории отклонений"]);
   assert.ok(buffer.length > 1000);
+});
+
+test("email flow reports skipped delivery when SMTP is not configured", async () => {
+  const previous = {
+    SMTP_HOST: process.env.SMTP_HOST,
+    SMTP_USER: process.env.SMTP_USER,
+    SMTP_PASSWORD: process.env.SMTP_PASSWORD
+  };
+  delete process.env.SMTP_HOST;
+  delete process.env.SMTP_USER;
+  delete process.env.SMTP_PASSWORD;
+
+  try {
+    const result = await sendMail({
+      to: ["leader@example.com"],
+      subject: "Проверка рассылки",
+      text: "Тест"
+    });
+
+    assert.equal(result.skipped, true);
+    assert.equal(result.recipientsCount, 1);
+    assert.match(result.error || "", /SMTP|recipient/i);
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value == null) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
 });

@@ -51,6 +51,10 @@ export default async function AnalyticsPage({ searchParams }: AnalyticsPageProps
       return (metrics.lowScoreRepeatCounts as Record<string, number>)[key] > 0;
     })
     .slice(0, 8);
+  const departmentTrends = metrics.byEvaluatee
+    .filter((row) => row.average != null && row.averageDelta != null)
+    .sort((a, b) => Math.abs(b.averageDelta || 0) - Math.abs(a.averageDelta || 0))
+    .slice(0, 8);
 
   return (
     <AppShell user={user}>
@@ -159,7 +163,7 @@ export default async function AnalyticsPage({ searchParams }: AnalyticsPageProps
         </Panel>
       </section>
 
-      <section className="mt-6 grid gap-5 xl:grid-cols-3">
+      <section className="mt-6 grid gap-5 xl:grid-cols-2 2xl:grid-cols-4">
         <Panel title="Категории отклонений">
           <div className="space-y-3 p-4">
             {categories.length ? (
@@ -208,6 +212,41 @@ export default async function AnalyticsPage({ searchParams }: AnalyticsPageProps
               })
             ) : (
               <div className="rounded-lg bg-slate-50 px-4 py-6 text-center text-sm text-muted">Повторяющихся проблем нет.</div>
+            )}
+          </div>
+        </Panel>
+
+        <Panel title="Динамика подразделений">
+          <div className="max-h-[360px] space-y-2 overflow-auto p-4">
+            {departmentTrends.length ? (
+              departmentTrends.map((row) => (
+                <div className="rounded-lg bg-slate-50 px-3 py-2" key={row.department.id}>
+                  <div className="flex items-center justify-between gap-3">
+                    <DepartmentLabel
+                      department={row.department}
+                      className="truncate font-semibold text-ink"
+                      mutedClassName="mt-0 truncate text-xs text-muted"
+                    />
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${
+                        (row.averageDelta || 0) >= 0
+                          ? "bg-emerald-50 text-emerald-700 ring-emerald-100"
+                          : "bg-red-50 text-red-700 ring-red-100"
+                      }`}
+                    >
+                      {(row.averageDelta || 0) > 0 ? "+" : ""}
+                      {(row.averageDelta || 0).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="mt-1 text-xs text-muted">
+                    сейчас {fixed(row.average)} · было {fixed(row.previousAverage)}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-lg bg-slate-50 px-4 py-6 text-center text-sm text-muted">
+                Для динамики нужен предыдущий период с оценками.
+              </div>
             )}
           </div>
         </Panel>
