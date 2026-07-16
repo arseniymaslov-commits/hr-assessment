@@ -109,7 +109,8 @@ function formatDateLabel(value?: string | null) {
   return new Intl.DateTimeFormat("ru-RU", {
     day: "numeric",
     month: "long",
-    year: "numeric"
+    year: "numeric",
+    timeZone: "Asia/Almaty"
   }).format(date);
 }
 
@@ -178,7 +179,7 @@ export default function EvaluationForm({
     () => periods.find((period) => period.id === periodId),
     [periodId, periods]
   );
-  const assessmentDate = formatDateLabel(selectedPeriod?.assessmentDate);
+  const assessmentDate = formatDateLabel();
   const assessedPeriod = assessedPeriodLabel(selectedPeriod);
   const overallCriterion = useMemo(
     () => criteria.find((criterion) => criterion.name === OVERALL_CRITERION_NAME) || criteria[0],
