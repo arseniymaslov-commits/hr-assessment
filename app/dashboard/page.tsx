@@ -247,8 +247,8 @@ export default async function DashboardPage({
         />
       ) : null}
 
-      <section className="mt-6 grid gap-6 2xl:grid-cols-[1.35fr_0.9fr]">
-        <div className="rounded-lg border border-line bg-white">
+      <section className="mt-6 grid gap-6 2xl:grid-cols-[minmax(0,1.35fr)_minmax(0,0.9fr)]">
+        <div className="min-w-0 rounded-lg border border-line bg-white">
           <div className="border-b border-line px-5 py-4">
             <h2 className="font-semibold text-ink">Подразделения</h2>
           </div>
@@ -300,7 +300,7 @@ export default async function DashboardPage({
           </div>
         </div>
 
-        <div className="rounded-lg border border-line bg-white">
+        <div className="min-w-0 rounded-lg border border-line bg-white">
           <div className="border-b border-line px-5 py-4">
             <h2 className="font-semibold text-ink">Рейтинг по среднему баллу</h2>
           </div>
