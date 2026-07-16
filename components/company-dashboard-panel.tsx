@@ -352,14 +352,14 @@ export default function CompanyDashboardPanel({
         ) : null}
 
         {activeTab === "completion" ? (
-          <div className="grid gap-5 2xl:grid-cols-[1.15fr_0.85fr]">
+          <div className="space-y-5">
             <div className="overflow-x-auto rounded-lg border border-line">
-              <table className="w-full min-w-[720px] text-left text-sm">
+              <table className="w-full min-w-[760px] text-left text-sm">
                 <colgroup>
-                  <col className="w-[48%]" />
-                  <col className="w-[16%]" />
-                  <col className="w-[14%]" />
-                  <col className="w-[22%]" />
+                  <col className="w-[52%]" />
+                  <col className="w-[15%]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[20%]" />
                 </colgroup>
                 <thead className="bg-slate-50 text-xs uppercase tracking-wide text-muted">
                   <tr>
