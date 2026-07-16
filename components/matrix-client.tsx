@@ -62,6 +62,7 @@ export default function MatrixClient({
 }) {
   const [selected, setSelected] = useState<MatrixEvaluation | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [focusedColumnId, setFocusedColumnId] = useState("");
   const [viewMode, setViewMode] = useState<"all" | "low" | "missing">("all");
   const topScrollRef = useRef<HTMLDivElement | null>(null);
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
@@ -77,7 +78,10 @@ export default function MatrixClient({
     for (const summary of summaries) next.set(summary.departmentId, summary);
     return next;
   }, [summaries]);
-  const matrixWidth = Math.max(940, 260 + columnDepartments.length * 118 + 140);
+  const stickyColumnWidth = 220;
+  const matrixColumnWidth = 96;
+  const averageColumnWidth = 112;
+  const matrixWidth = Math.max(900, stickyColumnWidth + columnDepartments.length * matrixColumnWidth + averageColumnWidth);
   const normalizedSearch = searchQuery.trim().toLocaleLowerCase("ru-RU");
   const visibleRowDepartments = useMemo(
     () =>
@@ -120,8 +124,17 @@ export default function MatrixClient({
     }
   }
 
+  function focusColumn(departmentId: string) {
+    setFocusedColumnId(departmentId);
+    const index = columnDepartments.findIndex((department) => department.id === departmentId);
+    if (index < 0) return;
+    const nextLeft = Math.max(0, stickyColumnWidth + index * matrixColumnWidth - 24);
+    tableScrollRef.current?.scrollTo({ left: nextLeft, behavior: "smooth" });
+    topScrollRef.current?.scrollTo({ left: nextLeft, behavior: "smooth" });
+  }
+
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_390px]">
+    <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_360px]">
       <div className="space-y-4">
         <div className="grid gap-3 md:grid-cols-3">
           {summaries
@@ -151,13 +164,28 @@ export default function MatrixClient({
               <div className="text-sm font-medium text-ink">Прокрутка матрицы</div>
               <div className="text-xs text-muted">Передвигайте полосу, чтобы увидеть отделы справа</div>
             </div>
-            <div className="mt-3 grid gap-2 md:grid-cols-[minmax(220px,1fr)_auto]">
+            <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(220px,1fr)_minmax(220px,300px)_auto]">
               <input
                 className="focus-ring rounded-lg border border-line bg-white px-3 py-2 text-sm"
                 placeholder="Найти оценивающий отдел"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
               />
+              <select
+                className="focus-ring rounded-lg border border-line bg-white px-3 py-2 text-sm text-slate-700"
+                value={focusedColumnId}
+                onChange={(event) => focusColumn(event.target.value)}
+              >
+                <option value="">Перейти к отделу</option>
+                {columnDepartments.map((department) => {
+                  const display = getDepartmentDisplayParts(department);
+                  return (
+                    <option key={department.id} value={department.id}>
+                      {display.name}
+                    </option>
+                  );
+                })}
+              </select>
               <div className="flex rounded-lg border border-line bg-white p-1">
                 {[
                   ["all", "Все"],
@@ -191,17 +219,28 @@ export default function MatrixClient({
             onScroll={(event) => syncHorizontalScroll("table", event.currentTarget.scrollLeft)}
           >
           <table className="border-collapse text-sm" style={{ width: matrixWidth }}>
+            <colgroup>
+              <col style={{ width: stickyColumnWidth }} />
+              {columnDepartments.map((department) => (
+                <col key={department.id} style={{ width: matrixColumnWidth }} />
+              ))}
+              <col style={{ width: averageColumnWidth }} />
+            </colgroup>
             <thead>
               <tr className="bg-slate-50 text-xs uppercase tracking-wide text-muted">
-                <th className="sticky left-0 z-10 border-b border-line bg-slate-50 px-4 py-3 text-left">
+                <th className="sticky left-0 z-10 border-b border-line bg-slate-50 px-3 py-2 text-left">
                   Кто оценивает
                 </th>
                 {columnDepartments.map((department) => {
                   const summary = summaryByDepartment.get(department.id);
                   const display = getDepartmentDisplayParts(department);
+                  const isFocused = focusedColumnId === department.id;
                   return (
-                    <th className="border-b border-line px-3 py-3 text-center align-bottom" key={department.id}>
-                      <span className="block font-semibold text-ink" title={display.fullName || undefined}>
+                    <th
+                      className={`border-b border-line px-2 py-2 text-center align-bottom ${isFocused ? "bg-brand/5" : ""}`}
+                      key={department.id}
+                    >
+                      <span className="block truncate font-semibold text-ink" title={display.fullName || display.name}>
                         {display.name}
                       </span>
                       <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${scoreClass(summary?.average)}`}>
@@ -210,7 +249,7 @@ export default function MatrixClient({
                     </th>
                   );
                 })}
-                <th className="border-b border-line px-3 py-3 text-center">Средняя оценка от отдела</th>
+                <th className="border-b border-line px-2 py-2 text-center">Средняя</th>
               </tr>
             </thead>
             <tbody>
@@ -223,24 +262,25 @@ export default function MatrixClient({
 
                 return (
                   <tr key={evaluator.id}>
-                    <th className="sticky left-0 z-10 border-b border-line bg-white px-4 py-3 text-left font-medium text-ink">
+                    <th className="sticky left-0 z-10 border-b border-line bg-white px-3 py-2 text-left font-medium text-ink">
                       <DepartmentLabel
                         department={evaluator}
                         className="font-medium text-ink"
-                        mutedClassName="mt-0.5 max-w-44 text-xs leading-4 text-muted"
+                        mutedClassName="mt-0.5 max-w-40 truncate text-xs leading-4 text-muted"
                       />
                     </th>
                     {columnDepartments.map((evaluatee) => {
                       const evaluation = map.get(`${evaluator.id}:${evaluatee.id}`);
                       const isSelf = evaluator.id === evaluatee.id;
                       const selectedCell = selected?.id === evaluation?.id;
+                      const isFocused = focusedColumnId === evaluatee.id;
                       return (
-                        <td className="border-b border-line p-2 text-center" key={evaluatee.id}>
+                        <td className={`border-b border-line p-1.5 text-center ${isFocused ? "bg-brand/5" : ""}`} key={evaluatee.id}>
                           {isSelf ? (
-                            <div className="rounded-lg bg-slate-100 px-2 py-3 text-slate-400">—</div>
+                            <div className="rounded-lg bg-slate-100 px-2 py-2 text-slate-400">—</div>
                           ) : evaluation?.noInteraction ? (
                             <button
-                              className={`focus-ring w-full rounded-lg bg-slate-50 px-2 py-3 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 ${selectedCell ? "outline outline-2 outline-brand" : ""}`}
+                              className={`focus-ring w-full rounded-lg bg-slate-50 px-1.5 py-2 text-[11px] font-semibold leading-4 text-slate-600 ring-1 ring-slate-200 ${selectedCell ? "outline outline-2 outline-brand" : ""}`}
                               type="button"
                               onClick={() => setSelected(evaluation)}
                             >
@@ -248,15 +288,15 @@ export default function MatrixClient({
                             </button>
                           ) : evaluation && isMissingEvaluation(evaluation) ? (
                             <button
-                              className={`focus-ring w-full rounded-lg bg-red-50 px-2 py-3 text-xs font-semibold text-red-700 ring-1 ring-red-100 ${selectedCell ? "outline outline-2 outline-brand" : ""}`}
+                              className={`focus-ring w-full rounded-lg bg-red-50 px-1.5 py-2 text-[11px] font-semibold leading-4 text-red-700 ring-1 ring-red-100 ${selectedCell ? "outline outline-2 outline-brand" : ""}`}
                               type="button"
                               onClick={() => setSelected(evaluation)}
                             >
-                              {MISSING_EVALUATION_LABEL}
+                              нет оценки
                             </button>
                           ) : evaluation ? (
                             <button
-                              className={`focus-ring w-full rounded-lg px-2 py-3 font-semibold ring-1 ${scoreClass(evaluation.score)} ${selectedCell ? "outline outline-2 outline-brand" : ""}`}
+                              className={`focus-ring w-full rounded-lg px-2 py-2 font-semibold ring-1 ${scoreClass(evaluation.score)} ${selectedCell ? "outline outline-2 outline-brand" : ""}`}
                               type="button"
                               onClick={() => setSelected(evaluation)}
                               title={evaluation.comment || undefined}
@@ -265,18 +305,18 @@ export default function MatrixClient({
                             </button>
                           ) : (
                             <button
-                              className="focus-ring w-full rounded-lg bg-red-50 px-2 py-3 text-xs font-semibold text-red-700 ring-1 ring-red-100 transition hover:bg-red-100/60"
+                              className="focus-ring w-full rounded-lg bg-red-50 px-1.5 py-2 text-[11px] font-semibold leading-4 text-red-700 ring-1 ring-red-100 transition hover:bg-red-100/60"
                               type="button"
                               onClick={() => setSelected(null)}
                             >
-                              Оценки нет
+                              нет оценки
                             </button>
                           )}
                         </td>
                       );
                     })}
-                    <td className="border-b border-line p-2 text-center">
-                      <span className={`inline-flex min-w-16 justify-center rounded-lg px-3 py-2 font-semibold ring-1 ${scoreClass(rowAverage)}`}>
+                    <td className="border-b border-line p-1.5 text-center">
+                      <span className={`inline-flex min-w-14 justify-center rounded-lg px-2 py-2 font-semibold ring-1 ${scoreClass(rowAverage)}`}>
                         {fixed(rowAverage)}
                       </span>
                     </td>
@@ -291,14 +331,14 @@ export default function MatrixClient({
                 </tr>
               ) : null}
               <tr className="bg-slate-50">
-                <th className="sticky left-0 z-10 border-t border-line bg-slate-50 px-4 py-3 text-left font-semibold text-ink">
+                <th className="sticky left-0 z-10 border-t border-line bg-slate-50 px-3 py-2 text-left font-semibold text-ink">
                   Общая оценка подразделения
                 </th>
                 {columnDepartments.map((department) => {
                   const summary = summaryByDepartment.get(department.id);
                   return (
-                    <td className="border-t border-line p-2 text-center" key={department.id}>
-                      <span className={`inline-flex min-w-16 justify-center rounded-lg px-3 py-2 font-semibold ring-1 ${scoreClass(summary?.average)}`}>
+                    <td className={`border-t border-line p-1.5 text-center ${focusedColumnId === department.id ? "bg-brand/5" : ""}`} key={department.id}>
+                      <span className={`inline-flex min-w-14 justify-center rounded-lg px-2 py-2 font-semibold ring-1 ${scoreClass(summary?.average)}`}>
                         {fixed(summary?.average)}
                       </span>
                     </td>
