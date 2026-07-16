@@ -250,7 +250,6 @@ function SlideHeader({
       <div>
         <div className="text-[16px] font-semibold uppercase tracking-wide text-brand">{label}</div>
         <h1 className="mt-2 max-w-[820px] text-[42px] font-bold leading-tight text-slate-950">{title}</h1>
-        <div className="mt-2 text-[18px] text-slate-600">{periodLabel}</div>
       </div>
       <div className="flex h-[82px] w-[270px] items-center justify-end">
         <Image src="/rp-logo.png" alt="Red Petroleum" width={260} height={82} className="h-auto w-[260px]" priority />
@@ -300,8 +299,8 @@ function SummarySlide({
         periodLabel={periodLabel}
       />
 
-      <main className="mt-8 grid min-h-0 flex-1 grid-cols-[390px_1fr] gap-7">
-        <section className="flex min-h-0 flex-col rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+      <main className="mt-6 grid min-h-0 flex-1 grid-cols-[390px_1fr] gap-7">
+        <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <div className="text-[18px] font-semibold text-slate-600">
             {mode === "company" ? "Средний балл компании" : "Средний балл отдела"}
           </div>
@@ -309,18 +308,18 @@ function SummarySlide({
             <div className="text-[96px] font-bold leading-none text-brand">{fixed(average)}</div>
             <div className="mb-3 rounded-full bg-slate-100 px-4 py-2 text-[16px] font-semibold text-slate-600">из 10</div>
           </div>
-          <div className="mt-6 grid grid-cols-2 gap-3">
+          <div className="mt-5 grid grid-cols-2 gap-2.5">
             <MetricTile label={mode === "company" ? "Оцениваемых отделов" : "Средний балл компании"} value={mode === "company" ? String(totalDepartments) : fixed(companyAverage)} />
             <MetricTile label={mode === "company" ? "Заполнение" : "Место в рейтинге"} value={mode === "company" ? `${completionPercent}%` : rank ? `${rank}/${totalDepartments}` : "-"} />
             <MetricTile label="Оценок 9 и ниже" value={String(lowScoresCount)} />
             <MetricTile label="Осталось оценок" value={String(missingCount)} />
           </div>
-          <div className="mt-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-[15px] leading-6 text-slate-600">
+          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-[13px] leading-5 text-slate-600">
             Ожидается оценок: {expectedCount}. Заполнено: {filledCount}. Осталось: {missingCount}.
           </div>
         </section>
 
-        <section className="min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        <section className="min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between gap-4">
             <h2 className="text-[26px] font-bold text-slate-950">Комментарии 9 и ниже</h2>
             <span className="rounded-full bg-red-50 px-3 py-1.5 text-[16px] font-semibold text-red-700 ring-1 ring-red-100">
@@ -365,9 +364,9 @@ function SummarySlide({
 
 function MetricTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg bg-slate-50 p-3">
-      <div className="text-[14px] leading-5 text-slate-500">{label}</div>
-      <div className="mt-2 text-[28px] font-bold text-slate-950">{value}</div>
+    <div className="rounded-lg bg-slate-50 p-2.5">
+      <div className="text-[12px] leading-4 text-slate-500">{label}</div>
+      <div className="mt-1.5 text-[24px] font-bold leading-tight text-slate-950">{value}</div>
     </div>
   );
 }
