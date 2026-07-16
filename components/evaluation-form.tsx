@@ -441,7 +441,7 @@ export default function EvaluationForm({
       {selectedPeriod?.status === "CLOSED" ? <div className="mb-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-muted">Период закрыт, редактирование недоступно.</div> : null}
 
       <div className="space-y-3">
-        {availableEvaluatees.map((department) => {
+        {availableEvaluatees.map((department, index) => {
           const row = rows[department.id] || blankRow();
           const required = requiredEvaluateeIds.has(department.id);
           const needsDetails = !row.noInteraction && row.score < 10;
@@ -457,20 +457,25 @@ export default function EvaluationForm({
               }`}
               key={department.id}
             >
-              <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_104px_minmax(260px,1.15fr)_160px] lg:items-start">
-                <div>
-                  <DepartmentLabel department={department} className="font-semibold text-ink" />
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {required ? (
-                      <span className="rounded-full bg-brand/10 px-2.5 py-1 text-xs font-semibold text-brand">
-                        Обязательно
-                      </span>
-                    ) : null}
-                    {row.noInteraction ? (
-                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                        Нет взаимодействия
-                      </span>
-                    ) : null}
+              <div className="grid gap-3 lg:grid-cols-[minmax(220px,0.85fr)_104px_minmax(360px,1.45fr)] lg:items-start">
+                <div className="flex gap-3">
+                  <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-semibold text-slate-600">
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <DepartmentLabel department={department} className="font-semibold text-ink" />
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {required ? (
+                        <span className="rounded-full bg-brand/10 px-2.5 py-1 text-xs font-semibold text-brand">
+                          Обязательно
+                        </span>
+                      ) : null}
+                      {row.noInteraction ? (
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                          Нет взаимодействия
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
 
@@ -522,34 +527,34 @@ export default function EvaluationForm({
                       {row.noInteraction ? "Отмечено отсутствие взаимодействия за период." : "Для оценки 10 комментарий не нужен."}
                     </div>
                   )}
-                </div>
 
-                <div className="grid content-start gap-2">
-                  <div className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium leading-5 ${statusTone(row, needsDetails)}`}>
-                    {statusText}
-                    {row.savedAt ? (
-                      <div className="mt-0.5 font-normal text-slate-500">
-                        {formatDateTimeLabel(row.savedAt)}
-                      </div>
-                    ) : null}
-                  </div>
-                  <button
-                    className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-brand/30 bg-white px-2.5 py-1.5 text-xs font-semibold text-brand transition hover:bg-brand/5 disabled:opacity-50"
-                    disabled={!canUseForm || row.saving || !rowCanSave(row)}
-                    type="button"
-                    onClick={() => saveDepartment(department.id)}
-                  >
-                    <Save size={14} /> Сохранить сейчас
-                  </button>
-                  <button
-                    className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
-                    disabled={!canUseForm || row.saving}
-                    type="button"
-                    onClick={() => saveDepartment(department.id, true)}
-                  >
-                    <Ban size={14} /> Нет взаимодействия
-                  </button>
-                  {row.noInteraction ? (
+                  <div className="mt-2 flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+                    <div className={`min-w-[190px] rounded-lg border px-2.5 py-1.5 text-xs font-medium leading-5 ${statusTone(row, needsDetails)}`}>
+                      {statusText}
+                      {row.savedAt ? (
+                        <div className="mt-0.5 font-normal text-slate-500">
+                          {formatDateTimeLabel(row.savedAt)}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-brand/30 bg-white px-2.5 py-1.5 text-xs font-semibold text-brand transition hover:bg-brand/5 disabled:opacity-50"
+                        disabled={!canUseForm || row.saving || !rowCanSave(row)}
+                        type="button"
+                        onClick={() => saveDepartment(department.id)}
+                      >
+                        <Save size={14} /> Сохранить
+                      </button>
+                      <button
+                        className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
+                        disabled={!canUseForm || row.saving}
+                        type="button"
+                        onClick={() => saveDepartment(department.id, true)}
+                      >
+                        <Ban size={14} /> Нет взаимодействия
+                      </button>
+                      {row.noInteraction ? (
                     <button
                       className="focus-ring rounded-lg border border-line bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
                       disabled={!canUseForm || row.saving}
@@ -566,7 +571,9 @@ export default function EvaluationForm({
                     >
                       Поставить оценку
                     </button>
-                  ) : null}
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
               </div>
 
