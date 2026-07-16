@@ -111,12 +111,35 @@ export async function POST(request: Request) {
           evaluatorDepartmentId: effectiveEvaluatorDepartmentId,
           evaluateeDepartmentId,
           criterionId
-        }
+        },
+    select: { id: true }
   });
 
-  const evaluation = existing
-    ? await prisma.evaluation.update({ where: { id: existing.id }, data: payload })
-    : await prisma.evaluation.create({ data: payload });
+  const evaluation = isDirectorEvaluation
+    ? await prisma.evaluation.upsert({
+        where: {
+          periodId_evaluatorUserId_evaluateeDepartmentId_criterionId: {
+            periodId,
+            evaluatorUserId: user.id,
+            evaluateeDepartmentId,
+            criterionId
+          }
+        },
+        create: payload,
+        update: payload
+      })
+    : await prisma.evaluation.upsert({
+        where: {
+          periodId_evaluatorDepartmentId_evaluateeDepartmentId_criterionId: {
+            periodId,
+            evaluatorDepartmentId: effectiveEvaluatorDepartmentId,
+            evaluateeDepartmentId,
+            criterionId
+          }
+        },
+        create: payload,
+        update: payload
+      });
 
   await writeAuditLog({
     action: existing ? "evaluation.update" : "evaluation.create",

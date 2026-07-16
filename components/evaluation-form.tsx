@@ -63,21 +63,6 @@ type RowState = {
   savedAt: string | null;
 };
 
-const monthNames = [
-  "Январь",
-  "Февраль",
-  "Март",
-  "Апрель",
-  "Май",
-  "Июнь",
-  "Июль",
-  "Август",
-  "Сентябрь",
-  "Октябрь",
-  "Ноябрь",
-  "Декабрь"
-];
-
 const OVERALL_CRITERION_NAME = "Общая оценка взаимодействия";
 
 const SCORE_GUIDE = [
@@ -124,14 +109,18 @@ function formatDateTimeLabel(value?: string | null) {
     month: "2-digit",
     year: "numeric",
     hour: "2-digit",
-    minute: "2-digit"
+    minute: "2-digit",
+    timeZone: "Asia/Bishkek"
   }).format(date);
 }
 
 function assessedPeriodLabel(period?: Period) {
   if (!period) return "активный период";
   const assessedDate = new Date(period.year, period.month - 2, 1);
-  const month = new Intl.DateTimeFormat("ru-RU", { month: "long" }).format(assessedDate);
+  const month = new Intl.DateTimeFormat("ru-RU", {
+    month: "long",
+    timeZone: "Asia/Bishkek"
+  }).format(assessedDate);
   return `${month} ${assessedDate.getFullYear()}`;
 }
 

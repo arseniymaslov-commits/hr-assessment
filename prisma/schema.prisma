@@ -96,9 +96,12 @@ model Evaluation {
   updatedAt             DateTime   @updatedAt
 
   @@unique([periodId, evaluatorDepartmentId, evaluateeDepartmentId, criterionId])
+  @@unique([periodId, evaluatorUserId, evaluateeDepartmentId, criterionId])
   @@index([periodId, evaluateeDepartmentId])
   @@index([periodId, evaluatorDepartmentId])
   @@index([periodId, evaluatorUserId])
+  @@index([criterionId, periodId])
+  @@index([criterionId, noInteraction, score])
 }
 
 model EvaluationRequirement {
@@ -129,6 +132,7 @@ model EvaluationRequest {
   createdAt             DateTime     @default(now())
 
   @@unique([periodId, evaluateeDepartmentId])
+  @@index([scheduledAt, notificationSentAt])
 }
 
 model AuditLog {

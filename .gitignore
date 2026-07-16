@@ -8,6 +8,7 @@ node_modules
 .env.vercel.*
 dist
 coverage
+deliverables/
 *.log
 *.dump
 *.sql
