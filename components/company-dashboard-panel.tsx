@@ -352,9 +352,15 @@ export default function CompanyDashboardPanel({
         ) : null}
 
         {activeTab === "completion" ? (
-          <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+          <div className="grid gap-5 2xl:grid-cols-[1.15fr_0.85fr]">
             <div className="overflow-x-auto rounded-lg border border-line">
-              <table className="w-full min-w-[680px] text-left text-sm">
+              <table className="w-full min-w-[720px] text-left text-sm">
+                <colgroup>
+                  <col className="w-[48%]" />
+                  <col className="w-[16%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[22%]" />
+                </colgroup>
                 <thead className="bg-slate-50 text-xs uppercase tracking-wide text-muted">
                   <tr>
                     <th className="px-4 py-3">{isDepartment ? "Кто должен оценить отдел" : "Оценивающий отдел"}</th>
@@ -366,12 +372,14 @@ export default function CompanyDashboardPanel({
                 <tbody className="divide-y divide-line">
                   {completion.map((row) => (
                     <tr key={row.id} className={row.missing > 0 ? "bg-red-50/35" : undefined}>
-                      <td className="px-4 py-3 font-medium text-ink">{row.name}</td>
-                      <td className="px-4 py-3 text-slate-700">
+                      <td className="px-4 py-3">
+                        <DepartmentName name={row.name} />
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-slate-700">
                         {row.filled} из {row.expected}
                       </td>
-                      <td className="px-4 py-3 text-slate-700">{row.missing}</td>
-                      <td className="px-4 py-3">
+                      <td className="whitespace-nowrap px-4 py-3 text-slate-700">{row.missing}</td>
+                      <td className="whitespace-nowrap px-4 py-3">
                         <span
                           className={`rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${
                             row.isComplete
