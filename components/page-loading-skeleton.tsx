@@ -1,7 +1,7 @@
 export default function PageLoadingSkeleton() {
   return (
     <main className="mx-auto max-w-7xl px-4 py-6">
-      <div className="animate-soft-in space-y-6">
+      <div className="animate-soft-in space-y-6 motion-safe:animate-pulse">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="h-7 w-64 rounded-lg bg-slate-200/80" />

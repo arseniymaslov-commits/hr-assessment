@@ -1,41 +1,40 @@
 import Image from "next/image";
-import Link from "next/link";
-import { BarChart3, ClipboardCheck, Grid3X3, LineChart, Settings, Users, type LucideIcon } from "lucide-react";
 import { Role } from "@prisma/client";
+import AppNavLink from "@/components/app-nav-link";
 import { roleLabel } from "@/lib/auth";
 
-const nav: { href: string; label: string; icon: LucideIcon; roles: Role[] }[] = [
+const nav: { href: string; label: string; icon: "dashboard" | "matrix" | "analytics" | "evaluations" | "completion" | "admin"; roles: Role[] }[] = [
   {
     href: "/dashboard",
     label: "Дашборд",
-    icon: BarChart3,
+    icon: "dashboard",
     roles: [Role.ADMIN, Role.ANALYST, Role.LEADER, Role.DIRECTOR, Role.VIEWER, Role.DASHBOARD_VIEWER]
   },
   {
     href: "/matrix",
     label: "Матрица",
-    icon: Grid3X3,
+    icon: "matrix",
     roles: [Role.ADMIN, Role.ANALYST, Role.LEADER, Role.DIRECTOR, Role.VIEWER]
   },
   {
     href: "/analytics",
     label: "Аналитика HRD",
-    icon: LineChart,
+    icon: "analytics",
     roles: [Role.ADMIN, Role.ANALYST, Role.DIRECTOR]
   },
   {
     href: "/evaluations",
     label: "Оценки",
-    icon: ClipboardCheck,
+    icon: "evaluations",
     roles: [Role.ADMIN, Role.LEADER, Role.DIRECTOR]
   },
   {
     href: "/completion",
     label: "Заполнение",
-    icon: Users,
+    icon: "completion",
     roles: [Role.ADMIN, Role.ANALYST, Role.LEADER, Role.DIRECTOR, Role.VIEWER]
   },
-  { href: "/admin", label: "Админка", icon: Settings, roles: [Role.ADMIN] }
+  { href: "/admin", label: "Админка", icon: "admin", roles: [Role.ADMIN] }
 ];
 
 type AppShellProps = {
@@ -78,19 +77,7 @@ export default function AppShell({ user, children }: AppShellProps) {
           <nav className="flex gap-1 overflow-x-auto border-t border-line py-2">
             {nav
               .filter((item) => item.roles.includes(user.role))
-              .map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    className="focus-ring inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-ink"
-                    href={item.href}
-                    key={item.href}
-                  >
-                    <Icon size={16} />
-                    {item.label}
-                  </Link>
-                );
-              })}
+              .map((item) => <AppNavLink href={item.href} icon={item.icon} key={item.href} label={item.label} />)}
           </nav>
         </div>
       </header>
