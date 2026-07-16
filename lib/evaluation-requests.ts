@@ -1,6 +1,7 @@
 import { PeriodStatus, Role } from "@prisma/client";
 import { writeAuditLog } from "@/lib/audit";
 import { isEvaluatableDepartment } from "@/lib/evaluation-scope";
+import { periodLabel } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { emailActionLink, sendMail } from "@/lib/email";
 
@@ -20,10 +21,6 @@ function getAppUrl() {
   if (vercelUrl) return `https://${vercelUrl}`.replace(/\/$/, "");
 
   return "http://localhost:3000";
-}
-
-function formatPeriod(month: number, year: number) {
-  return `${String(month).padStart(2, "0")}.${year}`;
 }
 
 function greeting(name: string) {
@@ -96,7 +93,7 @@ export async function notifyEvaluationRequests(requestIds: string[]) {
             `${greeting(recipient.name)}.`,
             "",
             "Просим оценить взаимодействие с отделами.",
-            `Период: ${formatPeriod(period.month, period.year)}.`,
+            periodLabel(period),
             uniqueTargets.length ? `Доступно для оценки: ${uniqueTargets.join(", ")}.` : "",
             "",
             `Перейдите в форму оценки: ${evaluationUrl}`
@@ -105,7 +102,7 @@ export async function notifyEvaluationRequests(requestIds: string[]) {
             `<p>${greeting(recipient.name)}.</p>`,
             "<p>Просим оценить взаимодействие с отделами.</p>",
             "<ul>",
-            `<li>Период: ${formatPeriod(period.month, period.year)}</li>`,
+            `<li>${periodLabel(period)}</li>`,
             uniqueTargets.length ? `<li>Доступно для оценки: ${uniqueTargets.join(", ")}</li>` : "",
             "</ul>",
             emailActionLink(evaluationUrl, "Перейти к оценке")
@@ -221,7 +218,7 @@ export async function processEvaluationRequestSchedule() {
 
 function almatyDateParts(date = new Date()) {
   const parts = new Intl.DateTimeFormat("ru-RU", {
-    timeZone: "Asia/Almaty",
+    timeZone: "Asia/Bishkek",
     year: "numeric",
     month: "numeric",
     day: "numeric"
@@ -300,7 +297,7 @@ export async function notifyAdminsEvaluationStarted({
     subject: "Оценка взаимодействия запущена",
     text: [
       "Оценка взаимодействия запущена.",
-      `Период: ${formatPeriod(period.month, period.year)}.`,
+      periodLabel(period),
       initiatedBy ? `Запустил: ${initiatedBy.name}.` : "",
       summary,
       `Открыть приложение: ${dashboardUrl}`
@@ -308,7 +305,7 @@ export async function notifyAdminsEvaluationStarted({
     html: [
       "<p>Оценка взаимодействия запущена.</p>",
       "<ul>",
-      `<li>Период: ${formatPeriod(period.month, period.year)}</li>`,
+      `<li>${periodLabel(period)}</li>`,
       initiatedBy ? `<li>Запустил: ${initiatedBy.name}</li>` : "",
       `<li>${summary}</li>`,
       "</ul>",

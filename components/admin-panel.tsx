@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Plus, RefreshCw, RotateCcw, Send, Settings2 } from "lucide-react";
 import DepartmentLabel from "@/components/department-label";
 import { departmentOptionLabel } from "@/lib/department-decodings";
+import { periodLabel } from "@/lib/format";
 
 type Department = {
   id: string;
@@ -292,7 +293,7 @@ export default function AdminPanel({
             {periods.map((period) => (
               <div className="flex items-center justify-between gap-3 py-3" key={period.id}>
                 <div>
-                  <div className="font-medium">{months[period.month - 1]} {period.year}</div>
+                  <div className="font-medium">{periodLabel(period)}</div>
                   <div className="text-sm text-muted">{period.status === "OPEN" ? "Открыт" : "Закрыт"}</div>
                 </div>
                 <button className="focus-ring inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm transition hover:border-slate-300 hover:bg-slate-50" type="button" onClick={() => request(`/api/admin/periods/${period.id}`, { method: "PATCH", body: JSON.stringify({ status: period.status === "OPEN" ? "CLOSED" : "OPEN" }) })}>
@@ -315,7 +316,7 @@ export default function AdminPanel({
               ))}
             </select>
             <select className="focus-ring rounded-lg border border-line px-3 py-2" value={launchPeriodId} onChange={(event) => setLaunchPeriodId(event.target.value)}>
-              {periods.map((period) => <option key={period.id} value={period.id}>{months[period.month - 1]} {period.year}</option>)}
+              {periods.map((period) => <option key={period.id} value={period.id}>{periodLabel(period)}</option>)}
             </select>
             <label className="grid gap-1 text-sm text-muted">
               <span>Дата и время запуска</span>

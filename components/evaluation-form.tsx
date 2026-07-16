@@ -5,6 +5,7 @@ import { Ban, Save } from "lucide-react";
 import DepartmentLabel from "@/components/department-label";
 import { departmentOptionLabel } from "@/lib/department-decodings";
 import { DEVIATION_CATEGORIES } from "@/lib/evaluation-categories";
+import { periodLabel } from "@/lib/format";
 
 type Department = {
   id: string;
@@ -110,7 +111,7 @@ function formatDateLabel(value?: string | null) {
     day: "numeric",
     month: "long",
     year: "numeric",
-    timeZone: "Asia/Almaty"
+    timeZone: "Asia/Bishkek"
   }).format(date);
 }
 
@@ -383,7 +384,7 @@ export default function EvaluationForm({
           <select className="focus-ring mt-1 w-full rounded-lg border border-line px-3 py-2" value={periodId} onChange={(event) => setPeriodId(event.target.value)}>
             {periods.map((period) => (
               <option key={period.id} value={period.id}>
-                {monthNames[period.month - 1]} {period.year} · {period.status === "OPEN" ? "открыт" : "закрыт"}
+                {periodLabel(period)} · {period.status === "OPEN" ? "открыт" : "закрыт"}
               </option>
             ))}
           </select>

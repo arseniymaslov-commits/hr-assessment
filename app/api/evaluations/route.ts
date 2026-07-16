@@ -6,6 +6,17 @@ import { isValidDeviationCategory } from "@/lib/evaluation-categories";
 import { isEvaluatableDepartmentName } from "@/lib/evaluation-scope";
 import { prisma } from "@/lib/prisma";
 
+function formatAuditDateTime(date: Date) {
+  return new Intl.DateTimeFormat("ru-RU", {
+    timeZone: "Asia/Bishkek",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
+}
+
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user || (user.role !== Role.ADMIN && user.role !== Role.LEADER && user.role !== Role.DIRECTOR)) {
@@ -112,7 +123,7 @@ export async function POST(request: Request) {
     summary: existing ? "Оценка изменена" : "Оценка создана",
     details: `Оцениваемый отдел: ${evaluateeDepartment.name}. Оценка: ${
       noInteraction ? "Нет взаимодействия" : scoreToSave
-    }.`,
+    }. Время оценки: ${formatAuditDateTime(evaluation.updatedAt)}.`,
     user,
     request
   });

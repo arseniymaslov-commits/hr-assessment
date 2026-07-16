@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
 import { emailActionLink, sendMail } from "@/lib/email";
+import { periodLabel } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 
 function getAppUrl() {
@@ -14,9 +15,6 @@ function getAppUrl() {
   return "http://localhost:3000";
 }
 
-function formatPeriod(month: number, year: number) {
-  return `${String(month).padStart(2, "0")}.${year}`;
-}
 
 export async function POST(request: Request) {
   const admin = await getCurrentUser();
@@ -65,7 +63,7 @@ export async function POST(request: Request) {
           `Здравствуйте, ${recipient.name}.`,
           "",
           "Просим в приоритетном порядке пройти оценку взаимодействия подразделений.",
-          `Период оценки: ${formatPeriod(period.month, period.year)}.`,
+          periodLabel(period),
           recipient.department?.name ? `Ваше подразделение: ${recipient.department.name}.` : "",
           "",
           `Форма оценки: ${evaluationUrl}`
@@ -74,7 +72,7 @@ export async function POST(request: Request) {
           `<p>Здравствуйте, ${recipient.name}.</p>`,
           "<p>Просим в приоритетном порядке пройти оценку взаимодействия подразделений.</p>",
           "<ul>",
-          `<li>Период оценки: ${formatPeriod(period.month, period.year)}</li>`,
+          `<li>${periodLabel(period)}</li>`,
           recipient.department?.name ? `<li>Ваше подразделение: ${recipient.department.name}</li>` : "",
           "</ul>",
           emailActionLink(evaluationUrl, "Перейти к оценке")

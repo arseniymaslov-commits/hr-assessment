@@ -8,7 +8,11 @@ import { getPeriodMetrics, getReferenceData } from "@/lib/metrics";
 import { isMissingEvaluation, MISSING_EVALUATION_LABEL } from "@/lib/evaluation-status";
 import { prisma } from "@/lib/prisma";
 
-export default async function AdminPage() {
+export default async function AdminPage({
+  searchParams
+}: {
+  searchParams: { tab?: string };
+}) {
   const user = await requireUser([Role.ADMIN]);
   const [{ departments, evaluateeDepartments, periods, users, criteria }, metrics, auditLogs] = await Promise.all([
     getReferenceData(),
@@ -48,6 +52,15 @@ export default async function AdminPage() {
       evaluateeDepartmentId
     })
   );
+  const activeTab = ["settings", "comments", "actions"].includes(searchParams.tab || "")
+    ? searchParams.tab
+    : "settings";
+  const tabClass = (tab: string) =>
+    `focus-ring rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+      activeTab === tab
+        ? "border-brand bg-brand text-white"
+        : "border-line bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+    }`;
 
   return (
     <AppShell user={user}>
@@ -58,16 +71,25 @@ export default async function AdminPage() {
         </p>
       </div>
 
-      <AdminPanel
-        departments={departmentOptions}
-        evaluateeDepartments={evaluateeDepartmentOptions}
-        periods={periodOptions}
-        users={userOptions}
-        criteria={criterionOptions}
-        requirements={requirementOptions}
-      />
+      <nav className="mb-6 flex flex-wrap gap-2">
+        <a className={tabClass("settings")} href="/admin?tab=settings">Настройки</a>
+        <a className={tabClass("comments")} href="/admin?tab=comments">Комментарии</a>
+        <a className={tabClass("actions")} href="/admin?tab=actions">Недавние действия</a>
+      </nav>
 
-      <section className="mt-6 rounded-lg border border-line bg-white">
+      {activeTab === "settings" ? (
+        <AdminPanel
+          departments={departmentOptions}
+          evaluateeDepartments={evaluateeDepartmentOptions}
+          periods={periodOptions}
+          users={userOptions}
+          criteria={criterionOptions}
+          requirements={requirementOptions}
+        />
+      ) : null}
+
+      {activeTab === "comments" ? (
+      <section className="rounded-lg border border-line bg-white">
         <div className="flex flex-col gap-3 border-b border-line px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="font-semibold text-ink">Все комментарии текущего периода</h2>
           {metrics.selectedPeriod ? (
@@ -128,10 +150,13 @@ export default async function AdminPage() {
           </table>
         </div>
       </section>
+      ) : null}
 
-      <section className="mt-6 rounded-lg border border-line bg-white">
+      {activeTab === "actions" ? (
+      <section className="rounded-lg border border-line bg-white">
         <div className="border-b border-line px-5 py-4">
-          <h2 className="font-semibold text-ink">Журнал аудита</h2>
+          <h2 className="font-semibold text-ink">Недавние действия</h2>
+          <p className="mt-1 text-sm text-muted">Все действия системы и пользователей. Сверху показаны самые новые записи.</p>
         </div>
         <div className="divide-y divide-line">
           {auditLogs.length ? (
@@ -140,7 +165,8 @@ export default async function AdminPage() {
                 <div className="text-muted">
                   {log.createdAt.toLocaleString("ru-RU", {
                     dateStyle: "short",
-                    timeStyle: "short"
+                    timeStyle: "short",
+                    timeZone: "Asia/Bishkek"
                   })}
                 </div>
                 <div className="font-mono text-xs text-muted">{log.action}</div>
@@ -156,6 +182,7 @@ export default async function AdminPage() {
           )}
         </div>
       </section>
+      ) : null}
     </AppShell>
   );
 }
