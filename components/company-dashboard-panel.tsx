@@ -156,7 +156,7 @@ export default function CompanyDashboardPanel({
   const pagedComments = lowScores.slice((commentPage - 1) * commentPageSize, commentPage * commentPageSize);
 
   return (
-    <section className="mt-6 rounded-lg border border-line bg-white">
+    <section className="animate-soft-in mt-6 rounded-lg border border-line bg-white">
       <div className="border-b border-line px-5 py-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div>
@@ -418,7 +418,7 @@ export default function CompanyDashboardPanel({
 
 function OverviewCard({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
-    <div className="rounded-lg border border-line bg-slate-50 p-4">
+    <div className="rounded-lg border border-line bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-white hover:shadow-soft">
       <div className="text-sm text-muted">{label}</div>
       <div className="mt-2 text-3xl font-semibold text-ink">{value}</div>
       <div className="mt-1 text-xs text-muted">{hint}</div>
@@ -438,7 +438,7 @@ function CompactList<T>({
   render: (row: T, index: number) => ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-line bg-white">
+    <div className="rounded-lg border border-line bg-white transition hover:border-slate-300">
       <div className="border-b border-line px-4 py-3 font-semibold text-ink">{title}</div>
       <div className="max-h-[360px] overflow-auto p-3">
         {rows.length ? (

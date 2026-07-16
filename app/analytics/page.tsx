@@ -237,7 +237,7 @@ export default async function AnalyticsPage({ searchParams }: AnalyticsPageProps
 
 function AnalyticsCard({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
-    <div className="rounded-lg border border-line bg-white p-5">
+    <div className="animate-soft-in rounded-lg border border-line bg-white p-5 transition hover:border-slate-300 hover:shadow-soft">
       <div className="text-sm text-muted">{label}</div>
       <div className="mt-2 text-3xl font-semibold text-ink">{value}</div>
       <div className="mt-1 text-xs text-muted">{hint}</div>
@@ -247,7 +247,7 @@ function AnalyticsCard({ label, value, hint }: { label: string; value: string; h
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="min-w-0 rounded-lg border border-line bg-white">
+    <section className="animate-soft-in min-w-0 rounded-lg border border-line bg-white transition hover:border-slate-300">
       <div className="border-b border-line px-5 py-4">
         <h2 className="font-semibold text-ink">{title}</h2>
       </div>

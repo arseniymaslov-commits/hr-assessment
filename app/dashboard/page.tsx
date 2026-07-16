@@ -410,7 +410,7 @@ export default async function DashboardPage({
 
 function MetricCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-line bg-white p-5">
+    <div className="animate-soft-in rounded-lg border border-line bg-white p-5 transition hover:border-slate-300 hover:shadow-soft">
       <div className="text-sm text-muted">{label}</div>
       <div className="mt-2 text-3xl font-semibold text-ink">{value}</div>
     </div>
