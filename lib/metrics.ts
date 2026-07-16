@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { departmentOptionLabel } from "@/lib/department-decodings";
+import { isMissingEvaluation } from "@/lib/evaluation-status";
 import {
   DEFAULT_FULL_COVERAGE_EVALUATEE_NAMES,
   isEvaluatableDepartment,
@@ -138,12 +139,18 @@ export async function getPeriodMetrics(periodId?: string) {
       _avg: { score: true }
     })
   ]);
-  const evaluations = allEvaluations.filter(
-    (evaluation) =>
-      (evaluation.evaluatorDepartmentId == null ||
-        activeDepartmentIds.has(evaluation.evaluatorDepartmentId)) &&
-      evaluateeDepartmentIds.has(evaluation.evaluateeDepartmentId)
-  );
+  const evaluations = allEvaluations
+    .filter(
+      (evaluation) =>
+        (evaluation.evaluatorDepartmentId == null ||
+          activeDepartmentIds.has(evaluation.evaluatorDepartmentId)) &&
+        evaluateeDepartmentIds.has(evaluation.evaluateeDepartmentId)
+    )
+    .map((evaluation) =>
+      isMissingEvaluation(evaluation)
+        ? { ...evaluation, score: null, noInteraction: false, deviationCategories: [] }
+        : evaluation
+    );
   const scoredEvaluations = evaluations.filter(
     (evaluation) => !evaluation.noInteraction && evaluation.score != null
   );
@@ -159,7 +166,10 @@ export async function getPeriodMetrics(periodId?: string) {
 
   const evaluationKeys = new Set(
     evaluations
-      .filter((evaluation) => evaluation.evaluatorDepartmentId)
+      .filter(
+        (evaluation) =>
+          evaluation.evaluatorDepartmentId && (evaluation.noInteraction || evaluation.score != null)
+      )
       .map((evaluation) => `${evaluation.evaluatorDepartmentId}:${evaluation.evaluateeDepartmentId}`)
   );
   const departmentById = new Map(departments.map((department) => [department.id, department]));

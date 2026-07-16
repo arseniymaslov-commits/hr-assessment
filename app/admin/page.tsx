@@ -5,6 +5,7 @@ import DepartmentLabel from "@/components/department-label";
 import ScoreBadge from "@/components/score-badge";
 import { requireUser } from "@/lib/auth";
 import { getPeriodMetrics, getReferenceData } from "@/lib/metrics";
+import { isMissingEvaluation, MISSING_EVALUATION_LABEL } from "@/lib/evaluation-status";
 import { prisma } from "@/lib/prisma";
 
 export default async function AdminPage() {
@@ -105,7 +106,11 @@ export default async function AdminPage() {
                       <DepartmentLabel department={evaluation.evaluateeDepartment} />
                     </td>
                     <td className="px-5 py-4">
-                      {evaluation.noInteraction ? (
+                      {isMissingEvaluation(evaluation) ? (
+                        <span className="inline-flex rounded-full bg-red-50 px-2.5 py-1 text-sm font-semibold text-red-700 ring-1 ring-red-100">
+                          {MISSING_EVALUATION_LABEL}
+                        </span>
+                      ) : evaluation.noInteraction ? (
                         <span className="inline-flex rounded-full bg-slate-50 px-2.5 py-1 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">
                           Нет взаимодействия
                         </span>
@@ -113,7 +118,9 @@ export default async function AdminPage() {
                         <ScoreBadge score={evaluation.score} />
                       )}
                     </td>
-                    <td className="max-w-lg px-5 py-4 text-slate-700">{evaluation.comment}</td>
+                    <td className="max-w-lg px-5 py-4 text-slate-700">
+                      {isMissingEvaluation(evaluation) ? MISSING_EVALUATION_LABEL : evaluation.comment}
+                    </td>
                     <td className="px-5 py-4 text-slate-700">{evaluation.author.name}</td>
                   </tr>
                 ))}

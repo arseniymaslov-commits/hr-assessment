@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { departmentOptionLabel, getDepartmentFullName } from "@/lib/department-decodings";
 import { DEVIATION_CATEGORIES } from "@/lib/evaluation-categories";
+import { MISSING_EVALUATION_LABEL } from "@/lib/evaluation-status";
 import { fixed, periodLabel } from "@/lib/format";
 import { getPeriodMetrics } from "@/lib/metrics";
 
@@ -105,8 +106,12 @@ export async function GET(request: Request) {
         row.push("Нет взаимодействия");
         continue;
       }
-      row.push(evaluation.score ?? "");
-      if (evaluation.score != null) rowScores.push(evaluation.score);
+      if (evaluation.score == null) {
+        row.push(MISSING_EVALUATION_LABEL);
+        continue;
+      }
+      row.push(evaluation.score);
+      rowScores.push(evaluation.score);
     }
     row.push(rowScores.length ? Number((rowScores.reduce((sum, score) => sum + score, 0) / rowScores.length).toFixed(2)) : "");
     matrixRows.push(row);
@@ -133,7 +138,11 @@ export async function GET(request: Request) {
       "Кого оценивают": departmentOptionLabel(evaluation.evaluateeDepartment),
       "Оценка": evaluation.score,
       "Категории отклонений": evaluation.deviationCategories.join(", "),
-      "Комментарий": canExportComments ? evaluation.comment || "" : "",
+      "Комментарий": canExportComments
+        ? evaluation.score == null && !evaluation.noInteraction
+          ? MISSING_EVALUATION_LABEL
+          : evaluation.comment || ""
+        : "",
       "Автор": evaluation.author.name,
       "Дата": evaluation.updatedAt.toISOString()
     })),
@@ -183,10 +192,14 @@ export async function GET(request: Request) {
         ? departmentOptionLabel(evaluation.evaluatorDepartment)
         : evaluation.evaluatorUser?.name || "Директор",
       "Кого оценивают": departmentOptionLabel(evaluation.evaluateeDepartment),
-      "Оценка": evaluation.noInteraction ? "" : evaluation.score,
+      "Оценка": evaluation.noInteraction ? "" : evaluation.score ?? MISSING_EVALUATION_LABEL,
       "Нет взаимодействия": evaluation.noInteraction ? "Да" : "Нет",
       "Категории отклонений": evaluation.deviationCategories.join(", "),
-      "Комментарий": canExportComments ? evaluation.comment || "" : "",
+      "Комментарий": canExportComments
+        ? evaluation.score == null && !evaluation.noInteraction
+          ? MISSING_EVALUATION_LABEL
+          : evaluation.comment || ""
+        : "",
       "Автор": evaluation.author.name,
       "Дата заполнения": evaluation.updatedAt.toISOString()
     })),

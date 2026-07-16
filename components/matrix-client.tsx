@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { MessageSquareWarning } from "lucide-react";
 import DepartmentLabel from "@/components/department-label";
 import { getDepartmentDisplayParts } from "@/lib/department-decodings";
+import { isMissingEvaluation, MISSING_EVALUATION_LABEL } from "@/lib/evaluation-status";
 import { fixed, scoreClass } from "@/lib/format";
 
 type Department = {
@@ -183,6 +184,14 @@ export default function MatrixClient({
                             >
                               нет взаим.
                             </button>
+                          ) : evaluation && isMissingEvaluation(evaluation) ? (
+                            <button
+                              className={`focus-ring w-full rounded-lg bg-red-50 px-2 py-3 text-xs font-semibold text-red-700 ring-1 ring-red-100 ${selectedCell ? "outline outline-2 outline-brand" : ""}`}
+                              type="button"
+                              onClick={() => setSelected(evaluation)}
+                            >
+                              {MISSING_EVALUATION_LABEL}
+                            </button>
                           ) : evaluation ? (
                             <button
                               className={`focus-ring w-full rounded-lg px-2 py-3 font-semibold ring-1 ${scoreClass(evaluation.score)} ${selectedCell ? "outline outline-2 outline-brand" : ""}`}
@@ -248,7 +257,11 @@ export default function MatrixClient({
               <div>
                 <div className="text-sm text-muted">Оценка</div>
                 <div className="mt-1 text-3xl font-semibold text-ink">
-                  {selected.noInteraction ? "Нет взаимодействия" : selected.score}
+                  {isMissingEvaluation(selected)
+                    ? MISSING_EVALUATION_LABEL
+                    : selected.noInteraction
+                       ? "Нет взаимодействия"
+                      : selected.score}
                 </div>
               </div>
               <div>
@@ -271,7 +284,9 @@ export default function MatrixClient({
                 <div className="text-sm text-muted">Комментарий</div>
                 <p className="mt-1 text-sm leading-6 text-slate-700">
                   {canViewComments
-                    ? selected.comment ||
+                    ? isMissingEvaluation(selected)
+                      ? MISSING_EVALUATION_LABEL
+                      : selected.comment ||
                     (selected.noInteraction
                       ? "Подразделение отметило, что взаимодействия за период не было."
                       : "Комментарий не указан, потому что оценка выше 9.")
