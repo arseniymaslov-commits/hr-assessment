@@ -9,7 +9,11 @@ import { isMissingEvaluation, MISSING_EVALUATION_LABEL } from "@/lib/evaluation-
 import { getPeriodMetrics, getReferenceData } from "@/lib/metrics";
 import { prisma } from "@/lib/prisma";
 
-export default async function EvaluationsPage() {
+export default async function EvaluationsPage({
+  searchParams
+}: {
+  searchParams: { sort?: string };
+}) {
   const user = await requireUser([Role.ADMIN, Role.LEADER, Role.DIRECTOR]);
   const [{ departments, evaluateeDepartments, periods, criteria, requirements }, metrics] = await Promise.all([
     getReferenceData(),
@@ -42,6 +46,14 @@ export default async function EvaluationsPage() {
       : user.role === "DIRECTOR"
         ? metrics.evaluations.filter((evaluation) => evaluation.evaluatorUserId === user.id)
         : metrics.evaluations;
+  const sortMode = searchParams.sort === "author" ? "author" : "date";
+  const sortedVisibleEvaluations = visibleEvaluations.slice().sort((a, b) => {
+    if (sortMode === "author") {
+      const byAuthor = a.author.name.localeCompare(b.author.name, "ru");
+      if (byAuthor !== 0) return byAuthor;
+    }
+    return b.updatedAt.getTime() - a.updatedAt.getTime();
+  });
   const departmentOptions = departments.map(({ id, name, shortName }) => ({ id, name, shortName }));
   const evaluateeDepartmentOptions = evaluateeDepartments.map(({ id, name, shortName }) => ({ id, name, shortName }));
   const periodOptions = periods.map(({ id, month, year, status, createdAt, requests }) => ({
@@ -98,11 +110,32 @@ export default async function EvaluationsPage() {
       />
 
       <section className="mt-6 rounded-lg border border-line bg-white">
-        <div className="border-b border-line px-5 py-4">
-          <h2 className="font-semibold text-ink">Последние оценки текущего периода</h2>
+        <div className="flex flex-col gap-3 border-b border-line px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-semibold text-ink">Последние оценки текущего периода</h2>
+            <p className="mt-1 text-sm text-muted">Дата оценки указана по времени Бишкека.</p>
+          </div>
+          <div className="flex rounded-lg border border-line bg-white p-1 text-sm">
+            <a
+              className={`rounded-md px-3 py-1.5 font-medium transition ${
+                sortMode === "date" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"
+              }`}
+              href="/evaluations?sort=date"
+            >
+              По дате
+            </a>
+            <a
+              className={`rounded-md px-3 py-1.5 font-medium transition ${
+                sortMode === "author" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"
+              }`}
+              href="/evaluations?sort=author"
+            >
+              По автору
+            </a>
+          </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[820px] text-left text-sm">
+          <table className="w-full min-w-[980px] text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-muted">
               <tr>
                 <th className="px-5 py-3">Кто оценивает</th>
@@ -110,11 +143,12 @@ export default async function EvaluationsPage() {
                 <th className="px-5 py-3">Оценка / статус</th>
                 <th className="px-5 py-3">Категории</th>
                 <th className="px-5 py-3">Комментарий</th>
+                <th className="px-5 py-3">Дата оценки</th>
                 <th className="px-5 py-3">Автор</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {visibleEvaluations.map((evaluation) => (
+              {sortedVisibleEvaluations.map((evaluation) => (
                 <tr key={evaluation.id}>
                   <td className="px-5 py-4 font-medium text-ink">
                     {evaluation.evaluatorDepartment ? (
@@ -144,6 +178,16 @@ export default async function EvaluationsPage() {
                   </td>
                   <td className="max-w-md px-5 py-4 text-slate-700">
                     {isMissingEvaluation(evaluation) ? MISSING_EVALUATION_LABEL : evaluation.comment || "-"}
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-4 text-slate-700">
+                    {evaluation.updatedAt.toLocaleString("ru-RU", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      timeZone: "Asia/Bishkek"
+                    })}
                   </td>
                   <td className="px-5 py-4 text-slate-700">{evaluation.author.name}</td>
                 </tr>
