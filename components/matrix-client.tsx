@@ -61,6 +61,8 @@ export default function MatrixClient({
   canViewComments: boolean;
 }) {
   const [selected, setSelected] = useState<MatrixEvaluation | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState<"all" | "low" | "missing">("all");
   const topScrollRef = useRef<HTMLDivElement | null>(null);
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
   const map = useMemo(() => {
@@ -76,6 +78,40 @@ export default function MatrixClient({
     return next;
   }, [summaries]);
   const matrixWidth = Math.max(940, 260 + columnDepartments.length * 118 + 140);
+  const normalizedSearch = searchQuery.trim().toLocaleLowerCase("ru-RU");
+  const visibleRowDepartments = useMemo(
+    () =>
+      rowDepartments.filter((department) => {
+        const display = getDepartmentDisplayParts(department);
+        const matchesSearch =
+          !normalizedSearch ||
+          [display.name, display.fullName, department.shortName]
+            .filter(Boolean)
+            .some((value) => String(value).toLocaleLowerCase("ru-RU").includes(normalizedSearch));
+        if (!matchesSearch) return false;
+        if (viewMode === "all") return true;
+
+        return columnDepartments.some((evaluatee) => {
+          if (department.id === evaluatee.id) return false;
+          const evaluation = map.get(`${department.id}:${evaluatee.id}`);
+          if (viewMode === "missing") return !evaluation || isMissingEvaluation(evaluation);
+          return Boolean(
+            evaluation &&
+              !isMissingEvaluation(evaluation) &&
+              (evaluation.noInteraction || (evaluation.score != null && evaluation.score <= 9))
+          );
+        });
+      }),
+    [columnDepartments, map, normalizedSearch, rowDepartments, viewMode]
+  );
+  const visibleLowComments = useMemo(() => {
+    if (!normalizedSearch) return lowComments;
+    return lowComments.filter((item) =>
+      [item.evaluatorName, item.evaluateeName, item.comment]
+        .filter(Boolean)
+        .some((value) => String(value).toLocaleLowerCase("ru-RU").includes(normalizedSearch))
+    );
+  }, [lowComments, normalizedSearch]);
 
   function syncHorizontalScroll(source: "top" | "table", scrollLeft: number) {
     const target = source === "top" ? tableScrollRef.current : topScrollRef.current;
@@ -115,6 +151,32 @@ export default function MatrixClient({
               <div className="text-sm font-medium text-ink">Прокрутка матрицы</div>
               <div className="text-xs text-muted">Передвигайте полосу, чтобы увидеть отделы справа</div>
             </div>
+            <div className="mt-3 grid gap-2 md:grid-cols-[minmax(220px,1fr)_auto]">
+              <input
+                className="focus-ring rounded-lg border border-line bg-white px-3 py-2 text-sm"
+                placeholder="Найти оценивающий отдел"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+              />
+              <div className="flex rounded-lg border border-line bg-white p-1">
+                {[
+                  ["all", "Все"],
+                  ["low", "9 и ниже"],
+                  ["missing", "Оценки нет"]
+                ].map(([value, label]) => (
+                  <button
+                    className={`focus-ring rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                      viewMode === value ? "bg-graphite text-white" : "text-slate-600 hover:bg-slate-50"
+                    }`}
+                    key={value}
+                    type="button"
+                    onClick={() => setViewMode(value as "all" | "low" | "missing")}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div
               ref={topScrollRef}
               className="mt-2 overflow-x-auto pb-1"
@@ -152,7 +214,7 @@ export default function MatrixClient({
               </tr>
             </thead>
             <tbody>
-              {rowDepartments.map((evaluator) => {
+              {visibleRowDepartments.map((evaluator) => {
                 const rowScores = columnDepartments
                   .map((evaluatee) => map.get(`${evaluator.id}:${evaluatee.id}`))
                   .filter((evaluation): evaluation is MatrixEvaluation => Boolean(evaluation && !evaluation.noInteraction && evaluation.score != null))
@@ -221,6 +283,13 @@ export default function MatrixClient({
                   </tr>
                 );
               })}
+              {!visibleRowDepartments.length ? (
+                <tr>
+                  <td className="border-b border-line px-4 py-8 text-center text-sm text-muted" colSpan={columnDepartments.length + 2}>
+                    По выбранным фильтрам строк не найдено.
+                  </td>
+                </tr>
+              ) : null}
               <tr className="bg-slate-50">
                 <th className="sticky left-0 z-10 border-t border-line bg-slate-50 px-4 py-3 text-left font-semibold text-ink">
                   Общая оценка подразделения
@@ -311,8 +380,8 @@ export default function MatrixClient({
               <p className="text-sm leading-6 text-muted">
                 Комментарии доступны руководителю оцениваемого отдела, директору и администратору.
               </p>
-            ) : lowComments.length ? (
-              lowComments.map((item) => (
+            ) : visibleLowComments.length ? (
+              visibleLowComments.map((item) => (
                 <article className="rounded-lg border border-line bg-slate-50 p-3" key={item.id}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="text-sm font-semibold text-ink">

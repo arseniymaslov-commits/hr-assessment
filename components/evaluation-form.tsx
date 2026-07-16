@@ -212,6 +212,16 @@ export default function EvaluationForm({
     selectedPeriod?.status === "OPEN" &&
     overallCriterion &&
     (isDirector || evaluatorDepartmentId);
+  const totalCount = availableEvaluatees.length;
+  const savedCount = availableEvaluatees.filter((department) => {
+    const row = rows[department.id];
+    return Boolean(row?.savedAt || row?.message.includes("Сохранено"));
+  }).length;
+  const remainingCount = Math.max(0, totalCount - savedCount);
+  const needsDetailsCount = availableEvaluatees.filter((department) => {
+    const row = rows[department.id];
+    return Boolean(row && !row.noInteraction && row.score < 10 && !rowCanSave(row));
+  }).length;
 
   useEffect(() => {
     setRows((current) => {
@@ -346,19 +356,36 @@ export default function EvaluationForm({
   }
 
   return (
-    <section className="rounded-lg border border-line bg-white p-5 shadow-sm">
-      <div className="mb-5">
-        <h2 className="text-lg font-semibold text-ink">Поставить оценки подразделениям</h2>
-        <p className="mt-1 text-sm text-muted">
-          Выставьте одну общую оценку от 1 до 10. Если оценка ниже 10, выберите категорию отклонения и укажите подтверждающий комментарий.
-        </p>
+    <section className="rounded-lg border border-line bg-white p-4 shadow-sm sm:p-5">
+      <div className="mb-5 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-start">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand">Оценка взаимодействия</p>
+          <h2 className="mt-1 text-xl font-semibold text-ink">Поставить оценки подразделениям</h2>
+          <p className="mt-2 text-sm text-muted">
+            Оценка ниже 10 требует категорию отклонения и комментарий. Данные сохраняются автоматически после заполнения строки.
+          </p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-3 lg:w-[430px]">
+          <div className="rounded-lg border border-line bg-slate-50 px-3 py-2">
+            <div className="text-xs font-medium text-muted">Сохранено</div>
+            <div className="mt-1 text-xl font-semibold text-ink">{savedCount}/{totalCount}</div>
+          </div>
+          <div className="rounded-lg border border-line bg-slate-50 px-3 py-2">
+            <div className="text-xs font-medium text-muted">Осталось</div>
+            <div className="mt-1 text-xl font-semibold text-ink">{remainingCount}</div>
+          </div>
+          <div className="rounded-lg border border-line bg-slate-50 px-3 py-2">
+            <div className="text-xs font-medium text-muted">Требуют деталей</div>
+            <div className="mt-1 text-xl font-semibold text-ink">{needsDetailsCount}</div>
+          </div>
+        </div>
       </div>
 
       <div className="mb-5 rounded-lg border border-line bg-slate-50 px-4 py-3">
-        <div className="grid gap-3 md:grid-cols-[minmax(180px,0.7fr)_1fr] md:items-center">
+        <div className="grid gap-3 md:grid-cols-[180px_1fr] md:items-center">
           <div>
             <div className="text-xs font-semibold uppercase tracking-wide text-muted">Дата оценки</div>
-            <div className="mt-1 text-lg font-semibold text-ink">{assessmentDate}</div>
+            <div className="mt-1 text-base font-semibold text-ink">{assessmentDate}</div>
           </div>
           <div className="rounded-lg bg-white px-3 py-2 text-sm font-medium text-slate-700 ring-1 ring-line">
             Оценивается взаимодействие за {assessedPeriod}
@@ -425,12 +452,12 @@ export default function EvaluationForm({
 
           return (
             <article
-              className={`rounded-lg border bg-white p-4 transition ${
+              className={`rounded-lg border bg-white p-3 transition sm:p-4 ${
                 required ? "border-brand/20 bg-brand/5" : "border-line"
               }`}
               key={department.id}
             >
-              <div className="grid gap-4 lg:grid-cols-[minmax(220px,1fr)_120px_minmax(260px,1.2fr)_190px] lg:items-start">
+              <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_104px_minmax(260px,1.15fr)_160px] lg:items-start">
                 <div>
                   <DepartmentLabel department={department} className="font-semibold text-ink" />
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -458,8 +485,9 @@ export default function EvaluationForm({
                       updateRow(department.id, {
                         score,
                         deviationCategories: score === 10 ? [] : row.deviationCategories,
+                        comment: score === 10 ? "" : row.comment,
                         noInteraction: false,
-                          message: rowCanSave({ ...row, score, deviationCategories: score === 10 ? [] : row.deviationCategories, noInteraction: false })
+                          message: rowCanSave({ ...row, score, comment: score === 10 ? "" : row.comment, deviationCategories: score === 10 ? [] : row.deviationCategories, noInteraction: false })
                             ? "Ожидание автосохранения..."
                             : ""
                         });
@@ -475,35 +503,33 @@ export default function EvaluationForm({
 
                 <div>
                   <div className="text-sm font-medium text-slate-700">Комментарий</div>
-                  <textarea
-                    className={`focus-ring mt-1 min-h-24 w-full rounded-lg border px-3 py-2 text-sm ${
-                      needsDetails ? "border-amber-200" : "border-line"
-                    }`}
-                    disabled={!canUseForm}
-                    placeholder={
-                      row.noInteraction
-                        ? "Измените оценку или комментарий, чтобы снять статус «Нет взаимодействия»"
-                        : needsDetails
-                          ? "Кратко укажите факт и последствия"
-                          : "Комментарий не обязателен для оценки 10"
-                    }
-                    value={row.comment}
-                    onChange={(event) =>
-                      updateRow(department.id, {
-                        comment: event.target.value,
-                        noInteraction: false,
-                        message: needsDetails ? "Ожидание автосохранения..." : "Ожидание автосохранения..."
-                      })
-                    }
-                  />
+                  {needsDetails ? (
+                    <textarea
+                      className="focus-ring mt-1 min-h-20 w-full rounded-lg border border-amber-200 px-3 py-2 text-sm"
+                      disabled={!canUseForm}
+                      placeholder="Кратко укажите факт и последствия"
+                      value={row.comment}
+                      onChange={(event) =>
+                        updateRow(department.id, {
+                          comment: event.target.value,
+                          noInteraction: false,
+                          message: "Ожидание автосохранения..."
+                        })
+                      }
+                    />
+                  ) : (
+                    <div className="mt-1 rounded-lg border border-line bg-slate-50 px-3 py-2 text-sm text-muted">
+                      {row.noInteraction ? "Отмечено отсутствие взаимодействия за период." : "Для оценки 10 комментарий не нужен."}
+                    </div>
+                  )}
                 </div>
 
-                <div className="grid gap-2">
-                  <div className={`rounded-lg border px-3 py-2 text-xs font-medium leading-5 ${statusTone(row, needsDetails)}`}>
+                <div className="grid content-start gap-2">
+                  <div className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium leading-5 ${statusTone(row, needsDetails)}`}>
                     {statusText}
                     {row.savedAt ? (
-                      <div className="mt-1 font-normal text-slate-500">
-                        Дата и время оценки: {formatDateTimeLabel(row.savedAt)}
+                      <div className="mt-0.5 font-normal text-slate-500">
+                        {formatDateTimeLabel(row.savedAt)}
                       </div>
                     ) : null}
                   </div>
