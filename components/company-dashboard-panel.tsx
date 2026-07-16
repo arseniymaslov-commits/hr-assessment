@@ -189,8 +189,8 @@ export default function CompanyDashboardPanel({
 
       <div className="p-5">
         {activeTab === "overview" ? (
-          <div className="grid gap-5 2xl:grid-cols-[0.9fr_1.35fr]">
-            <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-5">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <OverviewCard
                 label={isDepartment ? "Средний балл подразделения" : "Средний балл компании"}
                 value={fixed(primaryAverage)}

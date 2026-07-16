@@ -247,13 +247,20 @@ export default async function DashboardPage({
         />
       ) : null}
 
-      <section className="mt-6 grid gap-6 xl:grid-cols-[1.35fr_0.9fr]">
+      <section className="mt-6 grid gap-6 2xl:grid-cols-[1.35fr_0.9fr]">
         <div className="rounded-lg border border-line bg-white">
           <div className="border-b border-line px-5 py-4">
             <h2 className="font-semibold text-ink">Подразделения</h2>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-sm">
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <colgroup>
+                <col className="w-[38%]" />
+                <col className="w-[22%]" />
+                <col className="w-[13%]" />
+                <col className="w-[17%]" />
+                <col className="w-[10%]" />
+              </colgroup>
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-muted">
                 <tr>
                   <th className="px-5 py-3">Подразделение</th>
@@ -273,8 +280,13 @@ export default async function DashboardPage({
                       <ScoreBadge score={row.average} />
                       <DeltaBadge value={row.averageDelta} />
                       {row.missingRequiredEvaluatorNames.length ? (
-                        <div className="mt-2 max-w-xs break-words text-xs leading-5 text-risk">
-                          Нет обязательной оценки от: {row.missingRequiredEvaluatorNames.join(", ")}
+                        <div className="mt-2">
+                          <span
+                            className="inline-flex max-w-full rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-risk ring-1 ring-red-100"
+                            title={`Нет обязательной оценки от: ${row.missingRequiredEvaluatorNames.join(", ")}`}
+                          >
+                            нет обязательной: {row.missingRequiredEvaluatorNames.length}
+                          </span>
                         </div>
                       ) : null}
                     </td>
