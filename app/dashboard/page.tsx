@@ -282,10 +282,10 @@ export default async function DashboardPage({
                       {row.missingRequiredEvaluatorNames.length ? (
                         <div className="mt-2">
                           <span
-                            className="inline-flex max-w-full rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-risk ring-1 ring-red-100"
+                            className="inline-flex whitespace-nowrap rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-risk ring-1 ring-red-100"
                             title={`Нет обязательной оценки от: ${row.missingRequiredEvaluatorNames.join(", ")}`}
                           >
-                            нет обязательной: {row.missingRequiredEvaluatorNames.length}
+                            не оценили: {row.missingRequiredEvaluatorNames.length}
                           </span>
                         </div>
                       ) : null}
