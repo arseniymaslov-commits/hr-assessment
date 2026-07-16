@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { BarChart3, ClipboardCheck, Grid3X3, Settings, Users, type LucideIcon } from "lucide-react";
+import { BarChart3, ClipboardCheck, Grid3X3, LineChart, Settings, Users, type LucideIcon } from "lucide-react";
 import { Role } from "@prisma/client";
 import { roleLabel } from "@/lib/auth";
 
@@ -16,6 +16,12 @@ const nav: { href: string; label: string; icon: LucideIcon; roles: Role[] }[] = 
     label: "Матрица",
     icon: Grid3X3,
     roles: [Role.ADMIN, Role.ANALYST, Role.LEADER, Role.DIRECTOR, Role.VIEWER]
+  },
+  {
+    href: "/analytics",
+    label: "Аналитика HRD",
+    icon: LineChart,
+    roles: [Role.ADMIN, Role.ANALYST, Role.DIRECTOR]
   },
   {
     href: "/evaluations",
