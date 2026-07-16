@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Ban, Save } from "lucide-react";
+import { AlertCircle, Ban, CheckCircle2, Save } from "lucide-react";
 import DepartmentLabel from "@/components/department-label";
 import { departmentOptionLabel } from "@/lib/department-decodings";
 import { DEVIATION_CATEGORIES } from "@/lib/evaluation-categories";
@@ -61,6 +61,12 @@ type RowState = {
   saving: boolean;
   message: string;
   savedAt: string | null;
+};
+
+type Toast = {
+  id: number;
+  tone: "success" | "error";
+  message: string;
 };
 
 const OVERALL_CRITERION_NAME = "Общая оценка взаимодействия";
@@ -162,6 +168,7 @@ export default function EvaluationForm({
   const [periodId, setPeriodId] = useState(openPeriod?.id || "");
   const [evaluatorDepartmentId, setEvaluatorDepartmentId] = useState(defaultEvaluatorId);
   const [rows, setRows] = useState<Record<string, RowState>>({});
+  const [toasts, setToasts] = useState<Toast[]>([]);
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const savedSignatures = useRef<Record<string, string>>({});
 
@@ -222,6 +229,15 @@ export default function EvaluationForm({
     const row = rows[department.id];
     return Boolean(row && !row.noInteraction && row.score < 10 && !rowCanSave(row));
   }).length;
+  const progressPercent = totalCount ? Math.round((savedCount / totalCount) * 100) : 0;
+
+  function showToast(tone: Toast["tone"], message: string) {
+    const id = Date.now() + Math.random();
+    setToasts((current) => [...current.slice(-2), { id, tone, message }]);
+    setTimeout(() => {
+      setToasts((current) => current.filter((toast) => toast.id !== id));
+    }, 3200);
+  }
 
   useEffect(() => {
     setRows((current) => {
@@ -268,7 +284,7 @@ export default function EvaluationForm({
 
       if (saveTimers.current[department.id]) clearTimeout(saveTimers.current[department.id]);
       saveTimers.current[department.id] = setTimeout(() => {
-        saveDepartment(department.id, false, row, signature);
+        saveDepartment(department.id, false, row, signature, true);
       }, 900);
     }
 
@@ -305,7 +321,8 @@ export default function EvaluationForm({
     departmentId: string,
     noInteraction = false,
     rowOverride?: RowState,
-    signatureOverride?: string
+    signatureOverride?: string,
+    silent = false
   ) {
     const row = rowOverride || rows[departmentId] || blankRow();
     if (!canUseForm || !overallCriterion || (!noInteraction && !rowCanSave(row))) return false;
@@ -332,6 +349,11 @@ export default function EvaluationForm({
       const data = await response.json().catch(() => ({}));
       if (response.ok) {
         savedSignatures.current[departmentId] = sentSignature;
+        if (!silent) {
+          showToast("success", noInteraction ? "Отмечено: нет взаимодействия" : "Оценка сохранена");
+        }
+      } else if (!silent) {
+        showToast("error", data.error || "Не удалось сохранить оценку");
       }
       updateRow(departmentId, {
         saving: false,
@@ -347,6 +369,7 @@ export default function EvaluationForm({
       });
       return response.ok;
     } catch {
+      showToast("error", "Ошибка соединения. Строка не сохранена");
       updateRow(departmentId, {
         saving: false,
         message: "Ошибка соединения. Эта строка не сохранена"
@@ -357,6 +380,7 @@ export default function EvaluationForm({
 
   return (
     <section className="rounded-lg border border-line bg-white p-4 shadow-sm sm:p-5">
+      <ToastStack toasts={toasts} />
       <div className="mb-5 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-start">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-brand">Оценка взаимодействия</p>
@@ -389,6 +413,26 @@ export default function EvaluationForm({
           </div>
           <div className="rounded-lg bg-white px-3 py-2 text-sm font-medium text-slate-700 ring-1 ring-line">
             Оценивается взаимодействие за {assessedPeriod}
+          </div>
+        </div>
+      </div>
+
+      <div className="sticky top-[118px] z-10 mb-5 rounded-lg border border-line bg-white/95 px-4 py-3 shadow-soft backdrop-blur">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-ink">Прогресс оценки</div>
+            <div className="mt-1 text-xs text-muted">
+              Сохранено {savedCount} из {totalCount} · осталось {remainingCount} · требуют деталей {needsDetailsCount}
+            </div>
+          </div>
+          <div className="flex min-w-0 items-center gap-3 lg:w-[420px]">
+            <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+              <div
+                className="h-full rounded-full bg-brand transition-all duration-500 ease-out"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <span className="w-12 text-right text-sm font-semibold text-ink">{progressPercent}%</span>
           </div>
         </div>
       </div>
@@ -452,7 +496,7 @@ export default function EvaluationForm({
 
           return (
             <article
-              className={`rounded-lg border bg-white p-3 transition sm:p-4 ${
+              className={`animate-soft-in rounded-lg border bg-white p-3 transition hover:border-slate-300 hover:shadow-soft sm:p-4 ${
                 required ? "border-brand/20 bg-brand/5" : "border-line"
               }`}
               key={department.id}
@@ -623,5 +667,28 @@ export default function EvaluationForm({
         })}
       </div>
     </section>
+  );
+}
+
+function ToastStack({ toasts }: { toasts: Toast[] }) {
+  if (!toasts.length) return null;
+
+  return (
+    <div className="fixed right-4 top-24 z-50 flex w-[min(360px,calc(100vw-32px))] flex-col gap-2">
+      {toasts.map((toast) => {
+        const Icon = toast.tone === "success" ? CheckCircle2 : AlertCircle;
+        return (
+          <div
+            className={`animate-toast-in flex items-start gap-3 rounded-lg border bg-white px-4 py-3 text-sm shadow-soft ${
+              toast.tone === "success" ? "border-emerald-100 text-emerald-800" : "border-red-100 text-red-800"
+            }`}
+            key={toast.id}
+          >
+            <Icon className="mt-0.5 shrink-0" size={18} />
+            <span className="font-medium">{toast.message}</span>
+          </div>
+        );
+      })}
+    </div>
   );
 }

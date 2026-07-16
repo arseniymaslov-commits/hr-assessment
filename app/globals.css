@@ -37,3 +37,33 @@ textarea {
 .focus-ring {
   @apply focus:outline-none focus:ring-2 focus:ring-brand/25 focus:ring-offset-2;
 }
+
+@keyframes soft-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-soft-in {
+  animation: soft-in 180ms ease-out both;
+}
+
+.animate-toast-in {
+  animation: toast-in 160ms ease-out both;
+}
