@@ -47,28 +47,36 @@ export default function AppShell({ user, children }: AppShellProps) {
   return (
     <div className="min-h-screen bg-surface">
       <header className="sticky top-0 z-20 border-b border-line bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex min-w-0 items-center gap-4">
-            <div className="relative h-12 w-48 shrink-0 overflow-hidden">
+        <div className="mx-auto max-w-7xl px-4">
+          <div className="flex min-w-0 items-center justify-between gap-4 py-3">
+            <div className="flex min-w-0 items-center gap-4">
+              <div className="relative h-11 w-44 shrink-0 overflow-hidden">
               <Image src="/rp-logo.png" alt="Red Petroleum" fill className="object-contain object-left" priority />
-            </div>
-            <div className="min-w-0 border-l border-line pl-4">
-              <div className="font-semibold text-ink">Оценка взаимодействия</div>
-              <div className="truncate text-sm text-muted">
-                {user.name} · {roleLabel(user.role)}
-                {user.position ? ` · ${user.position}` : ""}
-                {user.department ? ` · ${user.department.name}` : ""}
+              </div>
+              <div className="min-w-0 border-l border-line pl-4">
+                <div className="font-semibold text-ink">Оценка взаимодействия</div>
+                <div className="truncate text-sm text-muted">
+                  {user.name} · {roleLabel(user.role)}
+                  {user.position ? ` · ${user.position}` : ""}
+                  {user.department ? ` · ${user.department.name}` : ""}
+                </div>
               </div>
             </div>
+            <form action="/logout" method="post">
+              <button className="focus-ring rounded-lg border border-brand/35 bg-white px-3 py-2 text-sm font-semibold text-brand transition hover:border-brand hover:bg-brand/5">
+                Выйти
+              </button>
+            </form>
           </div>
-          <nav className="flex flex-wrap items-center gap-2">
+
+          <nav className="flex gap-1 overflow-x-auto border-t border-line py-2">
             {nav
               .filter((item) => item.roles.includes(user.role))
               .map((item) => {
                 const Icon = item.icon;
                 return (
                   <Link
-                    className="focus-ring inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-ink"
+                    className="focus-ring inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-ink"
                     href={item.href}
                     key={item.href}
                   >
@@ -77,11 +85,6 @@ export default function AppShell({ user, children }: AppShellProps) {
                   </Link>
                 );
               })}
-            <form action="/logout" method="post">
-              <button className="focus-ring rounded-lg border border-line bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50">
-                Выйти
-              </button>
-            </form>
           </nav>
         </div>
       </header>
