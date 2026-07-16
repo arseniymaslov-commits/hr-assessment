@@ -56,7 +56,7 @@ export async function POST(request: Request) {
 
   for (const recipient of recipients) {
     try {
-      await sendMail({
+      const delivery = await sendMail({
         to: [recipient.email],
         subject: "Эскалация: необходимо оценить взаимодействие всех подразделений",
         text: [
@@ -78,6 +78,10 @@ export async function POST(request: Request) {
           emailActionLink(evaluationUrl, "Перейти к оценке")
         ].filter(Boolean).join("")
       });
+      if (delivery.skipped) {
+        failed.push(recipient.email);
+        continue;
+      }
       sent += 1;
     } catch {
       failed.push(recipient.email);
@@ -87,6 +91,8 @@ export async function POST(request: Request) {
   return NextResponse.json({
     message: failed.length
       ? `Эскалация отправлена: ${sent}. Не удалось отправить: ${failed.length}.`
-      : `Эскалация отправлена руководителям: ${sent}.`
+      : `Эскалация отправлена руководителям: ${sent}.`,
+    sent,
+    failed: failed.length
   });
 }

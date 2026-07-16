@@ -9,6 +9,7 @@
     "build:deploy": "prisma db push && node scripts/seed-if-enabled.mjs && next build",
     "start": "next start",
     "postinstall": "prisma generate",
+    "test": "tsx --test \"tests/**/*.test.ts\"",
     "lint": "next lint",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",

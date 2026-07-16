@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
-import { isValidDeviationCategory } from "@/lib/evaluation-categories";
 import { isEvaluatableDepartmentName } from "@/lib/evaluation-scope";
+import { validateEvaluationInput } from "@/lib/evaluation-validation";
 import { prisma } from "@/lib/prisma";
 
 function formatAuditDateTime(date: Date) {
@@ -45,24 +45,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Заполните все обязательные поля" }, { status: 400 });
   }
 
-  if (!noInteraction && (!Number.isInteger(score) || score < 1 || score > 10)) {
-    return NextResponse.json({ error: "Оценка должна быть целым числом от 1 до 10" }, { status: 400 });
+  const validationError = validateEvaluationInput({
+    noInteraction,
+    score,
+    comment,
+    deviationCategories: normalizedDeviationCategories
+  });
+  if (validationError) {
+    return NextResponse.json({ error: validationError }, { status: 400 });
   }
 
   if (!isDirectorEvaluation && effectiveEvaluatorDepartmentId === evaluateeDepartmentId) {
     return NextResponse.json({ error: "Подразделение не оценивает само себя" }, { status: 400 });
-  }
-
-  if (!noInteraction && score < 10 && !comment) {
-    return NextResponse.json({ error: "Для оценки ниже 10 комментарий обязателен" }, { status: 400 });
-  }
-
-  if (!noInteraction && score < 10 && normalizedDeviationCategories.length === 0) {
-    return NextResponse.json({ error: "Для оценки ниже 10 выберите категорию отклонения" }, { status: 400 });
-  }
-
-  if (!noInteraction && normalizedDeviationCategories.some((category) => !isValidDeviationCategory(category))) {
-    return NextResponse.json({ error: "Выбрана некорректная категория отклонения" }, { status: 400 });
   }
 
   if (user.role === Role.LEADER && !user.departmentId) {
