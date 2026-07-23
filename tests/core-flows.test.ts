@@ -5,6 +5,7 @@ import { DEVIATION_CATEGORIES } from "../lib/evaluation-categories";
 import { validateEvaluationInput } from "../lib/evaluation-validation";
 import { sendMail } from "../lib/email";
 import { hashPassword, verifyPassword } from "../lib/password";
+import { resolveEvaluateeDepartmentId } from "../lib/department-matching";
 
 test("login password flow accepts the right password and rejects a wrong one", async () => {
   const hash = await hashPassword("SecurePassword123");
@@ -103,4 +104,20 @@ test("email flow reports skipped delivery when SMTP is not configured", async ()
       }
     }
   }
+});
+
+test("leader dashboard can match position-like department names to evaluatee departments", () => {
+  const departments = [
+    { id: "accounting", name: "Бухгалтерия", shortName: "САУП" },
+    { id: "orp", name: "ОРП", shortName: "Отдел розничных продаж" }
+  ];
+
+  assert.equal(
+    resolveEvaluateeDepartmentId({ id: "chief-accountant", name: "Главный бухгалтер", shortName: "" }, departments),
+    "accounting"
+  );
+  assert.equal(
+    resolveEvaluateeDepartmentId({ id: "retail", name: "Отдел розничных продаж", shortName: "" }, departments),
+    "orp"
+  );
 });

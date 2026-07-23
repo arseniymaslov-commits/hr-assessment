@@ -8,6 +8,7 @@ import ScoreBadge from "@/components/score-badge";
 import { Role } from "@prisma/client";
 import { requireUser } from "@/lib/auth";
 import { departmentOptionLabel } from "@/lib/department-decodings";
+import { resolveEvaluateeDepartmentId } from "@/lib/department-matching";
 import { fixed, periodLabel, scoreClass } from "@/lib/format";
 import { getPeriodMetrics } from "@/lib/metrics";
 
@@ -18,16 +19,22 @@ export default async function DashboardPage({
 }) {
   const user = await requireUser();
   const metrics = await getPeriodMetrics(searchParams.period);
-  const leaderDepartmentId = user.role === Role.LEADER ? user.departmentId : null;
+  const leaderDepartmentId =
+    user.role === Role.LEADER ? resolveEvaluateeDepartmentId(user.department, metrics.evaluateeDepartments) : null;
+  const leaderDepartmentUnresolved = user.role === Role.LEADER && !leaderDepartmentId;
   const canViewProblemComments =
     user.role === Role.ADMIN || user.role === Role.DIRECTOR || user.role === Role.LEADER;
   const canExportExcel = user.role === Role.ADMIN || user.role === Role.ANALYST || user.role === Role.DIRECTOR;
-  const selectedDepartment = leaderDepartmentId || searchParams.department;
+  const selectedDepartment = leaderDepartmentId || (user.role === Role.LEADER ? undefined : searchParams.department);
 
-  const rows = selectedDepartment
+  const rows = leaderDepartmentUnresolved
+    ? []
+    : selectedDepartment
     ? metrics.byEvaluatee.filter((row) => row.department.id === selectedDepartment)
     : metrics.byEvaluatee;
-  const lowScores = leaderDepartmentId
+  const lowScores = leaderDepartmentUnresolved
+    ? []
+    : leaderDepartmentId
     ? metrics.lowScores.filter((evaluation) => evaluation.evaluateeDepartmentId === leaderDepartmentId)
     : selectedDepartment
     ? metrics.lowScores.filter(
@@ -36,10 +43,14 @@ export default async function DashboardPage({
           evaluation.evaluatorDepartmentId === selectedDepartment
       )
     : metrics.lowScores;
-  const visibleExpectedCount = selectedDepartment
+  const visibleExpectedCount = leaderDepartmentUnresolved
+    ? 0
+    : selectedDepartment
     ? metrics.requirements.filter((requirement) => requirement.evaluateeDepartmentId === selectedDepartment).length
     : metrics.expectedCount;
-  const visibleFilledCount = selectedDepartment
+  const visibleFilledCount = leaderDepartmentUnresolved
+    ? 0
+    : selectedDepartment
     ? metrics.evaluations.filter((evaluation) => evaluation.evaluateeDepartmentId === selectedDepartment).length
     : Math.max(0, metrics.expectedCount - metrics.missingCount);
   const visibleMissingCount = Math.max(0, visibleExpectedCount - visibleFilledCount);
@@ -170,6 +181,18 @@ export default async function DashboardPage({
         />
       </section>
 
+      {leaderDepartmentUnresolved ? (
+        <section className="mt-6 rounded-lg border border-amber-100 bg-amber-50 px-5 py-4">
+          <h2 className="font-semibold text-amber-900">Нужно уточнить подразделение пользователя</h2>
+          <p className="mt-1 text-sm text-amber-800">
+            Для вашего аккаунта указан отдел «{user.department?.name || "не указан"}», но он не найден в списке
+            оцениваемых подразделений. Администратору нужно привязать пользователя к корректному отделу, например
+            «Бухгалтерия», чтобы открылся персональный дашборд и скачивание PNG.
+          </p>
+        </section>
+      ) : null}
+
+      {!leaderDepartmentUnresolved ? (
       <section className="mt-6 rounded-lg border border-line bg-white p-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -197,6 +220,7 @@ export default async function DashboardPage({
           </div>
         )}
       </section>
+      ) : null}
 
       {slideDepartmentRow && metrics.selectedPeriod ? (
         <CompanyDashboardPanel
