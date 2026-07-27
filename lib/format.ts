@@ -14,7 +14,7 @@ export const monthNames = [
 ];
 
 export function periodLabel(period: { month: number; year: number }) {
-  const assessedDate = new Date(period.year, period.month - 2, 1);
+  const assessedDate = new Date(period.year, period.month - 1, 1);
   const assessedMonth = new Intl.DateTimeFormat("ru-RU", {
     month: "long",
     timeZone: "Asia/Bishkek"

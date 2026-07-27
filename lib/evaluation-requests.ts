@@ -57,11 +57,23 @@ export async function notifyEvaluationRequests(requestIds: string[]) {
     return { recipientsCount: 0, requirementsCount: 0, mailSkipped: false };
   }
 
-  const evaluateeDepartmentIds = requests.map((request) => request.evaluateeDepartmentId);
-  const requirements = await prisma.evaluationRequirement.findMany({
-    where: { evaluateeDepartmentId: { in: evaluateeDepartmentIds }, isActive: true },
-    include: { evaluatorDepartment: true, evaluateeDepartment: true }
+  const evaluateeDepartmentIds = new Set(requests.map((request) => request.evaluateeDepartmentId));
+  const allDepartments = await prisma.department.findMany({
+    where: { isActive: true },
+    orderBy: { name: "asc" }
   });
+  const evaluateeDepartments = allDepartments
+    .filter(isEvaluatableDepartment)
+    .filter((department) => evaluateeDepartmentIds.has(department.id));
+  const requirements = evaluateeDepartments.flatMap((evaluateeDepartment) =>
+    allDepartments
+      .filter((evaluatorDepartment) => evaluatorDepartment.id !== evaluateeDepartment.id)
+      .map((evaluatorDepartment) => ({
+        evaluatorDepartmentId: evaluatorDepartment.id,
+        evaluatorDepartment,
+        evaluateeDepartment
+      }))
+  );
   const evaluatorDepartmentIds = Array.from(new Set(requirements.map((requirement) => requirement.evaluatorDepartmentId)));
   const recipients = await prisma.user.findMany({
     where: {
@@ -163,8 +175,8 @@ export async function launchEvaluationRequest({
     return { request, ...notification, scheduled: false };
   }
 
-  const requirementsCount = await prisma.evaluationRequirement.count({
-    where: { evaluateeDepartmentId, isActive: true }
+  const requirementsCount = await prisma.department.count({
+    where: { isActive: true, id: { not: evaluateeDepartmentId } }
   });
 
   return {

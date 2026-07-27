@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
-import { processEvaluationRequestSchedule } from "@/lib/evaluation-requests";
+import { processAutomaticEvaluationMail } from "@/lib/evaluation-mail-schedule";
 
 async function canRun(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -19,9 +19,9 @@ async function handler(request: Request) {
     return NextResponse.json({ error: "Недостаточно прав" }, { status: 403 });
   }
 
-  const result = await processEvaluationRequestSchedule();
+  const result = await processAutomaticEvaluationMail();
   return NextResponse.json({
-    message: `Расписание обработано. Уведомленных запусков: ${result.notifiedRequests}. Автоматических закрытий нет: оценки доступны до закрытия периода.`,
+    message: `Расписание обработано. Стартовых писем: ${result.monthlyStartRecipients}. Напоминаний: ${result.reminderRecipients}.`,
     ...result
   });
 }

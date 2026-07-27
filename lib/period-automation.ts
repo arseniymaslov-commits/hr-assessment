@@ -39,7 +39,7 @@ export function getScheduledAssessmentPeriod(date = new Date()): PeriodParts {
   const previous = previousMonth(month, year);
   return {
     ...previous,
-    status: day <= 5 ? PeriodStatus.OPEN : PeriodStatus.CLOSED
+    status: PeriodStatus.OPEN
   };
 }
 

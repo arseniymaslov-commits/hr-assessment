@@ -7,6 +7,8 @@ import { sendMail } from "../lib/email";
 import { hashPassword, verifyPassword } from "../lib/password";
 import { resolveEvaluateeDepartmentId } from "../lib/department-matching";
 import { isEvaluatableDepartmentName } from "../lib/evaluation-scope";
+import { periodLabel } from "../lib/format";
+import { createNoInteractionToken, readNoInteractionToken } from "../lib/no-interaction-token";
 import { getScheduledAssessmentPeriod } from "../lib/period-automation";
 
 test("login password flow accepts the right password and rejects a wrong one", async () => {
@@ -131,11 +133,11 @@ test("new evaluation scope excludes OVA, KRO and SKP from evaluatees", () => {
   assert.equal(isEvaluatableDepartmentName("Бухгалтерия"), true);
 });
 
-test("scheduled assessment period switches on the 20th and closes after the 5th", () => {
+test("scheduled assessment period keeps prior month open until the next cycle starts", () => {
   assert.deepEqual(getScheduledAssessmentPeriod(new Date("2026-07-19T12:00:00+06:00")), {
     month: 6,
     year: 2026,
-    status: "CLOSED"
+    status: "OPEN"
   });
   assert.deepEqual(getScheduledAssessmentPeriod(new Date("2026-07-20T12:00:00+06:00")), {
     month: 7,
@@ -150,6 +152,55 @@ test("scheduled assessment period switches on the 20th and closes after the 5th"
   assert.deepEqual(getScheduledAssessmentPeriod(new Date("2026-08-06T12:00:00+06:00")), {
     month: 7,
     year: 2026,
-    status: "CLOSED"
+    status: "OPEN"
   });
+  assert.deepEqual(getScheduledAssessmentPeriod(new Date("2026-08-20T12:00:00+06:00")), {
+    month: 8,
+    year: 2026,
+    status: "OPEN"
+  });
+});
+
+test("period label names the assessed month directly", () => {
+  assert.equal(periodLabel({ month: 7, year: 2026 }), "Оценка взаимодействия СП за июль 2026");
+});
+
+test("no interaction email token is signed and expires", () => {
+  const previousSecret = process.env.AUTH_SECRET;
+  process.env.AUTH_SECRET = "test-secret";
+
+  try {
+    const token = createNoInteractionToken(
+      {
+        periodId: "period-1",
+        evaluatorDepartmentId: "department-1",
+        userId: "user-1"
+      },
+      new Date(Date.now() + 60_000)
+    );
+
+    assert.deepEqual(readNoInteractionToken(token), {
+      periodId: "period-1",
+      evaluatorDepartmentId: "department-1",
+      userId: "user-1",
+      exp: readNoInteractionToken(token)?.exp
+    });
+    assert.equal(readNoInteractionToken(`${token}x`), null);
+
+    const expired = createNoInteractionToken(
+      {
+        periodId: "period-1",
+        evaluatorDepartmentId: "department-1",
+        userId: "user-1"
+      },
+      new Date(Date.now() - 60_000)
+    );
+    assert.equal(readNoInteractionToken(expired), null);
+  } finally {
+    if (previousSecret == null) {
+      delete process.env.AUTH_SECRET;
+    } else {
+      process.env.AUTH_SECRET = previousSecret;
+    }
+  }
 });
