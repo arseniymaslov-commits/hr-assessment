@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { PeriodStatus, Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+
+function revalidatePeriodViews() {
+  ["/admin", "/analytics", "/completion", "/dashboard", "/evaluations", "/matrix"].forEach((path) =>
+    revalidatePath(path)
+  );
+}
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -35,6 +42,7 @@ export async function POST(request: Request) {
     details: `${String(month).padStart(2, "0")}.${year}`,
     user
   });
+  revalidatePeriodViews();
 
   return NextResponse.json({ message: "Период открыт" });
 }

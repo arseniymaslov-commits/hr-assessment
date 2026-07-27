@@ -1,3 +1,4 @@
+import { unstable_noStore as noStore } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { departmentOptionLabel } from "@/lib/department-decodings";
 import { isMissingEvaluation } from "@/lib/evaluation-status";
@@ -10,6 +11,7 @@ type RequirementPair = {
 };
 
 export async function getReferenceData() {
+  noStore();
   await ensureScheduledAssessmentPeriod();
   const [departments, periods, criteria, users] = await Promise.all([
     prisma.department.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
@@ -41,6 +43,7 @@ export async function getReferenceData() {
 }
 
 export async function getPeriodMetrics(periodId?: string) {
+  noStore();
   const scheduledPeriod = periodId ? null : await ensureScheduledAssessmentPeriod();
   const periods = await prisma.period.findMany({
     orderBy: [{ year: "desc" }, { month: "desc" }]

@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { PeriodStatus, Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+
+function revalidatePeriodViews() {
+  ["/admin", "/analytics", "/completion", "/dashboard", "/evaluations", "/matrix"].forEach((path) =>
+    revalidatePath(path)
+  );
+}
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   const user = await getCurrentUser();
@@ -31,6 +38,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     details: `${String(period.month).padStart(2, "0")}.${period.year}`,
     user
   });
+  revalidatePeriodViews();
 
   return NextResponse.json({ message: "Статус периода обновлен" });
 }

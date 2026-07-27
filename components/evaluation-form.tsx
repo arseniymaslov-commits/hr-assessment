@@ -122,12 +122,7 @@ function formatDateTimeLabel(value?: string | null) {
 
 function assessedPeriodLabel(period?: Period) {
   if (!period) return "активный период";
-  const assessedDate = new Date(period.year, period.month - 2, 1);
-  const month = new Intl.DateTimeFormat("ru-RU", {
-    month: "long",
-    timeZone: "Asia/Bishkek"
-  }).format(assessedDate);
-  return `${month} ${assessedDate.getFullYear()}`;
+  return periodLabel(period).replace("Оценка взаимодействия СП за ", "");
 }
 
 function statusTone(row: RowState, needsDetails: boolean) {
