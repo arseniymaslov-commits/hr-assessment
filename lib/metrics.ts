@@ -1,11 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { departmentOptionLabel } from "@/lib/department-decodings";
 import { isMissingEvaluation } from "@/lib/evaluation-status";
-import {
-  DEFAULT_FULL_COVERAGE_EVALUATEE_NAMES,
-  isEvaluatableDepartment,
-  normalizeDepartmentName
-} from "@/lib/evaluation-scope";
+import { isEvaluatableDepartment } from "@/lib/evaluation-scope";
+import { ensureScheduledAssessmentPeriod } from "@/lib/period-automation";
 
 type RequirementPair = {
   evaluatorDepartmentId: string;
@@ -13,7 +10,8 @@ type RequirementPair = {
 };
 
 export async function getReferenceData() {
-  const [departments, periods, criteria, users, requirements] = await Promise.all([
+  await ensureScheduledAssessmentPeriod();
+  const [departments, periods, criteria, users] = await Promise.all([
     prisma.department.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
     prisma.period.findMany({
       orderBy: [{ year: "desc" }, { month: "desc" }],
@@ -26,16 +24,11 @@ export async function getReferenceData() {
       }
     }),
     prisma.criterion.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
-    prisma.user.findMany({ orderBy: { name: "asc" }, include: { department: true } }),
-    prisma.evaluationRequirement.findMany({
-      where: { isActive: true },
-      include: { evaluatorDepartment: true, evaluateeDepartment: true },
-      orderBy: [{ evaluatorDepartment: { name: "asc" } }, { evaluateeDepartment: { name: "asc" } }]
-    })
+    prisma.user.findMany({ orderBy: { name: "asc" }, include: { department: true } })
   ]);
 
   const evaluateeDepartments = departments.filter(isEvaluatableDepartment);
-  const evaluateeDepartmentIds = new Set(evaluateeDepartments.map((department) => department.id));
+  const requirements = await getRequiredPairs(departments.map((department) => department.id));
 
   return {
     departments,
@@ -43,17 +36,20 @@ export async function getReferenceData() {
     periods,
     criteria,
     users,
-    requirements: requirements.filter((requirement) => evaluateeDepartmentIds.has(requirement.evaluateeDepartmentId))
+    requirements
   };
 }
 
 export async function getPeriodMetrics(periodId?: string) {
+  const scheduledPeriod = periodId ? null : await ensureScheduledAssessmentPeriod();
   const periods = await prisma.period.findMany({
     orderBy: [{ year: "desc" }, { month: "desc" }]
   });
   const selectedPeriod = periodId
     ? periods.find((period) => period.id === periodId) || periods[0]
-    : periods.find((period) => period.status === "OPEN") || periods[0];
+    : scheduledPeriod
+      ? periods.find((period) => period.id === scheduledPeriod.id) || scheduledPeriod
+      : periods.find((period) => period.status === "OPEN") || periods[0];
 
   const departments = await prisma.department.findMany({
     where: { isActive: true },
@@ -318,58 +314,17 @@ export async function getPeriodMetrics(periodId?: string) {
 }
 
 async function getRequiredPairs(activeDepartmentIds: string[]): Promise<RequirementPair[]> {
-  const activeSet = new Set(activeDepartmentIds);
   const activeDepartments = await prisma.department.findMany({
     where: { id: { in: activeDepartmentIds } },
     select: { id: true, name: true }
   });
   const evaluateeSet = new Set(activeDepartments.filter(isEvaluatableDepartment).map((department) => department.id));
-  const allRequirements = await prisma.evaluationRequirement.findMany();
-
-  if (allRequirements.length === 0) {
-    return activeDepartmentIds.flatMap((evaluatorDepartmentId) =>
-      activeDepartmentIds
-        .filter(
-          (evaluateeDepartmentId) =>
-            evaluateeSet.has(evaluateeDepartmentId) && evaluateeDepartmentId !== evaluatorDepartmentId
-        )
-        .map((evaluateeDepartmentId) => ({ evaluatorDepartmentId, evaluateeDepartmentId }))
-    );
-  }
-
-  const pairs = allRequirements
-    .filter(
-      (requirement) =>
-        requirement.isActive &&
-        activeSet.has(requirement.evaluatorDepartmentId) &&
-        evaluateeSet.has(requirement.evaluateeDepartmentId) &&
-        requirement.evaluatorDepartmentId !== requirement.evaluateeDepartmentId
-    )
-    .map((requirement) => ({
-      evaluatorDepartmentId: requirement.evaluatorDepartmentId,
-      evaluateeDepartmentId: requirement.evaluateeDepartmentId
-    }));
-
-  const pairKeys = new Set(pairs.map((pair) => `${pair.evaluatorDepartmentId}:${pair.evaluateeDepartmentId}`));
-  const fullCoverageEvaluateeIds = new Set(
-    activeDepartments
-      .filter((department) =>
-        DEFAULT_FULL_COVERAGE_EVALUATEE_NAMES.some(
-          (name) => normalizeDepartmentName(name) === normalizeDepartmentName(department.name)
-        )
+  return activeDepartmentIds.flatMap((evaluatorDepartmentId) =>
+    activeDepartmentIds
+      .filter(
+        (evaluateeDepartmentId) =>
+          evaluateeSet.has(evaluateeDepartmentId) && evaluateeDepartmentId !== evaluatorDepartmentId
       )
-      .filter(isEvaluatableDepartment)
-      .map((department) => department.id)
+      .map((evaluateeDepartmentId) => ({ evaluatorDepartmentId, evaluateeDepartmentId }))
   );
-
-  for (const evaluateeDepartmentId of fullCoverageEvaluateeIds) {
-    for (const evaluatorDepartmentId of activeDepartmentIds) {
-      const key = `${evaluatorDepartmentId}:${evaluateeDepartmentId}`;
-      if (evaluatorDepartmentId === evaluateeDepartmentId || pairKeys.has(key)) continue;
-      pairs.push({ evaluatorDepartmentId, evaluateeDepartmentId });
-      pairKeys.add(key);
-    }
-  }
-
-  return pairs;
 }

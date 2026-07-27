@@ -50,12 +50,6 @@ export default async function AdminPage({
     name,
     description
   }));
-  const requirementOptions = metrics.requirements.map(
-    ({ evaluatorDepartmentId, evaluateeDepartmentId }) => ({
-      evaluatorDepartmentId,
-      evaluateeDepartmentId
-    })
-  );
   const activeTab = ["settings", "comments", "actions", "mail"].includes(searchParams.tab || "")
     ? searchParams.tab
     : "settings";
@@ -89,7 +83,6 @@ export default async function AdminPage({
           periods={periodOptions}
           users={userOptions}
           criteria={criterionOptions}
-          requirements={requirementOptions}
         />
       ) : null}
 

@@ -6,6 +6,8 @@ import { validateEvaluationInput } from "../lib/evaluation-validation";
 import { sendMail } from "../lib/email";
 import { hashPassword, verifyPassword } from "../lib/password";
 import { resolveEvaluateeDepartmentId } from "../lib/department-matching";
+import { isEvaluatableDepartmentName } from "../lib/evaluation-scope";
+import { getScheduledAssessmentPeriod } from "../lib/period-automation";
 
 test("login password flow accepts the right password and rejects a wrong one", async () => {
   const hash = await hashPassword("SecurePassword123");
@@ -120,4 +122,34 @@ test("leader dashboard can match position-like department names to evaluatee dep
     resolveEvaluateeDepartmentId({ id: "retail", name: "Отдел розничных продаж", shortName: "" }, departments),
     "orp"
   );
+});
+
+test("new evaluation scope excludes OVA, KRO and SKP from evaluatees", () => {
+  assert.equal(isEvaluatableDepartmentName("ОВА"), false);
+  assert.equal(isEvaluatableDepartmentName("КРО"), false);
+  assert.equal(isEvaluatableDepartmentName("СКП"), false);
+  assert.equal(isEvaluatableDepartmentName("Бухгалтерия"), true);
+});
+
+test("scheduled assessment period switches on the 20th and closes after the 5th", () => {
+  assert.deepEqual(getScheduledAssessmentPeriod(new Date("2026-07-19T12:00:00+06:00")), {
+    month: 6,
+    year: 2026,
+    status: "CLOSED"
+  });
+  assert.deepEqual(getScheduledAssessmentPeriod(new Date("2026-07-20T12:00:00+06:00")), {
+    month: 7,
+    year: 2026,
+    status: "OPEN"
+  });
+  assert.deepEqual(getScheduledAssessmentPeriod(new Date("2026-08-05T12:00:00+06:00")), {
+    month: 7,
+    year: 2026,
+    status: "OPEN"
+  });
+  assert.deepEqual(getScheduledAssessmentPeriod(new Date("2026-08-06T12:00:00+06:00")), {
+    month: 7,
+    year: 2026,
+    status: "CLOSED"
+  });
 });

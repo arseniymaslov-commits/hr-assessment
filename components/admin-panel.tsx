@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Plus, RefreshCw, RotateCcw, Send, Settings2 } from "lucide-react";
+import { useState } from "react";
+import { Plus, RefreshCw, RotateCcw, Send } from "lucide-react";
 import DepartmentLabel from "@/components/department-label";
 import { departmentOptionLabel } from "@/lib/department-decodings";
 import { periodLabel } from "@/lib/format";
@@ -35,11 +35,6 @@ type Criterion = {
   id: string;
   name: string;
   description?: string | null;
-};
-
-type Requirement = {
-  evaluatorDepartmentId: string;
-  evaluateeDepartmentId: string;
 };
 
 const months = [
@@ -77,15 +72,13 @@ export default function AdminPanel({
   evaluateeDepartments,
   periods,
   users,
-  criteria,
-  requirements
+  criteria
 }: {
   departments: Department[];
   evaluateeDepartments: Department[];
   periods: Period[];
   users: User[];
   criteria: Criterion[];
-  requirements: Requirement[];
 }) {
   const [departmentName, setDepartmentName] = useState("");
   const [shortName, setShortName] = useState("");
@@ -99,8 +92,6 @@ export default function AdminPanel({
   const [userPosition, setUserPosition] = useState("Руководитель");
   const [userDepartmentId, setUserDepartmentId] = useState(departments[0]?.id || "");
   const [userReceivesNotifications, setUserReceivesNotifications] = useState(true);
-  const [requirementEvaluateeId, setRequirementEvaluateeId] = useState(evaluateeDepartments[0]?.id || "");
-  const [requiredEvaluatorIds, setRequiredEvaluatorIds] = useState<string[]>([]);
   const [launchDepartmentId, setLaunchDepartmentId] = useState(evaluateeDepartments[0]?.id || "");
   const [launchPeriodId, setLaunchPeriodId] = useState(
     periods.find((period) => period.status === "OPEN")?.id || periods[0]?.id || ""
@@ -128,27 +119,6 @@ export default function AdminPanel({
     } finally {
       setPending(false);
     }
-  }
-
-  const evaluatorOptions = useMemo(
-    () => departments.filter((department) => department.id !== requirementEvaluateeId),
-    [departments, requirementEvaluateeId]
-  );
-
-  useEffect(() => {
-    setRequiredEvaluatorIds(
-      requirements
-        .filter((requirement) => requirement.evaluateeDepartmentId === requirementEvaluateeId)
-        .map((requirement) => requirement.evaluatorDepartmentId)
-    );
-  }, [requirementEvaluateeId, requirements]);
-
-  function toggleRequiredEvaluator(departmentId: string, checked: boolean) {
-    setRequiredEvaluatorIds((current) =>
-      checked
-        ? Array.from(new Set([...current, departmentId]))
-        : current.filter((id) => id !== departmentId)
-    );
   }
 
   return (
@@ -218,57 +188,6 @@ export default function AdminPanel({
             ))}
           </div>
         </form>
-      </section>
-
-      <section className="rounded-lg border border-line bg-white p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h2 className="font-semibold text-ink">Обязательные оценки</h2>
-            <p className="mt-1 text-sm text-muted">Выберите оцениваемый отдел и отметьте подразделения, которые обязаны его оценить.</p>
-          </div>
-          <select className="focus-ring rounded-lg border border-line px-3 py-2" value={requirementEvaluateeId} onChange={(event) => setRequirementEvaluateeId(event.target.value)}>
-            {evaluateeDepartments.map((department) => (
-              <option key={department.id} value={department.id}>
-                {departmentOptionLabel(department)}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="mt-5 rounded-lg border border-line bg-slate-50 p-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <div className="font-semibold text-ink">Кто обязан оценить выбранный отдел</div>
-              <p className="mt-1 text-sm text-muted">Стандарт: все активные подразделения оценивают все оцениваемые отделы. Админ может снять лишних оценщиков вручную.</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button className="focus-ring rounded-lg border border-line bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50" type="button" onClick={() => setRequiredEvaluatorIds(evaluatorOptions.map((department) => department.id))}>
-                Выбрать всех
-              </button>
-              <button className="focus-ring rounded-lg border border-line bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50" type="button" onClick={() => setRequiredEvaluatorIds([])}>
-                Снять всех
-              </button>
-              <button className="focus-ring inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50" type="button" onClick={() => request("/api/admin/requirements/defaults", { method: "POST" })}>
-                <Settings2 size={16} /> Применить стандарт
-              </button>
-              <button className="focus-ring rounded-lg border border-brand/30 bg-white px-3 py-2 text-sm font-semibold text-brand transition hover:bg-brand/5 disabled:opacity-50" type="button" disabled={!requirementEvaluateeId} onClick={() => request("/api/admin/requirements/bulk", { method: "POST", body: JSON.stringify({ evaluateeDepartmentId: requirementEvaluateeId, evaluatorDepartmentIds: requiredEvaluatorIds }) })}>
-                Сохранить
-              </button>
-            </div>
-          </div>
-          <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-            {evaluatorOptions.map((department) => (
-              <label className="flex items-center justify-between gap-3 rounded-lg border border-line bg-white px-3 py-2 text-sm" key={department.id}>
-                <DepartmentLabel
-                  department={department}
-                  className="font-medium text-ink"
-                  mutedClassName="mt-0.5 text-xs leading-4 text-muted"
-                />
-                <input className="h-5 w-5" type="checkbox" checked={requiredEvaluatorIds.includes(department.id)} onChange={(event) => toggleRequiredEvaluator(department.id, event.target.checked)} />
-              </label>
-            ))}
-          </div>
-        </div>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-2">
