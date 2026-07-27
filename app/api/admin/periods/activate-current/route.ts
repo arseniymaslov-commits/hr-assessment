@@ -89,91 +89,65 @@ async function handler(request: Request) {
       create: { month, year, status: PeriodStatus.OPEN }
     });
 
-    const staleEvaluations = await tx.evaluation.findMany({
-      where: {
-        periodId: currentPeriod.id,
-        updatedAt: { lt: cutoff }
-      },
-      orderBy: { updatedAt: "asc" }
-    });
+    const mergedEvaluations = await tx.$executeRaw`
+      WITH conflicts AS (
+        SELECT current_eval.id AS current_id, previous_eval.id AS previous_id
+        FROM "Evaluation" current_eval
+        JOIN "Evaluation" previous_eval
+          ON previous_eval."periodId" = ${previousPeriod.id}
+          AND previous_eval."evaluateeDepartmentId" = current_eval."evaluateeDepartmentId"
+          AND previous_eval."criterionId" = current_eval."criterionId"
+          AND COALESCE(previous_eval."evaluatorDepartmentId", '') = COALESCE(current_eval."evaluatorDepartmentId", '')
+          AND COALESCE(previous_eval."evaluatorUserId", '') = COALESCE(current_eval."evaluatorUserId", '')
+        WHERE current_eval."periodId" = ${currentPeriod.id}
+          AND current_eval."updatedAt" < ${cutoff}
+      ),
+      updated_previous AS (
+        UPDATE "Evaluation" previous_eval
+        SET
+          "evaluatorDepartmentId" = current_eval."evaluatorDepartmentId",
+          "evaluatorUserId" = current_eval."evaluatorUserId",
+          "score" = current_eval."score",
+          "noInteraction" = current_eval."noInteraction",
+          "deviationCategories" = current_eval."deviationCategories",
+          "comment" = current_eval."comment",
+          "authorId" = current_eval."authorId",
+          "createdAt" = current_eval."createdAt",
+          "updatedAt" = current_eval."updatedAt"
+        FROM conflicts
+        JOIN "Evaluation" current_eval ON current_eval.id = conflicts.current_id
+        WHERE previous_eval.id = conflicts.previous_id
+        RETURNING conflicts.current_id
+      )
+      DELETE FROM "Evaluation" stale_eval
+      WHERE stale_eval.id IN (SELECT current_id FROM updated_previous)
+    `;
 
-    let movedEvaluations = 0;
-    let mergedEvaluations = 0;
-    for (const evaluation of staleEvaluations) {
-      const existing = evaluation.evaluatorDepartmentId
-        ? await tx.evaluation.findUnique({
-            where: {
-              periodId_evaluatorDepartmentId_evaluateeDepartmentId_criterionId: {
-                periodId: previousPeriod.id,
-                evaluatorDepartmentId: evaluation.evaluatorDepartmentId,
-                evaluateeDepartmentId: evaluation.evaluateeDepartmentId,
-                criterionId: evaluation.criterionId
-              }
-            }
-          })
-        : await tx.evaluation.findFirst({
-            where: {
-              periodId: previousPeriod.id,
-              evaluatorUserId: evaluation.evaluatorUserId,
-              evaluateeDepartmentId: evaluation.evaluateeDepartmentId,
-              criterionId: evaluation.criterionId
-            }
-          });
+    const movedEvaluations = await tx.$executeRaw`
+      UPDATE "Evaluation"
+      SET "periodId" = ${previousPeriod.id}
+      WHERE "periodId" = ${currentPeriod.id}
+        AND "updatedAt" < ${cutoff}
+    `;
 
-      if (existing) {
-        await tx.evaluation.update({
-          where: { id: existing.id },
-          data: {
-            evaluatorDepartmentId: evaluation.evaluatorDepartmentId,
-            evaluatorUserId: evaluation.evaluatorUserId,
-            score: evaluation.score,
-            noInteraction: evaluation.noInteraction,
-            deviationCategories: evaluation.deviationCategories,
-            comment: evaluation.comment,
-            authorId: evaluation.authorId,
-            createdAt: evaluation.createdAt,
-            updatedAt: evaluation.updatedAt
-          }
-        });
-        await tx.evaluation.delete({ where: { id: evaluation.id } });
-        mergedEvaluations += 1;
-      } else {
-        await tx.evaluation.update({
-          where: { id: evaluation.id },
-          data: { periodId: previousPeriod.id }
-        });
-        movedEvaluations += 1;
-      }
-    }
+    const removedDuplicateRequests = await tx.$executeRaw`
+      DELETE FROM "EvaluationRequest" current_request
+      WHERE current_request."periodId" = ${currentPeriod.id}
+        AND current_request."scheduledAt" < ${cutoff}
+        AND EXISTS (
+          SELECT 1
+          FROM "EvaluationRequest" previous_request
+          WHERE previous_request."periodId" = ${previousPeriod.id}
+            AND previous_request."evaluateeDepartmentId" = current_request."evaluateeDepartmentId"
+        )
+    `;
 
-    const staleRequests = await tx.evaluationRequest.findMany({
-      where: {
-        periodId: currentPeriod.id,
-        scheduledAt: { lt: cutoff }
-      }
-    });
-    let movedRequests = 0;
-    let removedDuplicateRequests = 0;
-    for (const requestRow of staleRequests) {
-      const existing = await tx.evaluationRequest.findUnique({
-        where: {
-          periodId_evaluateeDepartmentId: {
-            periodId: previousPeriod.id,
-            evaluateeDepartmentId: requestRow.evaluateeDepartmentId
-          }
-        }
-      });
-      if (existing) {
-        await tx.evaluationRequest.delete({ where: { id: requestRow.id } });
-        removedDuplicateRequests += 1;
-      } else {
-        await tx.evaluationRequest.update({
-          where: { id: requestRow.id },
-          data: { periodId: previousPeriod.id }
-        });
-        movedRequests += 1;
-      }
-    }
+    const movedRequests = await tx.$executeRaw`
+      UPDATE "EvaluationRequest"
+      SET "periodId" = ${previousPeriod.id}
+      WHERE "periodId" = ${currentPeriod.id}
+        AND "scheduledAt" < ${cutoff}
+    `;
 
     const departments = await tx.department.findMany({
       where: { isActive: true },
@@ -211,7 +185,7 @@ async function handler(request: Request) {
       removedDuplicateRequests,
       cutoff: cutoff.toISOString()
     };
-  });
+  }, { timeout: 60_000, maxWait: 10_000 });
 
   await writeAuditLog({
     action: "period.activate_current",
