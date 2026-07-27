@@ -33,13 +33,23 @@ function revalidatePeriodViews() {
   );
 }
 
-export async function POST(request: Request) {
+async function handler(request: Request) {
   const user = await getCurrentUser();
   if (user?.role !== Role.ADMIN) {
     return NextResponse.json({ error: "Недостаточно прав" }, { status: 403 });
   }
 
-  const body = await request.json().catch(() => null);
+  const searchParams = new URL(request.url).searchParams;
+  const body =
+    request.method === "GET"
+      ? {
+          month: searchParams.get("month"),
+          year: searchParams.get("year"),
+          cutoffYear: searchParams.get("cutoffYear"),
+          cutoffMonth: searchParams.get("cutoffMonth"),
+          cutoffDay: searchParams.get("cutoffDay")
+        }
+      : await request.json().catch(() => null);
   const nowParts = bishkekParts();
   const month = Number(body?.month || nowParts.month);
   const year = Number(body?.year || nowParts.year);
@@ -218,3 +228,6 @@ export async function POST(request: Request) {
     ...result
   });
 }
+
+export const GET = handler;
+export const POST = handler;
