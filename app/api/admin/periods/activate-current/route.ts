@@ -7,7 +7,6 @@ import { isEvaluatableDepartment } from "@/lib/evaluation-scope";
 import { prisma } from "@/lib/prisma";
 
 const TIME_ZONE = "Asia/Bishkek";
-const TEMP_ACTIVATION_TOKEN = "activate-july-2026-9d9f4b63";
 
 function bishkekParts(date = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -36,11 +35,7 @@ function revalidatePeriodViews() {
 
 async function handler(request: Request) {
   const user = await getCurrentUser();
-  const token =
-    request.headers.get("x-activation-token") ||
-    new URL(request.url).searchParams.get("token");
-  const hasTemporaryAccess = token === TEMP_ACTIVATION_TOKEN;
-  if (user?.role !== Role.ADMIN && !hasTemporaryAccess) {
+  if (user?.role !== Role.ADMIN) {
     return NextResponse.json({ error: "Недостаточно прав" }, { status: 403 });
   }
 
