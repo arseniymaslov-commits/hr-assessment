@@ -6,7 +6,7 @@ import { Role } from "@prisma/client";
 import { requireUser } from "@/lib/auth";
 import { getDepartmentFullName } from "@/lib/department-decodings";
 import { isMissingEvaluation, MISSING_EVALUATION_LABEL } from "@/lib/evaluation-status";
-import { getPeriodMetrics, getReferenceData } from "@/lib/metrics";
+import { getEvaluationScreenMetrics, getReferenceData } from "@/lib/metrics";
 import { prisma } from "@/lib/prisma";
 
 export default async function EvaluationsPage({
@@ -16,8 +16,8 @@ export default async function EvaluationsPage({
 }) {
   const user = await requireUser([Role.ADMIN, Role.LEADER, Role.DIRECTOR]);
   const [{ departments, evaluateeDepartments, periods, criteria, requirements }, metrics] = await Promise.all([
-    getReferenceData(),
-    getPeriodMetrics()
+    getReferenceData({ ensurePeriod: false }),
+    getEvaluationScreenMetrics()
   ]);
   const allVisibleEvaluations = await prisma.evaluation.findMany({
     where:

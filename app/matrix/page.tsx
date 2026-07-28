@@ -6,7 +6,7 @@ import { Role } from "@prisma/client";
 import { requireUser } from "@/lib/auth";
 import { departmentOptionLabel } from "@/lib/department-decodings";
 import { periodLabel } from "@/lib/format";
-import { getPeriodMetrics } from "@/lib/metrics";
+import { getMatrixMetrics } from "@/lib/metrics";
 
 export default async function MatrixPage({
   searchParams
@@ -14,7 +14,7 @@ export default async function MatrixPage({
   searchParams: { period?: string; department?: string };
 }) {
   const user = await requireUser([Role.ADMIN, Role.ANALYST, Role.LEADER, Role.DIRECTOR, Role.VIEWER]);
-  const metrics = await getPeriodMetrics(searchParams.period);
+  const metrics = await getMatrixMetrics(searchParams.period);
   const leaderDepartmentId = user.role === Role.LEADER ? user.departmentId : null;
   const canViewComments =
     user.role === Role.ADMIN || user.role === Role.DIRECTOR || user.role === Role.LEADER;

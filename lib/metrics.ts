@@ -23,6 +23,43 @@ type MetricEvaluationKey = {
   updatedAt: Date;
 };
 
+async function getPeriodSelection(periodId?: string) {
+  const scheduledPeriod = periodId ? null : await ensureScheduledAssessmentPeriod();
+  const periods = await prisma.period.findMany({
+    orderBy: [{ year: "desc" }, { month: "desc" }]
+  });
+  const selectedPeriod = periodId
+    ? periods.find((period) => period.id === periodId) || periods[0]
+    : scheduledPeriod
+      ? periods.find((period) => period.id === scheduledPeriod.id) || scheduledPeriod
+      : periods.find((period) => period.status === "OPEN") || periods[0];
+
+  return { periods, selectedPeriod };
+}
+
+async function getActiveDepartments() {
+  const departments = await prisma.department.findMany({
+    where: { isActive: true },
+    orderBy: { name: "asc" }
+  });
+
+  return {
+    departments,
+    evaluateeDepartments: departments.filter(isEvaluatableDepartment)
+  };
+}
+
+async function getPrimaryCriterion() {
+  return (
+    (await prisma.criterion.findFirst({ where: { name: "Общая оценка взаимодействия" } })) ||
+    (await prisma.criterion.findFirst({ where: { isActive: true } }))
+  );
+}
+
+function average(scores: number[]) {
+  return scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : null;
+}
+
 function evaluationPairKey(evaluation: MetricEvaluationKey) {
   return `${evaluation.evaluatorDepartmentId || evaluation.evaluatorUserId || "director"}:${evaluation.evaluateeDepartmentId}`;
 }
@@ -51,9 +88,11 @@ function pickMetricEvaluations<T extends MetricEvaluationKey>(evaluations: T[], 
   return Array.from(byPair.values());
 }
 
-export async function getReferenceData() {
+export async function getReferenceData(options: { ensurePeriod?: boolean } = {}) {
   noStore();
-  await ensureScheduledAssessmentPeriod();
+  if (options.ensurePeriod !== false) {
+    await ensureScheduledAssessmentPeriod();
+  }
   const [departments, periods, criteria, users] = await Promise.all([
     prisma.department.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
     prisma.period.findMany({
@@ -99,24 +138,11 @@ export async function getReferenceData() {
 
 export async function getPeriodMetrics(periodId?: string) {
   noStore();
-  const scheduledPeriod = periodId ? null : await ensureScheduledAssessmentPeriod();
-  const periods = await prisma.period.findMany({
-    orderBy: [{ year: "desc" }, { month: "desc" }]
-  });
-  const selectedPeriod = periodId
-    ? periods.find((period) => period.id === periodId) || periods[0]
-    : scheduledPeriod
-      ? periods.find((period) => period.id === scheduledPeriod.id) || scheduledPeriod
-      : periods.find((period) => period.status === "OPEN") || periods[0];
-
-  const departments = await prisma.department.findMany({
-    where: { isActive: true },
-    orderBy: { name: "asc" }
-  });
-  const evaluateeDepartments = departments.filter(isEvaluatableDepartment);
-  const criterion =
-    (await prisma.criterion.findFirst({ where: { name: "Общая оценка взаимодействия" } })) ||
-    (await prisma.criterion.findFirst({ where: { isActive: true } }));
+  const [{ periods, selectedPeriod }, { departments, evaluateeDepartments }, criterion] = await Promise.all([
+    getPeriodSelection(periodId),
+    getActiveDepartments(),
+    getPrimaryCriterion()
+  ]);
   const requirements = getRequiredPairs(departments);
 
   if (!selectedPeriod || !criterion) {
@@ -243,9 +269,6 @@ export async function getPeriodMetrics(periodId?: string) {
     acc[key] = (acc[key] || 0) + 1;
     return acc;
   }, {});
-
-  const average = (scores: number[]) =>
-    scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : null;
 
   const evaluationKeys = new Set(
     evaluations
@@ -397,6 +420,260 @@ export async function getPeriodMetrics(periodId?: string) {
     expectedCount,
     completion,
     dynamics
+  };
+}
+
+export async function getCompletionMetrics(periodId?: string) {
+  noStore();
+  const [{ periods, selectedPeriod }, { departments }, criterion] = await Promise.all([
+    getPeriodSelection(periodId),
+    getActiveDepartments(),
+    getPrimaryCriterion()
+  ]);
+  const requirements = getRequiredPairs(departments);
+
+  if (!selectedPeriod || !criterion) {
+    return {
+      periods,
+      selectedPeriod: null,
+      completion: [],
+      expectedCount: 0,
+      missingCount: 0
+    };
+  }
+
+  const activeDepartmentIds = new Set(departments.map((department) => department.id));
+  const rawEvaluations = await prisma.evaluation.findMany({
+    where: { periodId: selectedPeriod.id },
+    select: {
+      evaluatorDepartmentId: true,
+      evaluatorUserId: true,
+      evaluateeDepartmentId: true,
+      criterionId: true,
+      score: true,
+      noInteraction: true,
+      comment: true,
+      updatedAt: true
+    }
+  });
+  const evaluations = pickMetricEvaluations(rawEvaluations, criterion.id).filter(
+    (evaluation) =>
+      evaluation.evaluatorDepartmentId &&
+      activeDepartmentIds.has(evaluation.evaluatorDepartmentId) &&
+      activeDepartmentIds.has(evaluation.evaluateeDepartmentId)
+  );
+  const evaluationKeys = new Set(
+    evaluations
+      .filter((evaluation) => evaluation.evaluatorDepartmentId && (evaluation.noInteraction || evaluation.score != null))
+      .map((evaluation) => `${evaluation.evaluatorDepartmentId}:${evaluation.evaluateeDepartmentId}`)
+  );
+  const requirementsByEvaluator = new Map<string, RequirementPair[]>();
+
+  for (const requirement of requirements) {
+    const rows = requirementsByEvaluator.get(requirement.evaluatorDepartmentId) || [];
+    rows.push(requirement);
+    requirementsByEvaluator.set(requirement.evaluatorDepartmentId, rows);
+  }
+
+  const completion = departments.map((department) => {
+    const requiredPairs = requirementsByEvaluator.get(department.id) || [];
+    const filled = requiredPairs.filter((requirement) =>
+      evaluationKeys.has(`${requirement.evaluatorDepartmentId}:${requirement.evaluateeDepartmentId}`)
+    ).length;
+
+    return {
+      department,
+      filled,
+      expected: requiredPairs.length,
+      missing: Math.max(0, requiredPairs.length - filled),
+      isComplete: filled >= requiredPairs.length
+    };
+  });
+  const filledRequiredCount = requirements.filter((requirement) =>
+    evaluationKeys.has(`${requirement.evaluatorDepartmentId}:${requirement.evaluateeDepartmentId}`)
+  ).length;
+
+  return {
+    periods,
+    selectedPeriod,
+    completion,
+    expectedCount: requirements.length,
+    missingCount: Math.max(0, requirements.length - filledRequiredCount)
+  };
+}
+
+export async function getMatrixMetrics(periodId?: string) {
+  noStore();
+  const [{ periods, selectedPeriod }, { departments, evaluateeDepartments }, criterion] = await Promise.all([
+    getPeriodSelection(periodId),
+    getActiveDepartments(),
+    getPrimaryCriterion()
+  ]);
+
+  if (!selectedPeriod || !criterion) {
+    return {
+      periods,
+      selectedPeriod: null,
+      departments,
+      evaluateeDepartments,
+      evaluations: [],
+      byEvaluatee: [],
+      lowScores: []
+    };
+  }
+
+  const activeDepartmentIds = new Set(departments.map((department) => department.id));
+  const evaluateeDepartmentIds = new Set(evaluateeDepartments.map((department) => department.id));
+  const rawEvaluations = await prisma.evaluation.findMany({
+    where: { periodId: selectedPeriod.id },
+    select: {
+      id: true,
+      periodId: true,
+      evaluatorDepartmentId: true,
+      evaluatorDepartment: {
+        select: { id: true, name: true, shortName: true }
+      },
+      evaluatorUserId: true,
+      evaluatorUser: {
+        select: { id: true, name: true }
+      },
+      evaluateeDepartmentId: true,
+      evaluateeDepartment: {
+        select: { id: true, name: true, shortName: true }
+      },
+      criterionId: true,
+      score: true,
+      noInteraction: true,
+      deviationCategories: true,
+      comment: true,
+      author: {
+        select: { id: true, name: true }
+      },
+      updatedAt: true
+    },
+    orderBy: { updatedAt: "desc" }
+  });
+  const evaluations = pickMetricEvaluations(rawEvaluations, criterion.id)
+    .filter(
+      (evaluation) =>
+        evaluation.evaluatorDepartmentId &&
+        activeDepartmentIds.has(evaluation.evaluatorDepartmentId) &&
+        evaluateeDepartmentIds.has(evaluation.evaluateeDepartmentId)
+    )
+    .map((evaluation) =>
+      isMissingEvaluation(evaluation)
+        ? { ...evaluation, score: null, noInteraction: false, deviationCategories: [] }
+        : evaluation
+    );
+  const scoredEvaluations = evaluations.filter(
+    (evaluation) => !evaluation.noInteraction && evaluation.score != null
+  );
+  const scoredByEvaluatee = new Map<string, typeof scoredEvaluations>();
+  const allByEvaluatee = new Map<string, typeof evaluations>();
+
+  for (const evaluation of scoredEvaluations) {
+    const rows = scoredByEvaluatee.get(evaluation.evaluateeDepartmentId) || [];
+    rows.push(evaluation);
+    scoredByEvaluatee.set(evaluation.evaluateeDepartmentId, rows);
+  }
+
+  for (const evaluation of evaluations) {
+    const rows = allByEvaluatee.get(evaluation.evaluateeDepartmentId) || [];
+    rows.push(evaluation);
+    allByEvaluatee.set(evaluation.evaluateeDepartmentId, rows);
+  }
+
+  const byEvaluatee = evaluateeDepartments.map((department) => {
+    const relevantEvaluations = scoredByEvaluatee.get(department.id) || [];
+    const scores = relevantEvaluations.map((evaluation) => evaluation.score as number);
+    const noInteractionCount = (allByEvaluatee.get(department.id) || []).filter(
+      (evaluation) => evaluation.noInteraction
+    ).length;
+
+    return {
+      department,
+      average: average(scores),
+      count: scores.length,
+      noInteractionCount,
+      lowCount: scores.filter((score) => score <= 9).length
+    };
+  });
+
+  return {
+    periods,
+    selectedPeriod,
+    departments,
+    evaluateeDepartments,
+    evaluations,
+    byEvaluatee,
+    lowScores: scoredEvaluations.filter((evaluation) => (evaluation.score as number) <= 9)
+  };
+}
+
+export async function getEvaluationScreenMetrics(periodId?: string) {
+  noStore();
+  const [{ periods, selectedPeriod }, { departments, evaluateeDepartments }, criterion] = await Promise.all([
+    getPeriodSelection(periodId),
+    getActiveDepartments(),
+    getPrimaryCriterion()
+  ]);
+
+  if (!selectedPeriod || !criterion) {
+    return {
+      periods,
+      selectedPeriod: null,
+      evaluations: []
+    };
+  }
+
+  const activeDepartmentIds = new Set(departments.map((department) => department.id));
+  const evaluateeDepartmentIds = new Set(evaluateeDepartments.map((department) => department.id));
+  const rawEvaluations = await prisma.evaluation.findMany({
+    where: { periodId: selectedPeriod.id },
+    select: {
+      id: true,
+      periodId: true,
+      evaluatorDepartmentId: true,
+      evaluatorDepartment: {
+        select: { id: true, name: true, shortName: true }
+      },
+      evaluatorUserId: true,
+      evaluatorUser: {
+        select: { id: true, name: true }
+      },
+      evaluateeDepartmentId: true,
+      evaluateeDepartment: {
+        select: { id: true, name: true, shortName: true }
+      },
+      criterionId: true,
+      score: true,
+      noInteraction: true,
+      deviationCategories: true,
+      comment: true,
+      author: {
+        select: { id: true, name: true }
+      },
+      updatedAt: true
+    },
+    orderBy: { updatedAt: "desc" }
+  });
+  const evaluations = pickMetricEvaluations(rawEvaluations, criterion.id)
+    .filter(
+      (evaluation) =>
+        (evaluation.evaluatorDepartmentId == null ||
+          activeDepartmentIds.has(evaluation.evaluatorDepartmentId)) &&
+        evaluateeDepartmentIds.has(evaluation.evaluateeDepartmentId)
+    )
+    .map((evaluation) =>
+      isMissingEvaluation(evaluation)
+        ? { ...evaluation, score: null, noInteraction: false, deviationCategories: [] }
+        : evaluation
+    );
+
+  return {
+    periods,
+    selectedPeriod,
+    evaluations
   };
 }
 

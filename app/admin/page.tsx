@@ -4,7 +4,7 @@ import AppShell from "@/components/app-shell";
 import DepartmentLabel from "@/components/department-label";
 import ScoreBadge from "@/components/score-badge";
 import { requireUser } from "@/lib/auth";
-import { getPeriodMetrics, getReferenceData } from "@/lib/metrics";
+import { getEvaluationScreenMetrics, getReferenceData } from "@/lib/metrics";
 import { isMissingEvaluation, MISSING_EVALUATION_LABEL } from "@/lib/evaluation-status";
 import { prisma } from "@/lib/prisma";
 
@@ -14,27 +14,35 @@ export default async function AdminPage({
   searchParams: { tab?: string };
 }) {
   const user = await requireUser([Role.ADMIN]);
-  const [{ departments, evaluateeDepartments, periods, users, criteria }, metrics, auditLogs, emailDeliveries] = await Promise.all([
-    getReferenceData(),
-    getPeriodMetrics(),
-    prisma.auditLog.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 200
-    }),
-    prisma.emailDelivery.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 80
-    })
+  const activeTab = ["settings", "comments", "actions", "mail"].includes(searchParams.tab || "")
+    ? searchParams.tab
+    : "settings";
+  const [referenceData, metrics, auditLogs, emailDeliveries] = await Promise.all([
+    activeTab === "settings" ? getReferenceData() : Promise.resolve(null),
+    activeTab === "comments" ? getEvaluationScreenMetrics() : Promise.resolve(null),
+    activeTab === "actions"
+      ? prisma.auditLog.findMany({
+          orderBy: { createdAt: "desc" },
+          take: 200
+        })
+      : Promise.resolve([]),
+    activeTab === "mail"
+      ? prisma.emailDelivery.findMany({
+          orderBy: { createdAt: "desc" },
+          take: 80
+        })
+      : Promise.resolve([])
   ]);
-  const departmentOptions = departments.map(({ id, name, shortName }) => ({ id, name, shortName }));
-  const evaluateeDepartmentOptions = evaluateeDepartments.map(({ id, name, shortName }) => ({ id, name, shortName }));
-  const periodOptions = periods.map(({ id, month, year, status }) => ({
+  const departmentOptions = referenceData?.departments.map(({ id, name, shortName }) => ({ id, name, shortName })) || [];
+  const evaluateeDepartmentOptions =
+    referenceData?.evaluateeDepartments.map(({ id, name, shortName }) => ({ id, name, shortName })) || [];
+  const periodOptions = referenceData?.periods.map(({ id, month, year, status }) => ({
     id,
     month,
     year,
     status
-  }));
-  const userOptions = users.map(({ id, name, email, role, position, departmentId, mustChangePassword, isActive, receivesNotifications }) => ({
+  })) || [];
+  const userOptions = referenceData?.users.map(({ id, name, email, role, position, departmentId, mustChangePassword, isActive, receivesNotifications }) => ({
     id,
     name,
     email,
@@ -44,15 +52,12 @@ export default async function AdminPage({
     mustChangePassword,
     isActive,
     receivesNotifications
-  }));
-  const criterionOptions = criteria.map(({ id, name, description }) => ({
+  })) || [];
+  const criterionOptions = referenceData?.criteria.map(({ id, name, description }) => ({
     id,
     name,
     description
-  }));
-  const activeTab = ["settings", "comments", "actions", "mail"].includes(searchParams.tab || "")
-    ? searchParams.tab
-    : "settings";
+  })) || [];
   const tabClass = (tab: string) =>
     `focus-ring rounded-lg border px-3 py-2 text-sm font-semibold transition ${
       activeTab === tab
@@ -86,7 +91,7 @@ export default async function AdminPage({
         />
       ) : null}
 
-      {activeTab === "comments" ? (
+      {activeTab === "comments" && metrics ? (
       <section className="rounded-lg border border-line bg-white">
         <div className="flex flex-col gap-3 border-b border-line px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="font-semibold text-ink">Все комментарии текущего периода</h2>

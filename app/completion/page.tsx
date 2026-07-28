@@ -5,7 +5,7 @@ import DepartmentLabel from "@/components/department-label";
 import PeriodFilter from "@/components/period-filter";
 import { requireUser } from "@/lib/auth";
 import { periodLabel } from "@/lib/format";
-import { getPeriodMetrics } from "@/lib/metrics";
+import { getCompletionMetrics } from "@/lib/metrics";
 
 export default async function CompletionPage({
   searchParams
@@ -13,7 +13,7 @@ export default async function CompletionPage({
   searchParams: { period?: string };
 }) {
   const user = await requireUser([Role.ADMIN, Role.ANALYST, Role.LEADER, Role.DIRECTOR, Role.VIEWER]);
-  const metrics = await getPeriodMetrics(searchParams.period);
+  const metrics = await getCompletionMetrics(searchParams.period);
   const leaderDepartmentId = user.role === Role.LEADER ? user.departmentId : null;
   const completionRows = leaderDepartmentId
     ? metrics.completion.filter((row) => row.department.id === leaderDepartmentId)
