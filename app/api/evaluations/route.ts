@@ -106,36 +106,25 @@ export async function POST(request: Request) {
       ? {
           periodId,
           evaluatorUserId: user.id,
-          evaluateeDepartmentId,
-          criterionId
+          evaluateeDepartmentId
         }
       : {
           periodId,
           evaluatorDepartmentId: effectiveEvaluatorDepartmentId,
-          evaluateeDepartmentId,
-          criterionId
+          evaluateeDepartmentId
         },
     orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
-    select: { id: true }
+    select: { id: true, criterionId: true }
   });
-  const existing = existingRows[0] || null;
+  const existing = existingRows.find((row) => row.criterionId === criterionId) || existingRows[0] || null;
 
   const evaluation = isDirectorEvaluation
     ? existing
       ? await prisma.evaluation.update({ where: { id: existing.id }, data: payload })
       : await prisma.evaluation.create({ data: payload })
-    : await prisma.evaluation.upsert({
-        where: {
-          periodId_evaluatorDepartmentId_evaluateeDepartmentId_criterionId: {
-            periodId,
-            evaluatorDepartmentId: effectiveEvaluatorDepartmentId,
-            evaluateeDepartmentId,
-            criterionId
-          }
-        },
-        create: payload,
-        update: payload
-      });
+    : existing
+      ? await prisma.evaluation.update({ where: { id: existing.id }, data: payload })
+      : await prisma.evaluation.create({ data: payload });
 
   const duplicateIds = existingRows.slice(1).map((row) => row.id);
   if (isDirectorEvaluation && duplicateIds.length) {

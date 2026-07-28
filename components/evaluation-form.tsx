@@ -238,7 +238,7 @@ export default function EvaluationForm({
     setRows((current) => {
       const next: Record<string, RowState> = {};
       for (const department of availableEvaluatees) {
-        const existing = existingEvaluations.find((evaluation) => {
+        const matchingEvaluations = existingEvaluations.filter((evaluation) => {
           const sameEvaluator = isDirector
             ? evaluation.evaluatorUserId === user.id
             : evaluation.evaluatorDepartmentId === evaluatorDepartmentId;
@@ -249,6 +249,11 @@ export default function EvaluationForm({
             evaluation.evaluateeDepartmentId === department.id
           );
         });
+        const existing =
+          matchingEvaluations.find((evaluation) => evaluation.criterionId === overallCriterion?.id) ||
+          matchingEvaluations
+            .slice()
+            .sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime())[0];
         const currentRow = current[department.id];
         const existingComment = existing?.comment || "";
         const normalizedExistingComment = isAutomaticMissingComment(existingComment) ? "" : existingComment;

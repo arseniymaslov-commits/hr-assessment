@@ -10,6 +10,42 @@ type RequirementPair = {
   evaluateeDepartmentId: string;
 };
 
+type MetricEvaluationKey = {
+  evaluatorDepartmentId?: string | null;
+  evaluatorUserId?: string | null;
+  evaluateeDepartmentId: string;
+  criterionId: string;
+  updatedAt: Date;
+};
+
+function evaluationPairKey(evaluation: MetricEvaluationKey) {
+  return `${evaluation.evaluatorDepartmentId || evaluation.evaluatorUserId || "director"}:${evaluation.evaluateeDepartmentId}`;
+}
+
+function pickMetricEvaluations<T extends MetricEvaluationKey>(evaluations: T[], primaryCriterionId: string) {
+  const byPair = new Map<string, T>();
+
+  for (const evaluation of evaluations) {
+    const key = evaluationPairKey(evaluation);
+    const current = byPair.get(key);
+    if (!current) {
+      byPair.set(key, evaluation);
+      continue;
+    }
+
+    const currentIsPrimary = current.criterionId === primaryCriterionId;
+    const nextIsPrimary = evaluation.criterionId === primaryCriterionId;
+    if (
+      (!currentIsPrimary && nextIsPrimary) ||
+      (currentIsPrimary === nextIsPrimary && evaluation.updatedAt > current.updatedAt)
+    ) {
+      byPair.set(key, evaluation);
+    }
+  }
+
+  return Array.from(byPair.values());
+}
+
 export async function getReferenceData() {
   noStore();
   await ensureScheduledAssessmentPeriod();
@@ -91,9 +127,9 @@ export async function getPeriodMetrics(periodId?: string) {
       period.year < selectedPeriod.year ||
       (period.year === selectedPeriod.year && period.month < selectedPeriod.month)
   );
-  const [allEvaluations, previousEvaluations, previousLowEvaluations, dynamicAverages] = await Promise.all([
+  const [rawAllEvaluations, rawPreviousEvaluations, previousLowEvaluations, dynamicAverages] = await Promise.all([
     prisma.evaluation.findMany({
-      where: { periodId: selectedPeriod.id, criterionId: criterion.id },
+      where: { periodId: selectedPeriod.id },
       include: {
         evaluatorDepartment: true,
         evaluatorUser: true,
@@ -108,17 +144,22 @@ export async function getPeriodMetrics(periodId?: string) {
       ? prisma.evaluation.findMany({
           where: {
             periodId: previousPeriod.id,
-            criterionId: criterion.id,
             noInteraction: false,
             score: { not: null }
           },
-          select: { evaluateeDepartmentId: true, score: true }
+          select: {
+            evaluatorDepartmentId: true,
+            evaluatorUserId: true,
+            evaluateeDepartmentId: true,
+            criterionId: true,
+            score: true,
+            updatedAt: true
+          }
         })
       : Promise.resolve([]),
     prisma.evaluation.findMany({
       where: {
         periodId: { not: selectedPeriod.id },
-        criterionId: criterion.id,
         noInteraction: false,
         score: { lte: 9 }
       },
@@ -131,13 +172,14 @@ export async function getPeriodMetrics(periodId?: string) {
     prisma.evaluation.groupBy({
       by: ["periodId"],
       where: {
-        criterionId: criterion.id,
         noInteraction: false,
         score: { not: null }
       },
       _avg: { score: true }
     })
   ]);
+  const allEvaluations = pickMetricEvaluations(rawAllEvaluations, criterion.id);
+  const previousEvaluations = pickMetricEvaluations(rawPreviousEvaluations, criterion.id);
   const evaluations = allEvaluations
     .filter(
       (evaluation) =>
