@@ -1,0 +1,74 @@
+name: Database backup
+
+on:
+  schedule:
+    # 02:00 Bishkek time, daily.
+    - cron: "0 20 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    name: Backup Neon PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+      TZ: Asia/Bishkek
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client and GPG
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client gnupg
+
+      - name: Validate backup secrets
+        run: |
+          test -n "$DATABASE_URL" || (echo "DATABASE_URL secret is missing" && exit 1)
+          test -n "$BACKUP_ENCRYPTION_PASSPHRASE" || (echo "BACKUP_ENCRYPTION_PASSPHRASE secret is missing" && exit 1)
+
+      - name: Create encrypted database dump
+        id: dump
+        run: |
+          mkdir -p backups
+          TIMESTAMP="$(date +'%Y%m%d-%H%M%S')"
+          BACKUP_FILE="backups/hr-assessment-${TIMESTAMP}.dump"
+          ENCRYPTED_FILE="${BACKUP_FILE}.gpg"
+
+          pg_dump "$DATABASE_URL" \
+            --format=custom \
+            --no-owner \
+            --no-acl \
+            --file "$BACKUP_FILE"
+
+          pg_restore --list "$BACKUP_FILE" > "${BACKUP_FILE}.manifest.txt"
+
+          gpg --batch --yes \
+            --symmetric \
+            --cipher-algo AES256 \
+            --passphrase "$BACKUP_ENCRYPTION_PASSPHRASE" \
+            --output "$ENCRYPTED_FILE" \
+            "$BACKUP_FILE"
+
+          sha256sum "$ENCRYPTED_FILE" > "${ENCRYPTED_FILE}.sha256"
+          rm "$BACKUP_FILE"
+
+          echo "artifact_name=hr-assessment-db-backup-${TIMESTAMP}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload encrypted backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.dump.outputs.artifact_name }}
+          path: |
+            backups/*.dump.gpg
+            backups/*.dump.gpg.sha256
+            backups/*.dump.manifest.txt
+          retention-days: 30
+          if-no-files-found: error

@@ -9,8 +9,11 @@ node_modules
 dist
 coverage
 deliverables/
+backups/
 *.log
 *.dump
+*.dump.gpg
+*.sha256
 *.sql
 
 .vercel
