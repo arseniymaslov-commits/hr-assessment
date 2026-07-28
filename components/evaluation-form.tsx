@@ -440,7 +440,7 @@ export default function EvaluationForm({
           <div className="flex min-w-0 items-center gap-3 lg:w-[420px]">
             <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
               <div
-                className="h-full rounded-full bg-brand transition-all duration-500 ease-out"
+                className="progress-fill h-full rounded-full transition-all duration-500 ease-out"
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
@@ -508,7 +508,7 @@ export default function EvaluationForm({
 
           return (
             <article
-              className={`animate-soft-in rounded-lg border bg-white p-3 transition hover:border-slate-300 hover:shadow-soft sm:p-4 ${
+              className={`animate-soft-in interactive-card rounded-lg border bg-white p-3 sm:p-4 ${
                 required ? "border-brand/20 bg-brand/5" : "border-line"
               }`}
               key={department.id}

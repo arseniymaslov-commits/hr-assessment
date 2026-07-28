@@ -26,16 +26,16 @@ export default function AppNavLink({ href, label, icon }: AppNavLinkProps) {
 
   return (
     <Link
-      className={`focus-ring relative inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+      className={`focus-ring group relative inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 hover:-translate-y-0.5 ${
         isActive
           ? "bg-brand/5 text-brand"
           : "text-slate-700 hover:bg-slate-100 hover:text-ink"
       }`}
       href={href}
     >
-      <Icon size={16} />
+      <Icon className="transition-transform duration-200 group-hover:scale-110" size={16} />
       {label}
-      {isActive ? <span className="absolute inset-x-3 -bottom-2 h-0.5 rounded-full bg-brand" /> : null}
+      {isActive ? <span className="animate-soft-in absolute inset-x-3 -bottom-2 h-0.5 rounded-full bg-brand" /> : null}
     </Link>
   );
 }

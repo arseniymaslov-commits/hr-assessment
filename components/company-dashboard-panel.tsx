@@ -156,7 +156,7 @@ export default function CompanyDashboardPanel({
   const pagedComments = lowScores.slice((commentPage - 1) * commentPageSize, commentPage * commentPageSize);
 
   return (
-    <section className="animate-soft-in mt-6 rounded-lg border border-line bg-white">
+    <section className="animate-soft-in mt-6 rounded-lg border border-line bg-white shadow-sm">
       <div className="border-b border-line px-5 py-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div>
@@ -173,8 +173,8 @@ export default function CompanyDashboardPanel({
                   type="button"
                   className={`focus-ring inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition ${
                     isActive
-                      ? "border-brand/30 bg-brand/5 text-brand"
-                      : "border-line bg-white text-slate-700 hover:bg-slate-50"
+                      ? "border-brand/30 bg-brand/5 text-brand shadow-sm"
+                      : "border-line bg-white text-slate-700 hover:-translate-y-0.5 hover:bg-slate-50"
                   }`}
                   onClick={() => setActiveTab(tab.key)}
                 >
@@ -418,9 +418,9 @@ export default function CompanyDashboardPanel({
 
 function OverviewCard({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
-    <div className="rounded-lg border border-line bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-white hover:shadow-soft">
+    <div className="interactive-card rounded-lg border border-line bg-slate-50 p-4 hover:bg-white">
       <div className="text-sm text-muted">{label}</div>
-      <div className="mt-2 text-3xl font-semibold text-ink">{value}</div>
+      <div className="animate-value-pop mt-2 text-3xl font-semibold text-ink">{value}</div>
       <div className="mt-1 text-xs text-muted">{hint}</div>
     </div>
   );
@@ -438,7 +438,7 @@ function CompactList<T>({
   render: (row: T, index: number) => ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-line bg-white transition hover:border-slate-300">
+    <div className="interactive-card rounded-lg border border-line bg-white">
       <div className="border-b border-line px-4 py-3 font-semibold text-ink">{title}</div>
       <div className="max-h-[360px] overflow-auto p-3">
         {rows.length ? (

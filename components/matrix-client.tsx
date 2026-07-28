@@ -144,7 +144,7 @@ export default function MatrixClient({
                 .map((summary, index) => {
               const department = columnDepartments.find((item) => item.id === summary.departmentId);
               return (
-                <div className="rounded-lg border border-line bg-white p-4 shadow-sm" key={summary.departmentId}>
+                <div className="interactive-card rounded-lg border border-line bg-white p-4 shadow-sm" key={summary.departmentId}>
                   <div className="text-xs font-semibold uppercase text-muted">Рейтинг #{index + 1}</div>
                   {department ? (
                     <DepartmentLabel department={department} className="mt-1 font-semibold text-ink" />
@@ -280,7 +280,7 @@ export default function MatrixClient({
                             <div className="rounded-lg bg-slate-100 px-2 py-2 text-slate-400">—</div>
                           ) : evaluation?.noInteraction ? (
                             <button
-                              className={`focus-ring w-full rounded-lg bg-slate-50 px-1.5 py-2 text-[11px] font-semibold leading-4 text-slate-600 ring-1 ring-slate-200 ${selectedCell ? "outline outline-2 outline-brand" : ""}`}
+                              className={`focus-ring w-full rounded-lg bg-slate-50 px-1.5 py-2 text-[11px] font-semibold leading-4 text-slate-600 ring-1 ring-slate-200 transition duration-200 hover:-translate-y-0.5 hover:shadow-sm ${selectedCell ? "outline outline-2 outline-brand" : ""}`}
                               type="button"
                               onClick={() => setSelected(evaluation)}
                             >
@@ -288,7 +288,7 @@ export default function MatrixClient({
                             </button>
                           ) : evaluation && isMissingEvaluation(evaluation) ? (
                             <button
-                              className={`focus-ring w-full rounded-lg bg-red-50 px-1.5 py-2 text-[11px] font-semibold leading-4 text-red-700 ring-1 ring-red-100 ${selectedCell ? "outline outline-2 outline-brand" : ""}`}
+                              className={`focus-ring w-full rounded-lg bg-red-50 px-1.5 py-2 text-[11px] font-semibold leading-4 text-red-700 ring-1 ring-red-100 transition duration-200 hover:-translate-y-0.5 hover:shadow-sm ${selectedCell ? "outline outline-2 outline-brand" : ""}`}
                               type="button"
                               onClick={() => setSelected(evaluation)}
                             >
@@ -296,7 +296,7 @@ export default function MatrixClient({
                             </button>
                           ) : evaluation ? (
                             <button
-                              className={`focus-ring w-full rounded-lg px-2 py-2 font-semibold ring-1 ${scoreClass(evaluation.score)} ${selectedCell ? "outline outline-2 outline-brand" : ""}`}
+                              className={`focus-ring w-full rounded-lg px-2 py-2 font-semibold ring-1 transition duration-200 hover:-translate-y-0.5 hover:shadow-sm ${scoreClass(evaluation.score)} ${selectedCell ? "outline outline-2 outline-brand" : ""}`}
                               type="button"
                               onClick={() => setSelected(evaluation)}
                               title={evaluation.comment || undefined}
@@ -305,7 +305,7 @@ export default function MatrixClient({
                             </button>
                           ) : (
                             <button
-                              className="focus-ring w-full rounded-lg bg-red-50 px-1.5 py-2 text-[11px] font-semibold leading-4 text-red-700 ring-1 ring-red-100 transition hover:bg-red-100/60"
+                              className="focus-ring w-full rounded-lg bg-red-50 px-1.5 py-2 text-[11px] font-semibold leading-4 text-red-700 ring-1 ring-red-100 transition duration-200 hover:-translate-y-0.5 hover:bg-red-100/60 hover:shadow-sm"
                               type="button"
                               onClick={() => setSelected(null)}
                             >

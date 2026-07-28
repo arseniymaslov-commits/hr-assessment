@@ -174,7 +174,7 @@ export default async function AnalyticsPage({ searchParams }: AnalyticsPageProps
                     <span className="font-semibold text-ink">{count}</span>
                   </div>
                   <div className="h-2 rounded-full bg-slate-100">
-                    <div className="h-2 rounded-full bg-brand" style={{ width: `${Math.max(8, (count / categories[0][1]) * 100)}%` }} />
+                    <div className="progress-fill h-2 rounded-full" style={{ width: `${Math.max(8, (count / categories[0][1]) * 100)}%` }} />
                   </div>
                 </div>
               ))
@@ -262,7 +262,7 @@ export default async function AnalyticsPage({ searchParams }: AnalyticsPageProps
                     <span className="font-semibold">{fixed(point.average)}</span>
                   </div>
                   <div className="h-2 rounded-full bg-slate-100">
-                    <div className="h-2 rounded-full bg-graphite" style={{ width }} />
+                    <div className="progress-fill h-2 rounded-full" style={{ width }} />
                   </div>
                 </div>
               );
@@ -276,9 +276,9 @@ export default async function AnalyticsPage({ searchParams }: AnalyticsPageProps
 
 function AnalyticsCard({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
-    <div className="animate-soft-in rounded-lg border border-line bg-white p-5 transition hover:border-slate-300 hover:shadow-soft">
+    <div className="animate-soft-in interactive-card rounded-lg border border-line bg-white p-5">
       <div className="text-sm text-muted">{label}</div>
-      <div className="mt-2 text-3xl font-semibold text-ink">{value}</div>
+      <div className="animate-value-pop mt-2 text-3xl font-semibold text-ink">{value}</div>
       <div className="mt-1 text-xs text-muted">{hint}</div>
     </div>
   );
@@ -286,7 +286,7 @@ function AnalyticsCard({ label, value, hint }: { label: string; value: string; h
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="animate-soft-in min-w-0 rounded-lg border border-line bg-white transition hover:border-slate-300">
+    <section className="animate-soft-in interactive-card min-w-0 rounded-lg border border-line bg-white">
       <div className="border-b border-line px-5 py-4">
         <h2 className="font-semibold text-ink">{title}</h2>
       </div>

@@ -423,7 +423,7 @@ export default async function DashboardPage({
                     <span className="font-semibold">{fixed(point.average)}</span>
                   </div>
                   <div className="h-2 rounded-full bg-slate-100">
-                    <div className="h-2 rounded-full bg-graphite" style={{ width }} />
+                    <div className="progress-fill h-2 rounded-full" style={{ width }} />
                   </div>
                 </div>
               );
@@ -437,9 +437,9 @@ export default async function DashboardPage({
 
 function MetricCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="animate-soft-in rounded-lg border border-line bg-white p-5 transition hover:border-slate-300 hover:shadow-soft">
+    <div className="animate-soft-in interactive-card rounded-lg border border-line bg-white p-5">
       <div className="text-sm text-muted">{label}</div>
-      <div className="mt-2 text-3xl font-semibold text-ink">{value}</div>
+      <div className="animate-value-pop mt-2 text-3xl font-semibold text-ink">{value}</div>
     </div>
   );
 }
