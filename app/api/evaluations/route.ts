@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { isEvaluatableDepartmentName } from "@/lib/evaluation-scope";
+import { isAutomaticMissingComment } from "@/lib/evaluation-status";
 import { validateEvaluationInput } from "@/lib/evaluation-validation";
 import { prisma } from "@/lib/prisma";
 
@@ -15,6 +17,12 @@ function formatAuditDateTime(date: Date) {
     hour: "2-digit",
     minute: "2-digit"
   }).format(date);
+}
+
+function revalidateEvaluationViews() {
+  ["/admin", "/analytics", "/completion", "/dashboard", "/evaluations", "/matrix"].forEach((path) =>
+    revalidatePath(path)
+  );
 }
 
 export async function POST(request: Request) {
@@ -32,7 +40,8 @@ export async function POST(request: Request) {
   const noInteraction = Boolean(body?.noInteraction);
   const score = Number(body?.score);
   const scoreToSave = noInteraction ? null : score;
-  const comment = String(body?.comment || "").trim();
+  const rawComment = String(body?.comment || "").trim();
+  const comment = !noInteraction && isAutomaticMissingComment(rawComment) ? "" : rawComment;
   const deviationCategories: string[] = Array.isArray(body?.deviationCategories)
     ? body.deviationCategories.map(String).map((item: string) => item.trim()).filter(Boolean)
     : [];
@@ -142,6 +151,8 @@ export async function POST(request: Request) {
     user,
     request
   });
+
+  revalidateEvaluationViews();
 
   return NextResponse.json({ evaluation });
 }

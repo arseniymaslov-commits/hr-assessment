@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AlertCircle, Ban, CheckCircle2, Save } from "lucide-react";
 import DepartmentLabel from "@/components/department-label";
 import { departmentOptionLabel } from "@/lib/department-decodings";
 import { DEVIATION_CATEGORIES } from "@/lib/evaluation-categories";
+import { isAutomaticMissingComment } from "@/lib/evaluation-status";
 import { periodLabel } from "@/lib/format";
 
 type Department = {
@@ -155,6 +157,7 @@ export default function EvaluationForm({
   existingEvaluations: ExistingEvaluation[];
   user: UserContext;
 }) {
+  const router = useRouter();
   const openPeriod = periods.find((period) => period.status === "OPEN") || periods[0];
   const isDirector = user.role === "DIRECTOR";
   const canSelectPeriod = user.role === "ADMIN";
@@ -203,7 +206,7 @@ export default function EvaluationForm({
       evaluateeDepartmentId: departmentId,
       criterionId: overallCriterion?.id || "",
       score: noInteraction ? null : row.score,
-      comment: noInteraction ? "" : row.comment.trim(),
+      comment: noInteraction || isAutomaticMissingComment(row.comment) ? "" : row.comment.trim(),
       deviationCategories: noInteraction || row.score === 10 ? [] : row.deviationCategories.slice().sort(),
       noInteraction
     });
@@ -250,11 +253,13 @@ export default function EvaluationForm({
           );
         });
         const currentRow = current[department.id];
+        const existingComment = existing?.comment || "";
+        const normalizedExistingComment = isAutomaticMissingComment(existingComment) ? "" : existingComment;
         next[department.id] = existing
           ? {
               score: existing.score ?? currentRow?.score ?? 10,
               deviationCategories: existing.deviationCategories || currentRow?.deviationCategories || [],
-              comment: existing.comment || currentRow?.comment || "",
+              comment: normalizedExistingComment || currentRow?.comment || "",
               noInteraction: existing.noInteraction,
               saving: false,
               message: existing.noInteraction ? "Сохранено: нет взаимодействия" : "Сохранено",
@@ -324,6 +329,7 @@ export default function EvaluationForm({
 
     if (saveTimers.current[departmentId]) clearTimeout(saveTimers.current[departmentId]);
     const sentSignature = signatureOverride || rowSignature(departmentId, row, noInteraction);
+    const cleanedComment = isAutomaticMissingComment(row.comment) ? "" : row.comment;
 
     updateRow(departmentId, { saving: true, message: "Сохраняем..." });
     try {
@@ -336,7 +342,7 @@ export default function EvaluationForm({
           evaluateeDepartmentId: departmentId,
           criterionId: overallCriterion.id,
           score: row.score,
-          comment: row.comment,
+          comment: noInteraction ? "" : cleanedComment,
           deviationCategories: noInteraction ? [] : row.deviationCategories,
           noInteraction
         })
@@ -344,6 +350,7 @@ export default function EvaluationForm({
       const data = await response.json().catch(() => ({}));
       if (response.ok) {
         savedSignatures.current[departmentId] = sentSignature;
+        router.refresh();
         if (!silent) {
           showToast("success", noInteraction ? "Отмечено: нет взаимодействия" : "Оценка сохранена");
         }
@@ -354,7 +361,7 @@ export default function EvaluationForm({
         saving: false,
         noInteraction,
         deviationCategories: noInteraction ? [] : row.deviationCategories,
-        comment: noInteraction ? "" : row.comment,
+        comment: noInteraction ? "" : cleanedComment,
         message: response.ok
           ? noInteraction
             ? "Сохранено: нет взаимодействия"
