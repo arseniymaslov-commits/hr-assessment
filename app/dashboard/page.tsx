@@ -174,7 +174,10 @@ export default async function DashboardPage({
       <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Средний балл компании" value={fixed(metrics.companyAverage)} />
         <MetricCard label={leaderDepartmentId ? "Оценок 9 и ниже по вашему отделу" : "Оценок 9 и ниже"} value={String(lowScores.length)} />
-        <MetricCard label={leaderDepartmentId ? "Осталось оценок по вашему отделу" : "Отсутствующих оценок"} value={String(leaderDepartmentId ? visibleMissingCount : metrics.missingCount)} />
+        <MetricCard
+          label={leaderDepartmentId ? "Оценили ваш отдел" : "Отсутствующих оценок"}
+          value={leaderDepartmentId ? `${visibleFilledCount} из ${visibleExpectedCount}` : String(metrics.missingCount)}
+        />
         <MetricCard
           label="Статус периода"
           value={metrics.selectedPeriod?.status === "OPEN" ? "Открыт" : "Закрыт"}
@@ -192,7 +195,7 @@ export default async function DashboardPage({
         </section>
       ) : null}
 
-      {!leaderDepartmentUnresolved ? (
+      {!leaderDepartmentUnresolved && user.role !== Role.LEADER ? (
       <section className="mt-6 rounded-lg border border-line bg-white p-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
