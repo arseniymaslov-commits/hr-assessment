@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { AlertCircle, Ban, CheckCircle2, Save } from "lucide-react";
 import DepartmentLabel from "@/components/department-label";
 import { departmentOptionLabel } from "@/lib/department-decodings";
@@ -157,7 +156,6 @@ export default function EvaluationForm({
   existingEvaluations: ExistingEvaluation[];
   user: UserContext;
 }) {
-  const router = useRouter();
   const openPeriod = periods.find((period) => period.status === "OPEN") || periods[0];
   const isDirector = user.role === "DIRECTOR";
   const canSelectPeriod = user.role === "ADMIN";
@@ -194,6 +192,25 @@ export default function EvaluationForm({
         .map((requirement) => requirement.evaluateeDepartmentId)
     );
   }, [evaluatorDepartmentId, requirements]);
+  const existingEvaluationMap = useMemo(() => {
+    const next = new Map<string, ExistingEvaluation[]>();
+
+    for (const evaluation of existingEvaluations) {
+      const evaluatorKey = evaluation.evaluatorUserId
+        ? `user:${evaluation.evaluatorUserId}`
+        : evaluation.evaluatorDepartmentId
+          ? `department:${evaluation.evaluatorDepartmentId}`
+          : "";
+      if (!evaluatorKey) continue;
+
+      const key = `${evaluation.periodId}:${evaluatorKey}:${evaluation.evaluateeDepartmentId}`;
+      const rows = next.get(key) || [];
+      rows.push(evaluation);
+      next.set(key, rows);
+    }
+
+    return next;
+  }, [existingEvaluations]);
 
   function rowSignature(departmentId: string, row: RowState, noInteraction = row.noInteraction) {
     return JSON.stringify({
@@ -237,18 +254,10 @@ export default function EvaluationForm({
   useEffect(() => {
     setRows((current) => {
       const next: Record<string, RowState> = {};
+      const evaluatorKey = isDirector ? `user:${user.id}` : `department:${evaluatorDepartmentId}`;
       for (const department of availableEvaluatees) {
-        const matchingEvaluations = existingEvaluations.filter((evaluation) => {
-          const sameEvaluator = isDirector
-            ? evaluation.evaluatorUserId === user.id
-            : evaluation.evaluatorDepartmentId === evaluatorDepartmentId;
-          return (
-            sameEvaluator &&
-            evaluation.periodId === periodId &&
-            evaluation.criterionId === overallCriterion?.id &&
-            evaluation.evaluateeDepartmentId === department.id
-          );
-        });
+        const matchingEvaluations =
+          existingEvaluationMap.get(`${periodId}:${evaluatorKey}:${department.id}`) || [];
         const existing =
           matchingEvaluations.find((evaluation) => evaluation.criterionId === overallCriterion?.id) ||
           matchingEvaluations
@@ -272,7 +281,7 @@ export default function EvaluationForm({
       }
       return next;
     });
-  }, [availableEvaluatees, evaluatorDepartmentId, existingEvaluations, isDirector, overallCriterion?.id, periodId, user.id]);
+  }, [availableEvaluatees, evaluatorDepartmentId, existingEvaluationMap, isDirector, overallCriterion?.id, periodId, user.id]);
 
   useEffect(() => {
     if (!canUseForm || !overallCriterion) return;
@@ -352,7 +361,6 @@ export default function EvaluationForm({
       const data = await response.json().catch(() => ({}));
       if (response.ok) {
         savedSignatures.current[departmentId] = sentSignature;
-        router.refresh();
         if (!silent) {
           showToast("success", noInteraction ? "Отмечено: нет взаимодействия" : "Оценка сохранена");
         }

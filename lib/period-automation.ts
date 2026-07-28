@@ -45,6 +45,22 @@ export function getScheduledAssessmentPeriod(date = new Date()): PeriodParts {
 
 export async function ensureScheduledAssessmentPeriod(date = new Date()) {
   const target = getScheduledAssessmentPeriod(date);
+  const [targetPeriod, otherOpenPeriod] = await Promise.all([
+    prisma.period.findUnique({
+      where: { month_year: { month: target.month, year: target.year } }
+    }),
+    prisma.period.findFirst({
+      where: {
+        status: PeriodStatus.OPEN,
+        NOT: { month: target.month, year: target.year }
+      },
+      select: { id: true }
+    })
+  ]);
+
+  if (targetPeriod?.status === target.status && !otherOpenPeriod) {
+    return targetPeriod;
+  }
 
   await prisma.period.updateMany({
     where: {

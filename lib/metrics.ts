@@ -10,6 +10,11 @@ type RequirementPair = {
   evaluateeDepartmentId: string;
 };
 
+type RequirementDepartment = {
+  id: string;
+  name: string;
+};
+
 type MetricEvaluationKey = {
   evaluatorDepartmentId?: string | null;
   evaluatorUserId?: string | null;
@@ -62,11 +67,25 @@ export async function getReferenceData() {
       }
     }),
     prisma.criterion.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
-    prisma.user.findMany({ orderBy: { name: "asc" }, include: { department: true } })
+    prisma.user.findMany({
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        position: true,
+        departmentId: true,
+        mustChangePassword: true,
+        isActive: true,
+        receivesNotifications: true,
+        department: true
+      }
+    })
   ]);
 
   const evaluateeDepartments = departments.filter(isEvaluatableDepartment);
-  const requirements = await getRequiredPairs(departments.map((department) => department.id));
+  const requirements = getRequiredPairs(departments);
 
   return {
     departments,
@@ -98,7 +117,7 @@ export async function getPeriodMetrics(periodId?: string) {
   const criterion =
     (await prisma.criterion.findFirst({ where: { name: "Общая оценка взаимодействия" } })) ||
     (await prisma.criterion.findFirst({ where: { isActive: true } }));
-  const requirements = await getRequiredPairs(departments.map((department) => department.id));
+  const requirements = getRequiredPairs(departments);
 
   if (!selectedPeriod || !criterion) {
     return {
@@ -130,13 +149,36 @@ export async function getPeriodMetrics(periodId?: string) {
   const [rawAllEvaluations, rawPreviousEvaluations, previousLowEvaluations, dynamicAverages] = await Promise.all([
     prisma.evaluation.findMany({
       where: { periodId: selectedPeriod.id },
-      include: {
-        evaluatorDepartment: true,
-        evaluatorUser: true,
-        evaluateeDepartment: true,
-        author: true,
+      select: {
+        id: true,
+        periodId: true,
         period: true,
-        criterion: true
+        evaluatorDepartmentId: true,
+        evaluatorDepartment: {
+          select: { id: true, name: true, shortName: true }
+        },
+        evaluatorUserId: true,
+        evaluatorUser: {
+          select: { id: true, name: true }
+        },
+        evaluateeDepartmentId: true,
+        evaluateeDepartment: {
+          select: { id: true, name: true, shortName: true }
+        },
+        criterionId: true,
+        criterion: {
+          select: { id: true, name: true }
+        },
+        score: true,
+        noInteraction: true,
+        deviationCategories: true,
+        comment: true,
+        authorId: true,
+        author: {
+          select: { id: true, name: true }
+        },
+        createdAt: true,
+        updatedAt: true
       },
       orderBy: { updatedAt: "desc" }
     }),
@@ -358,11 +400,8 @@ export async function getPeriodMetrics(periodId?: string) {
   };
 }
 
-async function getRequiredPairs(activeDepartmentIds: string[]): Promise<RequirementPair[]> {
-  const activeDepartments = await prisma.department.findMany({
-    where: { id: { in: activeDepartmentIds } },
-    select: { id: true, name: true }
-  });
+function getRequiredPairs(activeDepartments: RequirementDepartment[]): RequirementPair[] {
+  const activeDepartmentIds = activeDepartments.map((department) => department.id);
   const mandatoryEvaluateeSet = new Set(
     activeDepartments.filter(isMandatoryEvaluateeDepartment).map((department) => department.id)
   );

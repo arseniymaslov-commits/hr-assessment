@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { revalidatePath } from "next/cache";
 import { Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
@@ -17,12 +16,6 @@ function formatAuditDateTime(date: Date) {
     hour: "2-digit",
     minute: "2-digit"
   }).format(date);
-}
-
-function revalidateEvaluationViews() {
-  ["/admin", "/analytics", "/completion", "/dashboard", "/evaluations", "/matrix"].forEach((path) =>
-    revalidatePath(path)
-  );
 }
 
 export async function POST(request: Request) {
@@ -140,8 +133,6 @@ export async function POST(request: Request) {
     user,
     request
   });
-
-  revalidateEvaluationViews();
 
   return NextResponse.json({ evaluation });
 }
