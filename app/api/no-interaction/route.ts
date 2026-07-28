@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { writeAuditLog } from "@/lib/audit";
 import { departmentOptionLabel } from "@/lib/department-decodings";
-import { isEvaluatableDepartment } from "@/lib/evaluation-scope";
+import { isMandatoryEvaluateeDepartment } from "@/lib/evaluation-scope";
 import { getOverallCriterion } from "@/lib/evaluation-mail-schedule";
 import { readNoInteractionToken } from "@/lib/no-interaction-token";
 import { prisma } from "@/lib/prisma";
@@ -89,7 +89,7 @@ export async function GET(request: Request) {
   }
 
   const evaluateeDepartments = departments
-    .filter(isEvaluatableDepartment)
+    .filter(isMandatoryEvaluateeDepartment)
     .filter((department) => department.id !== payload.evaluatorDepartmentId);
 
   const existingEvaluations = await prisma.evaluation.findMany({

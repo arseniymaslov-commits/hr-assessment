@@ -2,7 +2,7 @@ import { unstable_noStore as noStore } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { departmentOptionLabel } from "@/lib/department-decodings";
 import { isMissingEvaluation } from "@/lib/evaluation-status";
-import { isEvaluatableDepartment } from "@/lib/evaluation-scope";
+import { isEvaluatableDepartment, isMandatoryEvaluateeDepartment } from "@/lib/evaluation-scope";
 import { ensureScheduledAssessmentPeriod } from "@/lib/period-automation";
 
 type RequirementPair = {
@@ -321,12 +321,14 @@ async function getRequiredPairs(activeDepartmentIds: string[]): Promise<Requirem
     where: { id: { in: activeDepartmentIds } },
     select: { id: true, name: true }
   });
-  const evaluateeSet = new Set(activeDepartments.filter(isEvaluatableDepartment).map((department) => department.id));
+  const mandatoryEvaluateeSet = new Set(
+    activeDepartments.filter(isMandatoryEvaluateeDepartment).map((department) => department.id)
+  );
   return activeDepartmentIds.flatMap((evaluatorDepartmentId) =>
     activeDepartmentIds
       .filter(
         (evaluateeDepartmentId) =>
-          evaluateeSet.has(evaluateeDepartmentId) && evaluateeDepartmentId !== evaluatorDepartmentId
+          mandatoryEvaluateeSet.has(evaluateeDepartmentId) && evaluateeDepartmentId !== evaluatorDepartmentId
       )
       .map((evaluateeDepartmentId) => ({ evaluatorDepartmentId, evaluateeDepartmentId }))
   );

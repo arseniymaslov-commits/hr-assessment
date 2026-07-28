@@ -2,7 +2,7 @@ import { EmailDeliveryStatus, Role } from "@prisma/client";
 import { departmentOptionLabel } from "@/lib/department-decodings";
 import { emailActionLink } from "@/lib/email";
 import { sendTrackedMail } from "@/lib/email-delivery";
-import { isEvaluatableDepartment } from "@/lib/evaluation-scope";
+import { isMandatoryEvaluateeDepartment } from "@/lib/evaluation-scope";
 import { periodLabel } from "@/lib/format";
 import { createNoInteractionToken } from "@/lib/no-interaction-token";
 import { ensureScheduledAssessmentPeriod } from "@/lib/period-automation";
@@ -100,7 +100,7 @@ async function getRecipientsAndTargets(periodId: string) {
 
   if (!criterion) return [];
 
-  const evaluateeDepartments = departments.filter(isEvaluatableDepartment);
+  const evaluateeDepartments = departments.filter(isMandatoryEvaluateeDepartment);
   const evaluations = await prisma.evaluation.findMany({
     where: {
       periodId,

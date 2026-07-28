@@ -188,15 +188,12 @@ export default function EvaluationForm({
     [evaluateeDepartments, evaluatorDepartmentId, isDirector]
   );
   const requiredEvaluateeIds = useMemo(() => {
-    const ids = new Set(
+    return new Set(
       requirements
         .filter((requirement) => requirement.evaluatorDepartmentId === evaluatorDepartmentId)
         .map((requirement) => requirement.evaluateeDepartmentId)
     );
-    const ocp = evaluateeDepartments.find((department) => department.name === "ОЦП");
-    if (ocp) ids.add(ocp.id);
-    return ids;
-  }, [evaluateeDepartments, evaluatorDepartmentId, requirements]);
+  }, [evaluatorDepartmentId, requirements]);
 
   function rowSignature(departmentId: string, row: RowState, noInteraction = row.noInteraction) {
     return JSON.stringify({

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
-import { isEvaluatableDepartment } from "@/lib/evaluation-scope";
+import { isMandatoryEvaluateeDepartment } from "@/lib/evaluation-scope";
 import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
@@ -15,7 +15,7 @@ export async function POST() {
     where: { isActive: true },
     select: { id: true, name: true }
   });
-  const evaluateeDepartments = departments.filter(isEvaluatableDepartment);
+  const evaluateeDepartments = departments.filter(isMandatoryEvaluateeDepartment);
 
   let updatedCount = 0;
 
@@ -42,12 +42,12 @@ export async function POST() {
 
   await writeAuditLog({
     action: "requirements.defaults",
-    summary: "Применен стандарт: все активные подразделения оценивают все оцениваемые подразделения",
+    summary: "Применен стандарт: обязательная оценка только для ОЦП, УЧР и ПЭО",
     details: `Активировано связок: ${updatedCount}`,
     user
   });
 
   return NextResponse.json({
-    message: `Стандарт обязательных оценок применен. Активировано связок: ${updatedCount}.`
+    message: `Стандарт обязательных оценок применен для ОЦП, УЧР и ПЭО. Активировано связок: ${updatedCount}.`
   });
 }

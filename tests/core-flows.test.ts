@@ -6,7 +6,7 @@ import { validateEvaluationInput } from "../lib/evaluation-validation";
 import { sendMail } from "../lib/email";
 import { hashPassword, verifyPassword } from "../lib/password";
 import { resolveEvaluateeDepartmentId } from "../lib/department-matching";
-import { isEvaluatableDepartmentName } from "../lib/evaluation-scope";
+import { isEvaluatableDepartmentName, isMandatoryEvaluateeDepartmentName } from "../lib/evaluation-scope";
 import { periodLabel } from "../lib/format";
 import { createNoInteractionToken, readNoInteractionToken } from "../lib/no-interaction-token";
 import { getScheduledAssessmentPeriod } from "../lib/period-automation";
@@ -131,6 +131,14 @@ test("new evaluation scope excludes OVA, KRO and SKP from evaluatees", () => {
   assert.equal(isEvaluatableDepartmentName("КРО"), false);
   assert.equal(isEvaluatableDepartmentName("СКП"), false);
   assert.equal(isEvaluatableDepartmentName("Бухгалтерия"), true);
+});
+
+test("mandatory evaluation is limited to OCP, UCHR and PEO", () => {
+  assert.equal(isMandatoryEvaluateeDepartmentName("ОЦП"), true);
+  assert.equal(isMandatoryEvaluateeDepartmentName("УЧР"), true);
+  assert.equal(isMandatoryEvaluateeDepartmentName("ПЭО"), true);
+  assert.equal(isMandatoryEvaluateeDepartmentName("Бухгалтерия"), false);
+  assert.equal(isMandatoryEvaluateeDepartmentName("ОВА"), false);
 });
 
 test("scheduled assessment period keeps prior month open until the next cycle starts", () => {
