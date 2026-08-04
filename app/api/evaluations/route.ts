@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
+import { resolveEvaluateeDepartmentId } from "@/lib/department-matching";
 import { isEvaluatableDepartmentName } from "@/lib/evaluation-scope";
 import { isAutomaticMissingComment } from "@/lib/evaluation-status";
 import { validateEvaluationInput } from "@/lib/evaluation-validation";
@@ -40,10 +41,11 @@ export async function POST(request: Request) {
     : [];
   const normalizedDeviationCategories: string[] = Array.from(new Set(deviationCategories));
   const isDirectorEvaluation = user.role === Role.DIRECTOR;
-  const effectiveEvaluatorDepartmentId =
+  const submittedEvaluatorDepartmentId =
     user.role === Role.LEADER ? user.departmentId || "" : evaluatorDepartmentId;
+  let effectiveEvaluatorDepartmentId = submittedEvaluatorDepartmentId;
 
-  if (!periodId || !evaluateeDepartmentId || !criterionId || (!isDirectorEvaluation && !effectiveEvaluatorDepartmentId)) {
+  if (!periodId || !evaluateeDepartmentId || !criterionId || (!isDirectorEvaluation && !submittedEvaluatorDepartmentId)) {
     return NextResponse.json({ error: "Заполните все обязательные поля" }, { status: 400 });
   }
 
@@ -81,6 +83,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Это подразделение исключено из списка оцениваемых" }, { status: 400 });
   }
 
+  if (!isDirectorEvaluation) {
+    const activeDepartments = await prisma.department.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, shortName: true }
+    });
+    if (user.role === Role.LEADER) {
+      effectiveEvaluatorDepartmentId =
+        resolveEvaluateeDepartmentId(user.department, activeDepartments) || submittedEvaluatorDepartmentId;
+    }
+    if (!activeDepartments.some((department) => department.id === effectiveEvaluatorDepartmentId)) {
+      return NextResponse.json({ error: "Отдел оценивающего не найден среди активных подразделений" }, { status: 403 });
+    }
+    if (effectiveEvaluatorDepartmentId === evaluateeDepartmentId) {
+      return NextResponse.json({ error: "Подразделение не оценивает само себя" }, { status: 400 });
+    }
+  }
+
   const payload = {
     periodId,
     evaluatorDepartmentId: isDirectorEvaluation ? null : effectiveEvaluatorDepartmentId,
@@ -103,13 +122,22 @@ export async function POST(request: Request) {
         }
       : {
           periodId,
-          evaluatorDepartmentId: effectiveEvaluatorDepartmentId,
+          evaluatorDepartmentId: {
+            in: Array.from(new Set([effectiveEvaluatorDepartmentId, submittedEvaluatorDepartmentId].filter(Boolean)))
+          },
           evaluateeDepartmentId
         },
     orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
-    select: { id: true, criterionId: true }
+    select: { id: true, criterionId: true, evaluatorDepartmentId: true }
   });
-  const existing = existingRows.find((row) => row.criterionId === criterionId) || existingRows[0] || null;
+  const existing =
+    existingRows.find(
+      (row) => row.criterionId === criterionId && row.evaluatorDepartmentId === effectiveEvaluatorDepartmentId
+    ) ||
+    existingRows.find((row) => row.evaluatorDepartmentId === effectiveEvaluatorDepartmentId) ||
+    existingRows.find((row) => row.criterionId === criterionId) ||
+    existingRows[0] ||
+    null;
 
   const evaluation = isDirectorEvaluation
     ? existing
@@ -119,8 +147,8 @@ export async function POST(request: Request) {
       ? await prisma.evaluation.update({ where: { id: existing.id }, data: payload })
       : await prisma.evaluation.create({ data: payload });
 
-  const duplicateIds = existingRows.slice(1).map((row) => row.id);
-  if (isDirectorEvaluation && duplicateIds.length) {
+  const duplicateIds = existingRows.filter((row) => row.id !== evaluation.id).map((row) => row.id);
+  if (duplicateIds.length) {
     await prisma.evaluation.deleteMany({ where: { id: { in: duplicateIds } } });
   }
 

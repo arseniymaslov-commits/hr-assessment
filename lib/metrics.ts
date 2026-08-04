@@ -1,6 +1,7 @@
 import { unstable_noStore as noStore } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { departmentOptionLabel } from "@/lib/department-decodings";
+import { resolveEvaluateeDepartmentId } from "@/lib/department-matching";
 import { isMissingEvaluation } from "@/lib/evaluation-status";
 import { isEvaluatableDepartment, isMandatoryEvaluateeDepartment } from "@/lib/evaluation-scope";
 import { ensureScheduledAssessmentPeriod } from "@/lib/period-automation";
@@ -13,6 +14,7 @@ type RequirementPair = {
 type RequirementDepartment = {
   id: string;
   name: string;
+  shortName?: string | null;
 };
 
 type MetricEvaluationKey = {
@@ -21,6 +23,11 @@ type MetricEvaluationKey = {
   evaluateeDepartmentId: string;
   criterionId: string;
   updatedAt: Date;
+};
+
+type EvaluationWithEvaluatorDepartment = {
+  evaluatorDepartmentId?: string | null;
+  evaluatorDepartment?: RequirementDepartment | null;
 };
 
 async function getPeriodSelection(periodId?: string) {
@@ -86,6 +93,28 @@ function pickMetricEvaluations<T extends MetricEvaluationKey>(evaluations: T[], 
   }
 
   return Array.from(byPair.values());
+}
+
+function normalizeEvaluatorDepartments<T extends EvaluationWithEvaluatorDepartment>(
+  evaluations: T[],
+  departments: RequirementDepartment[]
+) {
+  const activeDepartmentById = new Map(departments.map((department) => [department.id, department]));
+
+  return evaluations.map((evaluation) => {
+    if (!evaluation.evaluatorDepartmentId || !evaluation.evaluatorDepartment) return evaluation;
+    if (activeDepartmentById.has(evaluation.evaluatorDepartmentId)) return evaluation;
+
+    const resolvedDepartmentId = resolveEvaluateeDepartmentId(evaluation.evaluatorDepartment, departments);
+    const resolvedDepartment = resolvedDepartmentId ? activeDepartmentById.get(resolvedDepartmentId) : null;
+    if (!resolvedDepartmentId || !resolvedDepartment) return evaluation;
+
+    return {
+      ...evaluation,
+      evaluatorDepartmentId: resolvedDepartmentId,
+      evaluatorDepartment: resolvedDepartment
+    };
+  });
 }
 
 export async function getReferenceData(options: { ensurePeriod?: boolean } = {}) {
@@ -178,7 +207,6 @@ export async function getPeriodMetrics(periodId?: string) {
     };
   }
 
-  const activeDepartmentIds = new Set(departments.map((department) => department.id));
   const evaluateeDepartmentIds = new Set(evaluateeDepartments.map((department) => department.id));
   const previousPeriod = periods.find(
     (period) =>
@@ -259,13 +287,15 @@ export async function getPeriodMetrics(periodId?: string) {
       _avg: { score: true }
     })
   ]);
-  const allEvaluations = pickMetricEvaluations(rawAllEvaluations, criterion.id);
+  const allEvaluations = pickMetricEvaluations(
+    normalizeEvaluatorDepartments(rawAllEvaluations, departments),
+    criterion.id
+  );
   const previousEvaluations = pickMetricEvaluations(rawPreviousEvaluations, criterion.id);
   const evaluations = allEvaluations
     .filter(
       (evaluation) =>
-        (evaluation.evaluatorDepartmentId == null ||
-          activeDepartmentIds.has(evaluation.evaluatorDepartmentId)) &&
+        (evaluation.evaluatorDepartmentId == null || evaluation.evaluatorDepartment) &&
         evaluateeDepartmentIds.has(evaluation.evaluateeDepartmentId)
     )
     .map((evaluation) =>
@@ -460,6 +490,9 @@ export async function getCompletionMetrics(periodId?: string) {
     where: { periodId: selectedPeriod.id },
     select: {
       evaluatorDepartmentId: true,
+      evaluatorDepartment: {
+        select: { id: true, name: true, shortName: true }
+      },
       evaluatorUserId: true,
       evaluateeDepartmentId: true,
       criterionId: true,
@@ -469,7 +502,7 @@ export async function getCompletionMetrics(periodId?: string) {
       updatedAt: true
     }
   });
-  const evaluations = pickMetricEvaluations(rawEvaluations, criterion.id).filter(
+  const evaluations = pickMetricEvaluations(normalizeEvaluatorDepartments(rawEvaluations, departments), criterion.id).filter(
     (evaluation) =>
       evaluation.evaluatorDepartmentId &&
       activeDepartmentIds.has(evaluation.evaluatorDepartmentId) &&
@@ -566,7 +599,7 @@ export async function getMatrixMetrics(periodId?: string) {
     },
     orderBy: { updatedAt: "desc" }
   });
-  const evaluations = pickMetricEvaluations(rawEvaluations, criterion.id)
+  const evaluations = pickMetricEvaluations(normalizeEvaluatorDepartments(rawEvaluations, departments), criterion.id)
     .filter(
       (evaluation) =>
         evaluation.evaluatorDepartmentId &&
@@ -639,7 +672,6 @@ export async function getEvaluationScreenMetrics(periodId?: string) {
     };
   }
 
-  const activeDepartmentIds = new Set(departments.map((department) => department.id));
   const evaluateeDepartmentIds = new Set(evaluateeDepartments.map((department) => department.id));
   const rawEvaluations = await prisma.evaluation.findMany({
     where: { periodId: selectedPeriod.id },
@@ -670,11 +702,10 @@ export async function getEvaluationScreenMetrics(periodId?: string) {
     },
     orderBy: { updatedAt: "desc" }
   });
-  const evaluations = pickMetricEvaluations(rawEvaluations, criterion.id)
+  const evaluations = pickMetricEvaluations(normalizeEvaluatorDepartments(rawEvaluations, departments), criterion.id)
     .filter(
       (evaluation) =>
-        (evaluation.evaluatorDepartmentId == null ||
-          activeDepartmentIds.has(evaluation.evaluatorDepartmentId)) &&
+        (evaluation.evaluatorDepartmentId == null || evaluation.evaluatorDepartment) &&
         evaluateeDepartmentIds.has(evaluation.evaluateeDepartmentId)
     )
     .map((evaluation) =>
