@@ -5,6 +5,7 @@ import PeriodFilter from "@/components/period-filter";
 import { Role } from "@prisma/client";
 import { requireUser } from "@/lib/auth";
 import { departmentOptionLabel } from "@/lib/department-decodings";
+import { getDirectorDepartmentIds } from "@/lib/director-scope";
 import { periodLabel } from "@/lib/format";
 import { getMatrixMetrics } from "@/lib/metrics";
 
@@ -16,11 +17,20 @@ export default async function MatrixPage({
   const user = await requireUser([Role.ADMIN, Role.ANALYST, Role.LEADER, Role.DIRECTOR, Role.VIEWER]);
   const metrics = await getMatrixMetrics(searchParams.period);
   const leaderDepartmentId = user.role === Role.LEADER ? user.departmentId : null;
+  const directorDepartmentIds = getDirectorDepartmentIds(user);
+  const directorDepartmentIdSet = new Set(directorDepartmentIds);
+  const hasDirectorScope = user.role === Role.DIRECTOR && directorDepartmentIds.length > 0;
   const canViewComments =
     user.role === Role.ADMIN || user.role === Role.DIRECTOR || user.role === Role.LEADER;
-  const selectedDepartment = leaderDepartmentId || searchParams.department;
+  const requestedDepartment =
+    hasDirectorScope && searchParams.department && !directorDepartmentIdSet.has(searchParams.department)
+      ? undefined
+      : searchParams.department;
+  const selectedDepartment = leaderDepartmentId || requestedDepartment;
   const columnDepartments = selectedDepartment
     ? metrics.evaluateeDepartments.filter((department) => department.id === selectedDepartment)
+    : hasDirectorScope
+    ? metrics.evaluateeDepartments.filter((department) => directorDepartmentIdSet.has(department.id))
     : metrics.evaluateeDepartments;
   const rowDepartments = metrics.departments;
   const rowDepartmentIds = new Set(rowDepartments.map((department) => department.id));
@@ -81,7 +91,9 @@ export default async function MatrixPage({
     year,
     status
   }));
-  const departmentOptions = metrics.evaluateeDepartments.map(({ id, name, shortName }) => ({ id, name, shortName }));
+  const departmentOptions = metrics.evaluateeDepartments
+    .filter((department) => !hasDirectorScope || directorDepartmentIdSet.has(department.id))
+    .map(({ id, name, shortName }) => ({ id, name, shortName }));
   const rowDepartmentOptions = rowDepartments.map(({ id, name, shortName }) => ({
     id,
     name,

@@ -66,7 +66,14 @@ export async function getCurrentUser() {
 
   return prisma.user.findUnique({
     where: { id: payload.userId },
-    include: { department: true }
+    include: {
+      department: true,
+      directorDepartments: {
+        include: {
+          department: true
+        }
+      }
+    }
   });
 }
 

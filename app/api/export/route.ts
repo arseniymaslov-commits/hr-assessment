@@ -4,6 +4,7 @@ import * as XLSX from "xlsx";
 import { getCurrentUser } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { departmentOptionLabel, getDepartmentFullName } from "@/lib/department-decodings";
+import { getDirectorDepartmentIds } from "@/lib/director-scope";
 import { DEVIATION_CATEGORIES } from "@/lib/evaluation-categories";
 import { MISSING_EVALUATION_LABEL } from "@/lib/evaluation-status";
 import { fixed, periodLabel } from "@/lib/format";
@@ -30,6 +31,9 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const metrics = await getPeriodMetrics(searchParams.get("period") || undefined);
   const leaderDepartmentId = null;
+  const directorDepartmentIds = getDirectorDepartmentIds(user);
+  const directorDepartmentIdSet = new Set(directorDepartmentIds);
+  const hasDirectorScope = user.role === Role.DIRECTOR && directorDepartmentIds.length > 0;
   const canExportComments =
     user.role === Role.ADMIN || user.role === Role.DIRECTOR || user.role === Role.LEADER;
   const periodName = metrics.selectedPeriod ? periodLabel(metrics.selectedPeriod) : "period";
@@ -43,19 +47,35 @@ export async function GET(request: Request) {
   const evaluatorDepartments = metrics.departments;
   const evaluateeDepartments = leaderDepartmentId
     ? metrics.evaluateeDepartments.filter((department) => department.id === leaderDepartmentId)
+    : hasDirectorScope
+      ? metrics.evaluateeDepartments.filter((department) => directorDepartmentIdSet.has(department.id))
     : metrics.evaluateeDepartments;
   const summaryRows = leaderDepartmentId
     ? metrics.byEvaluatee.filter((row) => row.department.id === leaderDepartmentId)
+    : hasDirectorScope
+      ? metrics.byEvaluatee.filter((row) => directorDepartmentIdSet.has(row.department.id))
     : metrics.byEvaluatee;
   const lowScoreRows = leaderDepartmentId
     ? metrics.lowScores.filter((evaluation) => evaluation.evaluateeDepartmentId === leaderDepartmentId)
+    : hasDirectorScope
+      ? metrics.lowScores.filter((evaluation) => directorDepartmentIdSet.has(evaluation.evaluateeDepartmentId))
     : metrics.lowScores;
   const evaluationRows = leaderDepartmentId
     ? metrics.evaluations.filter((evaluation) => evaluation.evaluateeDepartmentId === leaderDepartmentId)
+    : hasDirectorScope
+      ? metrics.evaluations.filter((evaluation) => directorDepartmentIdSet.has(evaluation.evaluateeDepartmentId))
     : metrics.evaluations;
   const completionRows = leaderDepartmentId
     ? metrics.completion.filter((row) => row.department.id === leaderDepartmentId)
+    : hasDirectorScope
+      ? metrics.completion.filter((row) => directorDepartmentIdSet.has(row.department.id))
     : metrics.completion;
+  const directoryDepartments = hasDirectorScope ? evaluateeDepartments : metrics.departments;
+  const exportAverage = average(
+    evaluationRows
+      .filter((evaluation) => !evaluation.noInteraction && evaluation.score != null)
+      .map((evaluation) => evaluation.score as number)
+  );
   const workbook = XLSX.utils.book_new();
 
   appendSheet(
@@ -222,7 +242,7 @@ export async function GET(request: Request) {
 
   appendSheet(
     workbook,
-    metrics.departments.map((department) => ({
+    directoryDepartments.map((department) => ({
       "Код": department.name,
       "Расшифровка": getDepartmentFullName(department.name, department.shortName)
     })),
@@ -234,7 +254,7 @@ export async function GET(request: Request) {
     [
       {
         "Период": periodName,
-        "Общий средний балл": fixed(metrics.companyAverage),
+        "Общий средний балл": fixed(exportAverage),
         "Ожидается оценок": completionRows.reduce((sum, row) => sum + row.expected, 0),
         "Отсутствует оценок": completionRows.reduce((sum, row) => sum + row.missing, 0)
       }
@@ -252,4 +272,8 @@ export async function GET(request: Request) {
       "Content-Disposition": `attachment; filename="interaction_report.xlsx"; filename*=UTF-8''${encodedName}`
     }
   });
+}
+
+function average(scores: number[]) {
+  return scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : null;
 }

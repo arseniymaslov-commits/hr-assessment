@@ -10,6 +10,11 @@ type Department = {
   id: string;
   name: string;
   shortName: string;
+  responsibleName?: string | null;
+  responsibleEmail?: string | null;
+  leaderUserId?: string | null;
+  deputyUserId?: string | null;
+  directorUserIds?: string[];
 };
 
 type Period = {
@@ -61,6 +66,10 @@ const roles = [
   ["VIEWER", "Просмотр"]
 ] as const;
 
+function roleLabel(role: User["role"]) {
+  return roles.find(([value]) => value === role)?.[1] || role;
+}
+
 function toDateTimeLocal(date: Date) {
   const offset = date.getTimezoneOffset();
   const local = new Date(date.getTime() - offset * 60 * 1000);
@@ -82,6 +91,8 @@ export default function AdminPanel({
 }) {
   const [departmentName, setDepartmentName] = useState("");
   const [shortName, setShortName] = useState("");
+  const [responsibleName, setResponsibleName] = useState("");
+  const [responsibleEmail, setResponsibleEmail] = useState("");
   const [criterionName, setCriterionName] = useState("");
   const [criterionDescription, setCriterionDescription] = useState("");
   const [month, setMonth] = useState(new Date().getMonth() + 1);
@@ -126,35 +137,37 @@ export default function AdminPanel({
       {message ? <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm text-slate-700">{message}</div> : null}
 
       <section className="grid gap-6 xl:grid-cols-2">
-        <form
-          className="rounded-lg border border-line bg-white p-5"
-          onSubmit={(event) => {
-            event.preventDefault();
-            request("/api/admin/departments", {
-              method: "POST",
-              body: JSON.stringify({ name: departmentName, shortName })
-            });
-          }}
-        >
+        <section className="rounded-lg border border-line bg-white p-5">
           <h2 className="font-semibold text-ink">Подразделения</h2>
-          <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_140px_auto]">
+          <form
+            className="mt-4 grid gap-3 lg:grid-cols-[1fr_160px_1fr_220px_auto]"
+            onSubmit={(event) => {
+              event.preventDefault();
+              request("/api/admin/departments", {
+                method: "POST",
+                body: JSON.stringify({ name: departmentName, shortName, responsibleName, responsibleEmail })
+              });
+            }}
+          >
             <input className="focus-ring rounded-lg border border-line px-3 py-2" placeholder="Название" value={departmentName} onChange={(event) => setDepartmentName(event.target.value)} />
             <input className="focus-ring rounded-lg border border-line px-3 py-2" placeholder="Кратко" value={shortName} onChange={(event) => setShortName(event.target.value)} />
+            <input className="focus-ring rounded-lg border border-line px-3 py-2" placeholder="Ответственный ФИО" value={responsibleName} onChange={(event) => setResponsibleName(event.target.value)} />
+            <input className="focus-ring rounded-lg border border-line px-3 py-2" placeholder="Email ответственного" type="email" value={responsibleEmail} onChange={(event) => setResponsibleEmail(event.target.value)} />
             <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-brand/30 bg-white px-4 py-2 font-semibold text-brand transition hover:bg-brand/5">
               <Plus size={18} /> Добавить
             </button>
-          </div>
-          <div className="mt-5 divide-y divide-line">
+          </form>
+          <div className="mt-5 space-y-3">
             {departments.map((department) => (
-              <div className="flex items-center justify-between gap-3 py-3" key={department.id}>
-                <DepartmentLabel department={department} />
-                <button className="focus-ring rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-risk transition hover:bg-red-50/60" type="button" onClick={() => request(`/api/admin/departments/${department.id}`, { method: "DELETE" })}>
-                  Удалить
-                </button>
-              </div>
+              <DepartmentEditor
+                department={department}
+                key={department.id}
+                request={request}
+                users={users}
+              />
             ))}
           </div>
-        </form>
+        </section>
 
         <form
           className="rounded-lg border border-line bg-white p-5"
@@ -347,5 +360,181 @@ export default function AdminPanel({
         </div>
       </section>
     </div>
+  );
+}
+
+function DepartmentEditor({
+  department,
+  users,
+  request
+}: {
+  department: Department;
+  users: User[];
+  request: (url: string, options: RequestInit) => Promise<void>;
+}) {
+  const [name, setName] = useState(department.name);
+  const [shortName, setShortName] = useState(department.shortName || "");
+  const [responsibleName, setResponsibleName] = useState(department.responsibleName || "");
+  const [responsibleEmail, setResponsibleEmail] = useState(department.responsibleEmail || "");
+  const [leaderUserId, setLeaderUserId] = useState(department.leaderUserId || "");
+  const [deputyUserId, setDeputyUserId] = useState(department.deputyUserId || "");
+  const [directorUserIds, setDirectorUserIds] = useState<string[]>(department.directorUserIds || []);
+  const activeUsers = users.filter((user) => user.isActive !== false);
+  const leaderCandidates = activeUsers;
+  const directorCandidates = activeUsers;
+
+  function toggleDirector(userId: string) {
+    setDirectorUserIds((current) =>
+      current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId]
+    );
+  }
+
+  return (
+    <details className="rounded-lg border border-line bg-slate-50/60">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+        <div className="min-w-0">
+          <DepartmentLabel department={department} />
+          <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted">
+            {department.responsibleName ? <span>Ответственный: {department.responsibleName}</span> : null}
+            {department.directorUserIds?.length ? <span>Директоров: {department.directorUserIds.length}</span> : null}
+          </div>
+        </div>
+        <span className="shrink-0 rounded-lg border border-line bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
+          Редактировать
+        </span>
+      </summary>
+
+      <div className="grid gap-4 border-t border-line bg-white p-4">
+        <div className="grid gap-3 lg:grid-cols-[1fr_180px]">
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
+            Название отдела
+            <input
+              className="focus-ring rounded-lg border border-line px-3 py-2 font-normal"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+          </label>
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
+            Кратко / расшифровка
+            <input
+              className="focus-ring rounded-lg border border-line px-3 py-2 font-normal"
+              value={shortName}
+              onChange={(event) => setShortName(event.target.value)}
+            />
+          </label>
+        </div>
+
+        <div className="grid gap-3 lg:grid-cols-2">
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
+            Руководитель
+            <select
+              className="focus-ring rounded-lg border border-line px-3 py-2 font-normal"
+              value={leaderUserId}
+              onChange={(event) => setLeaderUserId(event.target.value)}
+            >
+              <option value="">Не назначен</option>
+              {leaderCandidates.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.name} · {user.email} · {roleLabel(user.role)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
+            Заместитель
+            <select
+              className="focus-ring rounded-lg border border-line px-3 py-2 font-normal"
+              value={deputyUserId}
+              onChange={(event) => setDeputyUserId(event.target.value)}
+            >
+              <option value="">Не назначен</option>
+              {leaderCandidates.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.name} · {user.email} · {roleLabel(user.role)}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="grid gap-3 lg:grid-cols-2">
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
+            Ответственное лицо ФИО
+            <input
+              className="focus-ring rounded-lg border border-line px-3 py-2 font-normal"
+              value={responsibleName}
+              onChange={(event) => setResponsibleName(event.target.value)}
+            />
+          </label>
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
+            Email ответственного
+            <input
+              className="focus-ring rounded-lg border border-line px-3 py-2 font-normal"
+              type="email"
+              value={responsibleEmail}
+              onChange={(event) => setResponsibleEmail(event.target.value)}
+            />
+          </label>
+        </div>
+
+        <div>
+          <div className="text-sm font-semibold text-ink">Директора подразделения</div>
+          <div className="mt-2 grid max-h-56 gap-2 overflow-auto rounded-lg border border-line bg-slate-50 p-3 md:grid-cols-2">
+            {directorCandidates.length ? (
+              directorCandidates.map((user) => (
+                <label className="flex items-start gap-2 rounded-lg bg-white p-2 text-sm ring-1 ring-line" key={user.id}>
+                  <input
+                    className="mt-1"
+                    checked={directorUserIds.includes(user.id)}
+                    type="checkbox"
+                    onChange={() => toggleDirector(user.id)}
+                  />
+                  <span>
+                    <span className="block font-semibold text-ink">{user.name}</span>
+                    <span className="block text-xs text-muted">
+                      {user.email} · {roleLabel(user.role)}
+                    </span>
+                  </span>
+                </label>
+              ))
+            ) : (
+              <div className="rounded-lg bg-white px-3 py-2 text-sm text-muted ring-1 ring-line">
+                Активных пользователей пока нет.
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap justify-end gap-2">
+          <button
+            className="focus-ring rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-risk transition hover:bg-red-50/60"
+            type="button"
+            onClick={() => request(`/api/admin/departments/${department.id}`, { method: "DELETE" })}
+          >
+            Удалить
+          </button>
+          <button
+            className="focus-ring rounded-lg border border-brand/30 bg-white px-3 py-2 text-sm font-semibold text-brand transition hover:bg-brand/5"
+            type="button"
+            onClick={() =>
+              request(`/api/admin/departments/${department.id}`, {
+                method: "PATCH",
+                body: JSON.stringify({
+                  name,
+                  shortName,
+                  responsibleName,
+                  responsibleEmail,
+                  leaderUserId,
+                  deputyUserId,
+                  directorUserIds
+                })
+              })
+            }
+          >
+            Сохранить отдел
+          </button>
+        </div>
+      </div>
+    </details>
   );
 }

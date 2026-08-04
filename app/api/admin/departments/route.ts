@@ -13,15 +13,32 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const name = String(body?.name || "").trim();
   const shortName = String(body?.shortName || "").trim();
+  const responsibleName = String(body?.responsibleName || "").trim();
+  const responsibleEmail = String(body?.responsibleEmail || "").trim();
 
   if (!name || !shortName) {
     return NextResponse.json({ error: "Укажите название и краткое имя" }, { status: 400 });
   }
 
+  if (responsibleEmail && !responsibleEmail.includes("@")) {
+    return NextResponse.json({ error: "Укажите корректный email ответственного" }, { status: 400 });
+  }
+
   await prisma.department.upsert({
     where: { name },
-    update: { shortName, isActive: true },
-    create: { name, shortName, isActive: true }
+    update: {
+      shortName,
+      responsibleName: responsibleName || null,
+      responsibleEmail: responsibleEmail || null,
+      isActive: true
+    },
+    create: {
+      name,
+      shortName,
+      responsibleName: responsibleName || null,
+      responsibleEmail: responsibleEmail || null,
+      isActive: true
+    }
   });
 
   await writeAuditLog({

@@ -4,6 +4,7 @@ import AppShell from "@/components/app-shell";
 import DepartmentLabel from "@/components/department-label";
 import PeriodFilter from "@/components/period-filter";
 import { requireUser } from "@/lib/auth";
+import { getDirectorDepartmentIds } from "@/lib/director-scope";
 import { periodLabel } from "@/lib/format";
 import { getCompletionMetrics } from "@/lib/metrics";
 
@@ -15,8 +16,13 @@ export default async function CompletionPage({
   const user = await requireUser([Role.ADMIN, Role.ANALYST, Role.LEADER, Role.DIRECTOR, Role.VIEWER]);
   const metrics = await getCompletionMetrics(searchParams.period);
   const leaderDepartmentId = user.role === Role.LEADER ? user.departmentId : null;
+  const directorDepartmentIds = getDirectorDepartmentIds(user);
+  const directorDepartmentIdSet = new Set(directorDepartmentIds);
+  const hasDirectorScope = user.role === Role.DIRECTOR && directorDepartmentIds.length > 0;
   const completionRows = leaderDepartmentId
     ? metrics.completion.filter((row) => row.department.id === leaderDepartmentId)
+    : hasDirectorScope
+    ? metrics.completion.filter((row) => directorDepartmentIdSet.has(row.department.id))
     : metrics.completion;
   const visibleExpectedCount = completionRows.reduce((sum, row) => sum + row.expected, 0);
   const visibleFilledCount = completionRows.reduce((sum, row) => sum + row.filled, 0);

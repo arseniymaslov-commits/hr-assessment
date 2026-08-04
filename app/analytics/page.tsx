@@ -5,6 +5,7 @@ import ScoreBadge from "@/components/score-badge";
 import { Role } from "@prisma/client";
 import { requireUser } from "@/lib/auth";
 import { departmentOptionLabel } from "@/lib/department-decodings";
+import { getDirectorDepartmentIds } from "@/lib/director-scope";
 import { fixed, periodLabel, scoreClass } from "@/lib/format";
 import { getPeriodMetrics } from "@/lib/metrics";
 
@@ -16,16 +17,38 @@ export default async function AnalyticsPage({ searchParams }: AnalyticsPageProps
   const user = await requireUser([Role.ADMIN, Role.ANALYST, Role.DIRECTOR]);
   const metrics = await getPeriodMetrics(searchParams.period);
   const selectedPeriod = metrics.selectedPeriod;
-  const filledCount = Math.max(0, metrics.expectedCount - metrics.missingCount);
-  const completionPercent = metrics.expectedCount ? Math.round((filledCount / metrics.expectedCount) * 100) : 0;
-  const lowShare = metrics.evaluations.length ? Math.round((metrics.lowScores.length / metrics.evaluations.length) * 100) : 0;
+  const directorDepartmentIds = getDirectorDepartmentIds(user);
+  const directorDepartmentIdSet = new Set(directorDepartmentIds);
+  const hasDirectorScope = user.role === Role.DIRECTOR && directorDepartmentIds.length > 0;
+  const scopedEvaluations = hasDirectorScope
+    ? metrics.evaluations.filter((evaluation) => directorDepartmentIdSet.has(evaluation.evaluateeDepartmentId))
+    : metrics.evaluations;
+  const scopedLowScores = hasDirectorScope
+    ? metrics.lowScores.filter((evaluation) => directorDepartmentIdSet.has(evaluation.evaluateeDepartmentId))
+    : metrics.lowScores;
+  const scopedByEvaluatee = hasDirectorScope
+    ? metrics.byEvaluatee.filter((row) => directorDepartmentIdSet.has(row.department.id))
+    : metrics.byEvaluatee;
+  const scopedCompletion = hasDirectorScope
+    ? metrics.completion.filter((row) => directorDepartmentIdSet.has(row.department.id))
+    : metrics.completion;
+  const scopedExpectedCount = scopedCompletion.reduce((sum, row) => sum + row.expected, 0);
+  const scopedMissingCount = scopedCompletion.reduce((sum, row) => sum + row.missing, 0);
+  const filledCount = Math.max(0, scopedExpectedCount - scopedMissingCount);
+  const completionPercent = scopedExpectedCount ? Math.round((filledCount / scopedExpectedCount) * 100) : 0;
+  const lowShare = scopedEvaluations.length ? Math.round((scopedLowScores.length / scopedEvaluations.length) * 100) : 0;
+  const scopedCompanyAverage = average(
+    scopedEvaluations
+      .filter((evaluation) => !evaluation.noInteraction && evaluation.score != null)
+      .map((evaluation) => evaluation.score as number)
+  );
   const previousPoint = metrics.dynamics.length >= 2 ? metrics.dynamics[metrics.dynamics.length - 2] : null;
   const currentDelta =
-    metrics.companyAverage != null && previousPoint?.average != null ? metrics.companyAverage - previousPoint.average : null;
-  const scoredEvaluations = metrics.evaluations.filter(
+    scopedCompanyAverage != null && previousPoint?.average != null ? scopedCompanyAverage - previousPoint.average : null;
+  const scoredEvaluations = scopedEvaluations.filter(
     (evaluation) => !evaluation.noInteraction && evaluation.score != null
   );
-  const noInteractionCount = metrics.evaluations.filter((evaluation) => evaluation.noInteraction).length;
+  const noInteractionCount = scopedEvaluations.filter((evaluation) => evaluation.noInteraction).length;
   const scoreBuckets = [
     {
       label: "10",
@@ -62,7 +85,7 @@ export default async function AnalyticsPage({ searchParams }: AnalyticsPageProps
   const trendPoints = metrics.dynamics.slice(-6);
 
   const periodOptions = metrics.periods.map(({ id, month, year, status }) => ({ id, month, year, status }));
-  const categoryCounts = metrics.lowScores
+  const categoryCounts = scopedLowScores
     .flatMap((evaluation) => evaluation.deviationCategories)
     .reduce<Record<string, number>>((acc, category) => {
       acc[category] = (acc[category] || 0) + 1;
@@ -71,7 +94,7 @@ export default async function AnalyticsPage({ searchParams }: AnalyticsPageProps
   const categories = Object.entries(categoryCounts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 8);
-  const riskDepartments = metrics.byEvaluatee
+  const riskDepartments = scopedByEvaluatee
     .map((row) => ({
       ...row,
       riskScore: row.lowCount * 3 + row.missingRequiredEvaluatorNames.length * 2 + row.noInteractionCount
@@ -79,17 +102,17 @@ export default async function AnalyticsPage({ searchParams }: AnalyticsPageProps
     .filter((row) => row.riskScore > 0)
     .sort((a, b) => b.riskScore - a.riskScore || (a.average ?? 0) - (b.average ?? 0))
     .slice(0, 10);
-  const missingEvaluators = metrics.completion
+  const missingEvaluators = scopedCompletion
     .filter((row) => row.missing > 0)
     .sort((a, b) => b.missing - a.missing)
     .slice(0, 10);
-  const repeatedLowScores = metrics.lowScores
+  const repeatedLowScores = scopedLowScores
     .filter((evaluation) => {
       const key = `${evaluation.evaluatorDepartmentId || evaluation.evaluatorUserId || "director"}:${evaluation.evaluateeDepartmentId}`;
       return (metrics.lowScoreRepeatCounts as Record<string, number>)[key] > 0;
     })
     .slice(0, 8);
-  const departmentTrends = metrics.byEvaluatee
+  const departmentTrends = scopedByEvaluatee
     .filter((row) => row.average != null && row.averageDelta != null)
     .sort((a, b) => Math.abs(b.averageDelta || 0) - Math.abs(a.averageDelta || 0))
     .slice(0, 8);
@@ -117,18 +140,18 @@ export default async function AnalyticsPage({ searchParams }: AnalyticsPageProps
       </div>
 
       <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <AnalyticsCard label="Средний балл компании" value={fixed(metrics.companyAverage)} hint={deltaLabel(currentDelta)} />
-        <AnalyticsCard label="Заполнение обязательных оценок" value={`${completionPercent}%`} hint={`${filledCount} из ${metrics.expectedCount}`} />
-        <AnalyticsCard label="Оценки 9 и ниже" value={String(metrics.lowScores.length)} hint={`${lowShare}% от заполненных`} />
-        <AnalyticsCard label="Осталось оценок" value={String(metrics.missingCount)} hint="по обязательным связям" />
+        <AnalyticsCard label={hasDirectorScope ? "Средний балл ваших отделов" : "Средний балл компании"} value={fixed(scopedCompanyAverage)} hint={deltaLabel(currentDelta)} />
+        <AnalyticsCard label="Заполнение обязательных оценок" value={`${completionPercent}%`} hint={`${filledCount} из ${scopedExpectedCount}`} />
+        <AnalyticsCard label="Оценки 9 и ниже" value={String(scopedLowScores.length)} hint={`${lowShare}% от заполненных`} />
+        <AnalyticsCard label="Осталось оценок" value={String(scopedMissingCount)} hint="по обязательным связям" />
       </section>
 
       <section className="mt-6 grid gap-5 xl:grid-cols-[0.9fr_1.25fr_1fr]">
         <GaugePanel
-          average={metrics.companyAverage}
+          average={scopedCompanyAverage}
           delta={currentDelta}
           filledCount={filledCount}
-          expectedCount={metrics.expectedCount}
+          expectedCount={scopedExpectedCount}
         />
         <TrendPanel points={trendPoints} />
         <DistributionPanel buckets={scoreBuckets} maxValue={maxScoreBucket} total={scoredEvaluations.length + noInteractionCount} />
@@ -523,4 +546,8 @@ function deltaLabel(value: number | null) {
   if (value == null) return "нет сравнения";
   if (Math.abs(value) < 0.005) return "без изменений";
   return `${value > 0 ? "+" : ""}${value.toFixed(2)} к прошлому периоду`;
+}
+
+function average(scores: number[]) {
+  return scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : null;
 }

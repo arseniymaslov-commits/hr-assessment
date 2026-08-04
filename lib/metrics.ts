@@ -94,7 +94,15 @@ export async function getReferenceData(options: { ensurePeriod?: boolean } = {})
     await ensureScheduledAssessmentPeriod();
   }
   const [departments, periods, criteria, users] = await Promise.all([
-    prisma.department.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
+    prisma.department.findMany({
+      where: { isActive: true },
+      orderBy: { name: "asc" },
+      include: {
+        directorAssignments: {
+          select: { userId: true }
+        }
+      }
+    }),
     prisma.period.findMany({
       orderBy: [{ year: "desc" }, { month: "desc" }],
       include: {
@@ -118,7 +126,12 @@ export async function getReferenceData(options: { ensurePeriod?: boolean } = {})
         mustChangePassword: true,
         isActive: true,
         receivesNotifications: true,
-        department: true
+        department: true,
+        directorDepartments: {
+          include: {
+            department: true
+          }
+        }
       }
     })
   ]);

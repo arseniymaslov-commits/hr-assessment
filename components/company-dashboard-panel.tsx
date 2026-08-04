@@ -112,7 +112,9 @@ export default function CompanyDashboardPanel({
   const [rankingPage, setRankingPage] = useState(1);
   const [commentPage, setCommentPage] = useState(1);
   const isDepartment = mode === "department";
-  const dashboardTitle = isDepartment ? `Дашборд подразделения: ${title || "-"}` : "Общий дашборд компании";
+  const dashboardTitle = isDepartment
+    ? `Дашборд подразделения: ${title || "-"}`
+    : title || "Общий дашборд компании";
   const primaryAverage = isDepartment ? average : companyAverage;
   const completionPercent = expectedCount ? Math.round((filledCount / expectedCount) * 100) : 0;
 

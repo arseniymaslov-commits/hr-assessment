@@ -8,6 +8,7 @@ import ScoreBadge from "@/components/score-badge";
 import { Role } from "@prisma/client";
 import { requireUser } from "@/lib/auth";
 import { departmentOptionLabel } from "@/lib/department-decodings";
+import { getDirectorDepartmentIds } from "@/lib/director-scope";
 import { resolveEvaluateeDepartmentId } from "@/lib/department-matching";
 import { fixed, periodLabel, scoreClass } from "@/lib/format";
 import { getPeriodMetrics } from "@/lib/metrics";
@@ -21,17 +22,35 @@ export default async function DashboardPage({
   const metrics = await getPeriodMetrics(searchParams.period);
   const leaderDepartmentId =
     user.role === Role.LEADER ? resolveEvaluateeDepartmentId(user.department, metrics.evaluateeDepartments) : null;
+  const directorDepartmentIds = getDirectorDepartmentIds(user);
+  const directorDepartmentIdSet = new Set(directorDepartmentIds);
+  const hasDirectorScope = user.role === Role.DIRECTOR && directorDepartmentIds.length > 0;
   const leaderDepartmentUnresolved = user.role === Role.LEADER && !leaderDepartmentId;
   const canViewProblemComments =
     user.role === Role.ADMIN || user.role === Role.DIRECTOR || user.role === Role.LEADER;
   const canExportExcel = user.role === Role.ADMIN || user.role === Role.ANALYST || user.role === Role.DIRECTOR;
-  const selectedDepartment = leaderDepartmentId || (user.role === Role.LEADER ? undefined : searchParams.department);
+  const requestedDepartment =
+    hasDirectorScope && searchParams.department && !directorDepartmentIdSet.has(searchParams.department)
+      ? undefined
+      : searchParams.department;
+  const selectedDepartment = leaderDepartmentId || (user.role === Role.LEADER ? undefined : requestedDepartment);
+  const scopedEvaluateeRows = hasDirectorScope
+    ? metrics.byEvaluatee.filter((row) => directorDepartmentIdSet.has(row.department.id))
+    : metrics.byEvaluatee;
+  const scopedEvaluations = hasDirectorScope
+    ? metrics.evaluations.filter((evaluation) => directorDepartmentIdSet.has(evaluation.evaluateeDepartmentId))
+    : metrics.evaluations;
+  const scopedAverage = average(
+    scopedEvaluations
+      .filter((evaluation) => !evaluation.noInteraction && evaluation.score != null)
+      .map((evaluation) => evaluation.score as number)
+  );
 
   const rows = leaderDepartmentUnresolved
     ? []
     : selectedDepartment
-    ? metrics.byEvaluatee.filter((row) => row.department.id === selectedDepartment)
-    : metrics.byEvaluatee;
+    ? scopedEvaluateeRows.filter((row) => row.department.id === selectedDepartment)
+    : scopedEvaluateeRows;
   const lowScores = leaderDepartmentUnresolved
     ? []
     : leaderDepartmentId
@@ -42,22 +61,28 @@ export default async function DashboardPage({
           evaluation.evaluateeDepartmentId === selectedDepartment ||
           evaluation.evaluatorDepartmentId === selectedDepartment
       )
+    : hasDirectorScope
+    ? metrics.lowScores.filter((evaluation) => directorDepartmentIdSet.has(evaluation.evaluateeDepartmentId))
     : metrics.lowScores;
   const visibleExpectedCount = leaderDepartmentUnresolved
     ? 0
     : selectedDepartment
     ? metrics.requirements.filter((requirement) => requirement.evaluateeDepartmentId === selectedDepartment).length
+    : hasDirectorScope
+    ? metrics.requirements.filter((requirement) => directorDepartmentIdSet.has(requirement.evaluateeDepartmentId)).length
     : metrics.expectedCount;
   const visibleFilledCount = leaderDepartmentUnresolved
     ? 0
     : selectedDepartment
-    ? metrics.evaluations.filter((evaluation) => evaluation.evaluateeDepartmentId === selectedDepartment).length
+    ? scopedEvaluations.filter((evaluation) => evaluation.evaluateeDepartmentId === selectedDepartment).length
+    : hasDirectorScope
+    ? scopedEvaluations.length
     : Math.max(0, metrics.expectedCount - metrics.missingCount);
   const visibleMissingCount = Math.max(0, visibleExpectedCount - visibleFilledCount);
   const slideDepartmentRow = selectedDepartment
-    ? metrics.byEvaluatee.find((row) => row.department.id === selectedDepartment) || null
+    ? scopedEvaluateeRows.find((row) => row.department.id === selectedDepartment) || null
     : null;
-  const rankedDepartments = metrics.byEvaluatee
+  const rankedDepartments = scopedEvaluateeRows
     .slice()
     .sort((a, b) => {
       if (a.average == null && b.average == null) return a.department.name.localeCompare(b.department.name);
@@ -85,7 +110,7 @@ export default async function DashboardPage({
     evaluatorName: evaluation.evaluatorDepartment?.name || evaluation.evaluatorUser?.name || "Директор",
     evaluateeName: evaluation.evaluateeDepartment.name
   }));
-  const companyLowScores = metrics.lowScores.map((evaluation) => ({
+  const companyLowScores = lowScores.map((evaluation) => ({
     id: evaluation.id,
     score: evaluation.score,
     comment: evaluation.comment,
@@ -103,14 +128,16 @@ export default async function DashboardPage({
     noInteractionCount: row.noInteractionCount,
     averageDelta: row.averageDelta
   }));
-  const completionRows = metrics.completion.map((row) => ({
-    id: row.department.id,
-    name: departmentOptionLabel(row.department),
-    filled: row.filled,
-    expected: row.expected,
-    missing: row.missing,
-    isComplete: row.isComplete
-  }));
+  const completionRows = metrics.completion
+    .filter((row) => !hasDirectorScope || directorDepartmentIdSet.has(row.department.id))
+    .map((row) => ({
+      id: row.department.id,
+      name: departmentOptionLabel(row.department),
+      filled: row.filled,
+      expected: row.expected,
+      missing: row.missing,
+      isComplete: row.isComplete
+    }));
   const evaluationKeys = new Set(
     metrics.evaluations
       .filter((evaluation) => evaluation.evaluatorDepartmentId)
@@ -146,7 +173,9 @@ export default async function DashboardPage({
     year,
     status
   }));
-  const departmentOptions = metrics.evaluateeDepartments.map(({ id, name, shortName }) => ({ id, name, shortName }));
+  const departmentOptions = metrics.evaluateeDepartments
+    .filter((department) => !hasDirectorScope || directorDepartmentIdSet.has(department.id))
+    .map(({ id, name, shortName }) => ({ id, name, shortName }));
 
   return (
     <AppShell user={user}>
@@ -172,11 +201,11 @@ export default async function DashboardPage({
       </div>
 
       <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Средний балл компании" value={fixed(metrics.companyAverage)} />
+        <MetricCard label={hasDirectorScope ? "Средний балл ваших отделов" : "Средний балл компании"} value={fixed(scopedAverage)} />
         <MetricCard label={leaderDepartmentId ? "Оценок 9 и ниже по вашему отделу" : "Оценок 9 и ниже"} value={String(lowScores.length)} />
         <MetricCard
           label={leaderDepartmentId ? "Оценили ваш отдел" : "Отсутствующих оценок"}
-          value={leaderDepartmentId ? `${visibleFilledCount} из ${visibleExpectedCount}` : String(metrics.missingCount)}
+          value={leaderDepartmentId ? `${visibleFilledCount} из ${visibleExpectedCount}` : String(visibleMissingCount)}
         />
         <MetricCard
           label="Статус периода"
@@ -205,7 +234,7 @@ export default async function DashboardPage({
             </p>
           </div>
           <span className="rounded-full bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-700 ring-1 ring-amber-100">
-            осталось: {leaderDepartmentId ? visibleMissingCount : metrics.missingCount}
+            осталось: {visibleMissingCount}
           </span>
         </div>
         {missingCompletionRows.length ? (
@@ -231,7 +260,7 @@ export default async function DashboardPage({
           title={slideDepartmentRow.department.name}
           periodLabel={periodLabel(metrics.selectedPeriod)}
           average={slideDepartmentRow.average}
-          companyAverage={metrics.companyAverage}
+          companyAverage={scopedAverage}
           rank={slideRank}
           totalDepartments={rankedDepartments.length}
           lowScores={slideLowScores}
@@ -249,7 +278,7 @@ export default async function DashboardPage({
           title={slideTitle}
           periodLabel={periodLabel(metrics.selectedPeriod)}
           average={slideAverage}
-          companyAverage={metrics.companyAverage}
+          companyAverage={scopedAverage}
           rank={slideRank}
           totalDepartments={rankedDepartments.length}
           lowScores={slideLowScores}
@@ -263,14 +292,15 @@ export default async function DashboardPage({
       {canViewCompanyInteractiveDashboard && metrics.selectedPeriod ? (
         <CompanyDashboardPanel
           mode="company"
+          title={hasDirectorScope ? "Дашборд закрепленных подразделений" : undefined}
           periodLabel={periodLabel(metrics.selectedPeriod)}
-          companyAverage={metrics.companyAverage}
+          companyAverage={scopedAverage}
           lowScores={companyLowScores}
           ranking={slideRanking}
           completion={completionRows}
-          filledCount={Math.max(0, metrics.expectedCount - metrics.missingCount)}
-          missingCount={metrics.missingCount}
-          expectedCount={metrics.expectedCount}
+          filledCount={Math.max(0, visibleExpectedCount - visibleMissingCount)}
+          missingCount={visibleMissingCount}
+          expectedCount={visibleExpectedCount}
         />
       ) : null}
 
@@ -461,4 +491,8 @@ function DeltaBadge({ value }: { value?: number | null }) {
       {neutral ? "0.00" : `${positive ? "+" : ""}${value.toFixed(2)}`}
     </span>
   );
+}
+
+function average(scores: number[]) {
+  return scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : null;
 }

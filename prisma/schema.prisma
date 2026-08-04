@@ -31,9 +31,16 @@ model Department {
   id                         String                  @id @default(cuid())
   name                       String                  @unique
   shortName                  String                  @default("")
+  responsibleName            String?
+  responsibleEmail           String?
+  leaderUserId               String?
+  deputyUserId               String?
   isActive                   Boolean                 @default(true)
   createdAt                  DateTime                @default(now())
   leaders                    User[]
+  leaderUser                 User?                   @relation("DepartmentLeader", fields: [leaderUserId], references: [id], onDelete: SetNull)
+  deputyUser                 User?                   @relation("DepartmentDeputy", fields: [deputyUserId], references: [id], onDelete: SetNull)
+  directorAssignments        DepartmentDirector[]
   givenEvaluations           Evaluation[]            @relation("EvaluatorDepartment")
   receivedEvaluations        Evaluation[]            @relation("EvaluateeDepartment")
   requiredGivenEvaluations   EvaluationRequirement[] @relation("RequiredEvaluatorDepartment")
@@ -57,6 +64,22 @@ model User {
   evaluations   Evaluation[] @relation("EvaluationAuthor")
   directedEvaluations Evaluation[] @relation("EvaluationDirector")
   initiatedRequests EvaluationRequest[] @relation("EvaluationRequestInitiator")
+  leadingDepartments Department[] @relation("DepartmentLeader")
+  deputyDepartments Department[] @relation("DepartmentDeputy")
+  directorDepartments DepartmentDirector[]
+}
+
+model DepartmentDirector {
+  id           String     @id @default(cuid())
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([departmentId, userId])
+  @@index([departmentId])
+  @@index([userId])
 }
 
 model Period {

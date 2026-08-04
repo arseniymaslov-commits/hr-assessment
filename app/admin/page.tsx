@@ -33,7 +33,19 @@ export default async function AdminPage({
         })
       : Promise.resolve([])
   ]);
-  const departmentOptions = referenceData?.departments.map(({ id, name, shortName }) => ({ id, name, shortName })) || [];
+  const departmentOptions =
+    referenceData?.departments.map(
+      ({ id, name, shortName, responsibleName, responsibleEmail, leaderUserId, deputyUserId, directorAssignments }) => ({
+        id,
+        name,
+        shortName,
+        responsibleName,
+        responsibleEmail,
+        leaderUserId,
+        deputyUserId,
+        directorUserIds: directorAssignments.map((assignment) => assignment.userId)
+      })
+    ) || [];
   const evaluateeDepartmentOptions =
     referenceData?.evaluateeDepartments.map(({ id, name, shortName }) => ({ id, name, shortName })) || [];
   const periodOptions = referenceData?.periods.map(({ id, month, year, status }) => ({
