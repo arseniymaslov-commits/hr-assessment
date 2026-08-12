@@ -6,6 +6,7 @@ import DepartmentLabel from "@/components/department-label";
 import { getDepartmentDisplayParts } from "@/lib/department-decodings";
 import { isMissingEvaluation, MISSING_EVALUATION_LABEL } from "@/lib/evaluation-status";
 import { fixed, scoreClass } from "@/lib/format";
+import { MIN_RANKING_EVALUATIONS } from "@/lib/ranking";
 
 type Department = {
   id: string;
@@ -139,6 +140,7 @@ export default function MatrixClient({
         <div className="grid gap-3 md:grid-cols-3">
           {summaries
             .slice()
+            .filter((summary) => summary.average != null && summary.count >= MIN_RANKING_EVALUATIONS)
             .sort((a, b) => (b.average ?? -1) - (a.average ?? -1))
                 .slice(0, 3)
                 .map((summary, index) => {
@@ -156,6 +158,11 @@ export default function MatrixClient({
                 </div>
               );
             })}
+          {!summaries.some((summary) => summary.average != null && summary.count >= MIN_RANKING_EVALUATIONS) ? (
+            <div className="rounded-lg border border-line bg-white p-4 text-sm text-muted shadow-sm md:col-span-3">
+              Для рейтинга нужно минимум {MIN_RANKING_EVALUATIONS} оценки по подразделению.
+            </div>
+          ) : null}
         </div>
 
         <div className="rounded-lg border border-line bg-white shadow-sm">

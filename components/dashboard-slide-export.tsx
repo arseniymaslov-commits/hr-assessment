@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Download } from "lucide-react";
 import { toPng } from "html-to-image";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { MIN_RANKING_EVALUATIONS } from "@/lib/ranking";
 
 type LowScore = {
   id: string;
@@ -17,6 +18,7 @@ type RankingItem = {
   id: string;
   name: string;
   average: number | null;
+  count: number;
   lowCount: number;
   noInteractionCount: number;
 };
@@ -310,12 +312,13 @@ function SummarySlide({
           </div>
           <div className="mt-5 grid grid-cols-2 gap-2.5">
             <MetricTile label={mode === "company" ? "Оцениваемых отделов" : "Средний балл компании"} value={mode === "company" ? String(totalDepartments) : fixed(companyAverage)} />
-            <MetricTile label={mode === "company" ? "Заполнение" : "Место в рейтинге"} value={mode === "company" ? `${completionPercent}%` : rank ? `${rank}/${totalDepartments}` : "-"} />
+            <MetricTile label={mode === "company" ? "Заполнение" : "Место в рейтинге"} value={mode === "company" ? `${completionPercent}%` : rank ? `${rank}/${totalDepartments}` : "нет места"} />
             <MetricTile label="Оценок 9 и ниже" value={String(lowScoresCount)} />
             <MetricTile label="Осталось оценок" value={String(missingCount)} />
           </div>
           <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-[13px] leading-5 text-slate-600">
             Ожидается оценок: {expectedCount}. Заполнено: {filledCount}. Осталось: {missingCount}.
+            {mode === "department" && !rank ? ` Для рейтинга нужно минимум ${MIN_RANKING_EVALUATIONS} оценки.` : ""}
           </div>
         </section>
 

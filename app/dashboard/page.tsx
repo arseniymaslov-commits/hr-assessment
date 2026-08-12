@@ -12,6 +12,7 @@ import { getDirectorDepartmentIds } from "@/lib/director-scope";
 import { resolveEvaluateeDepartmentId } from "@/lib/department-matching";
 import { fixed, periodLabel, scoreClass } from "@/lib/format";
 import { getPeriodMetrics } from "@/lib/metrics";
+import { MIN_RANKING_EVALUATIONS, isRankingEligible, sortRankingCandidates } from "@/lib/ranking";
 
 export default async function DashboardPage({
   searchParams
@@ -82,14 +83,11 @@ export default async function DashboardPage({
   const slideDepartmentRow = selectedDepartment
     ? scopedEvaluateeRows.find((row) => row.department.id === selectedDepartment) || null
     : null;
-  const rankedDepartments = scopedEvaluateeRows
-    .slice()
-    .sort((a, b) => {
-      if (a.average == null && b.average == null) return a.department.name.localeCompare(b.department.name);
-      if (a.average == null) return 1;
-      if (b.average == null) return -1;
-      return b.average - a.average;
-    });
+  const rankingRows = scopedEvaluateeRows.map((row) => ({ ...row, name: row.department.name }));
+  const rankedDepartments = rankingRows.filter(isRankingEligible).sort(sortRankingCandidates);
+  const insufficientRankingDepartments = rankingRows
+    .filter((row) => !isRankingEligible(row))
+    .sort((a, b) => b.count - a.count || a.department.name.localeCompare(b.department.name, "ru"));
   const slideRank = slideDepartmentRow
     ? rankedDepartments.findIndex((row) => row.department.id === slideDepartmentRow.department.id) + 1
     : null;
@@ -124,6 +122,16 @@ export default async function DashboardPage({
     id: row.department.id,
     name: row.department.name,
     average: row.average,
+    count: row.count,
+    lowCount: row.lowCount,
+    noInteractionCount: row.noInteractionCount,
+    averageDelta: row.averageDelta
+  }));
+  const insufficientSlideRanking = insufficientRankingDepartments.map((row) => ({
+    id: row.department.id,
+    name: row.department.name,
+    average: row.average,
+    count: row.count,
     lowCount: row.lowCount,
     noInteractionCount: row.noInteractionCount,
     averageDelta: row.averageDelta
@@ -265,6 +273,7 @@ export default async function DashboardPage({
           totalDepartments={rankedDepartments.length}
           lowScores={slideLowScores}
           ranking={slideRanking}
+          insufficientData={insufficientSlideRanking}
           completion={departmentCompletionRows}
           filledCount={slideFilledCount}
           missingCount={visibleMissingCount}
@@ -297,6 +306,7 @@ export default async function DashboardPage({
           companyAverage={scopedAverage}
           lowScores={companyLowScores}
           ranking={slideRanking}
+          insufficientData={insufficientSlideRanking}
           completion={completionRows}
           filledCount={Math.max(0, visibleExpectedCount - visibleMissingCount)}
           missingCount={visibleMissingCount}
@@ -336,6 +346,13 @@ export default async function DashboardPage({
                     <td className="px-5 py-4">
                       <ScoreBadge score={row.average} />
                       <DeltaBadge value={row.averageDelta} />
+                      {!isRankingEligible({ average: row.average, count: row.count }) ? (
+                        <div className="mt-2">
+                          <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+                            вне рейтинга: оценок {row.count}/{MIN_RANKING_EVALUATIONS}
+                          </span>
+                        </div>
+                      ) : null}
                       {row.missingRequiredEvaluatorNames.length ? (
                         <div className="mt-2">
                           <span
@@ -363,8 +380,9 @@ export default async function DashboardPage({
           </div>
           <div className="divide-y divide-line">
             {rows
-              .slice()
-              .sort((a, b) => (b.average || 0) - (a.average || 0))
+              .map((row) => ({ ...row, name: row.department.name }))
+              .filter(isRankingEligible)
+              .sort(sortRankingCandidates)
               .map((row, index) => (
                 <div className="flex items-center justify-between gap-4 px-5 py-3" key={row.department.id}>
                   <div className="flex min-w-0 items-center gap-3">
@@ -380,8 +398,30 @@ export default async function DashboardPage({
                   <ScoreBadge score={row.average} />
                   <DeltaBadge value={row.averageDelta} />
                 </div>
-              ))}
+            ))}
           </div>
+          {insufficientRankingDepartments.length ? (
+            <div className="border-t border-line bg-slate-50 px-5 py-4">
+              <div className="text-sm font-semibold text-ink">Недостаточно данных</div>
+              <div className="mt-1 text-xs text-muted">
+                В рейтинг попадают отделы с минимум {MIN_RANKING_EVALUATIONS} оценками.
+              </div>
+              <div className="mt-3 space-y-2">
+                {insufficientRankingDepartments.slice(0, 8).map((row) => (
+                  <div className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-sm ring-1 ring-line" key={row.department.id}>
+                    <DepartmentLabel
+                      department={row.department}
+                      className="truncate font-medium text-ink"
+                      mutedClassName="mt-0 truncate text-xs text-muted"
+                    />
+                    <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                      оценок {row.count}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       </section>
 

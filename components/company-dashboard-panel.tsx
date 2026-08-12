@@ -4,6 +4,7 @@ import { BarChart3, CheckCircle2, ChevronLeft, ChevronRight, ListChecks, Message
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
+import { MIN_RANKING_EVALUATIONS, isRankingEligible, sortRankingCandidates } from "@/lib/ranking";
 
 type LowScore = {
   id: string;
@@ -17,6 +18,7 @@ type RankingItem = {
   id: string;
   name: string;
   average: number | null;
+  count: number;
   lowCount: number;
   noInteractionCount: number;
   averageDelta?: number | null;
@@ -41,6 +43,7 @@ type DashboardPanelProps = {
   totalDepartments?: number;
   lowScores: LowScore[];
   ranking: RankingItem[];
+  insufficientData?: RankingItem[];
   completion: CompletionItem[];
   filledCount: number;
   missingCount: number;
@@ -103,6 +106,7 @@ export default function CompanyDashboardPanel({
   totalDepartments = 0,
   lowScores,
   ranking,
+  insufficientData = [],
   completion,
   filledCount,
   missingCount,
@@ -120,13 +124,15 @@ export default function CompanyDashboardPanel({
 
   const rankedRows = useMemo(
     () =>
-      ranking.slice().sort((a, b) => {
-        if (a.average == null && b.average == null) return a.name.localeCompare(b.name);
-        if (a.average == null) return 1;
-        if (b.average == null) return -1;
-        return b.average - a.average;
-      }),
+      ranking.filter(isRankingEligible).slice().sort(sortRankingCandidates),
     [ranking]
+  );
+  const insufficientRows = useMemo(
+    () =>
+      insufficientData.length
+        ? insufficientData.slice().sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "ru"))
+        : ranking.filter((row) => !isRankingEligible(row)).slice().sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "ru")),
+    [insufficientData, ranking]
   );
   const problemRows = useMemo(
     () =>
@@ -200,8 +206,8 @@ export default function CompanyDashboardPanel({
               />
               <OverviewCard
                 label={isDepartment ? "Место в рейтинге" : "Заполнение"}
-                value={isDepartment ? (rank ? `${rank}/${totalDepartments}` : "-") : `${completionPercent}%`}
-                hint={isDepartment ? "среди оцениваемых отделов" : `${filledCount} из ${expectedCount}`}
+                value={isDepartment ? (rank ? `${rank}/${totalDepartments}` : "не участвует") : `${completionPercent}%`}
+                hint={isDepartment ? `минимум ${MIN_RANKING_EVALUATIONS} оценки для рейтинга` : `${filledCount} из ${expectedCount}`}
               />
               <OverviewCard label="Оценки 9 и ниже" value={String(lowScores.length)} hint="с комментариями" />
               <OverviewCard label="Осталось оценок" value={String(missingCount)} hint="по обязательным связям" />
@@ -227,6 +233,9 @@ export default function CompanyDashboardPanel({
                       <DepartmentName name={row.name} strong={false} />
                       <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${scoreTone(row.average)}`}>
                         {fixed(row.average)}
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                        {row.count} оц.
                       </span>
                     </>
                   );
@@ -315,10 +324,36 @@ export default function CompanyDashboardPanel({
                       </tr>
                     );
                   })}
+                  {!pagedRanking.length ? (
+                    <tr>
+                      <td className="px-4 py-8 text-center text-sm text-muted" colSpan={6}>
+                        Пока нет подразделений с минимум {MIN_RANKING_EVALUATIONS} оценками для рейтинга.
+                      </td>
+                    </tr>
+                  ) : null}
                 </tbody>
               </table>
             </div>
             <Pager page={rankingPage} pages={rankingPages} onPageChange={setRankingPage} />
+            {insufficientRows.length ? (
+              <div className="mt-4 rounded-lg border border-line bg-slate-50 p-4">
+                <div className="font-semibold text-ink">Недостаточно данных для рейтинга</div>
+                <div className="mt-1 text-sm text-muted">
+                  Эти подразделения отображаются в сводке, но место не рассчитывается до {MIN_RANKING_EVALUATIONS} оценок.
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  {insufficientRows.map((row) => (
+                    <div className="rounded-lg bg-white px-3 py-2 text-sm ring-1 ring-line" key={row.id}>
+                      <DepartmentName name={row.name} />
+                      <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted">
+                        <span>оценок: {row.count}</span>
+                        <span>средний: {fixed(row.average)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : null}
 

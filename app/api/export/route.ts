@@ -9,6 +9,7 @@ import { DEVIATION_CATEGORIES } from "@/lib/evaluation-categories";
 import { MISSING_EVALUATION_LABEL } from "@/lib/evaluation-status";
 import { fixed, periodLabel } from "@/lib/format";
 import { getPeriodMetrics } from "@/lib/metrics";
+import { MIN_RANKING_EVALUATIONS, isRankingEligible } from "@/lib/ranking";
 
 function appendSheet(workbook: XLSX.WorkBook, data: Record<string, unknown>[], name: string) {
   const sheet = XLSX.utils.json_to_sheet(data);
@@ -86,6 +87,9 @@ export async function GET(request: Request) {
       "Расшифровка": getDepartmentFullName(row.department.name, row.department.shortName),
       "Средний балл": row.average == null ? "" : Number(row.average.toFixed(2)),
       "Количество оценок": row.count,
+      "Статус рейтинга": isRankingEligible({ average: row.average, count: row.count })
+        ? "Участвует"
+        : `Недостаточно данных: нужно ${MIN_RANKING_EVALUATIONS} оценки`,
       "Нет взаимодействия": row.noInteractionCount,
       "Оценок 9 и ниже": row.lowCount,
       "Изменение к прошлому месяцу": row.averageDelta == null ? "" : Number(row.averageDelta.toFixed(2))
