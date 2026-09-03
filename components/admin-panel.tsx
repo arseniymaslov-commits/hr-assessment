@@ -140,7 +140,7 @@ export default function AdminPanel({
         <section className="rounded-lg border border-line bg-white p-5">
           <h2 className="font-semibold text-ink">Подразделения</h2>
           <form
-            className="mt-4 grid gap-3 lg:grid-cols-[1fr_160px_1fr_220px_auto]"
+            className="mt-4 grid gap-3"
             onSubmit={(event) => {
               event.preventDefault();
               request("/api/admin/departments", {
@@ -149,11 +149,27 @@ export default function AdminPanel({
               });
             }}
           >
-            <input className="focus-ring rounded-lg border border-line px-3 py-2" placeholder="Название" value={departmentName} onChange={(event) => setDepartmentName(event.target.value)} />
-            <input className="focus-ring rounded-lg border border-line px-3 py-2" placeholder="Кратко" value={shortName} onChange={(event) => setShortName(event.target.value)} />
-            <input className="focus-ring rounded-lg border border-line px-3 py-2" placeholder="Ответственный ФИО" value={responsibleName} onChange={(event) => setResponsibleName(event.target.value)} />
-            <input className="focus-ring rounded-lg border border-line px-3 py-2" placeholder="Email ответственного" type="email" value={responsibleEmail} onChange={(event) => setResponsibleEmail(event.target.value)} />
-            <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-brand/30 bg-white px-4 py-2 font-semibold text-brand transition hover:bg-brand/5">
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_160px]">
+              <label className="grid min-w-0 gap-1 text-xs font-semibold uppercase text-muted">
+                Название подразделения
+                <input className="focus-ring min-w-0 rounded-lg border border-line px-3 py-2 text-sm font-normal normal-case text-ink" placeholder="Например: Бухгалтерия" value={departmentName} onChange={(event) => setDepartmentName(event.target.value)} />
+              </label>
+              <label className="grid min-w-0 gap-1 text-xs font-semibold uppercase text-muted">
+                Кратко
+                <input className="focus-ring min-w-0 rounded-lg border border-line px-3 py-2 text-sm font-normal normal-case text-ink" placeholder="САУП" value={shortName} onChange={(event) => setShortName(event.target.value)} />
+              </label>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="grid min-w-0 gap-1 text-xs font-semibold uppercase text-muted">
+                Ответственное лицо
+                <input className="focus-ring min-w-0 rounded-lg border border-line px-3 py-2 text-sm font-normal normal-case text-ink" placeholder="ФИО" value={responsibleName} onChange={(event) => setResponsibleName(event.target.value)} />
+              </label>
+              <label className="grid min-w-0 gap-1 text-xs font-semibold uppercase text-muted">
+                Email ответственного
+                <input className="focus-ring min-w-0 rounded-lg border border-line px-3 py-2 text-sm font-normal normal-case text-ink" placeholder="name@company.kg" type="email" value={responsibleEmail} onChange={(event) => setResponsibleEmail(event.target.value)} />
+              </label>
+            </div>
+            <button className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-lg border border-brand/30 bg-white px-4 py-2 font-semibold text-brand transition hover:bg-brand/5 sm:w-auto sm:justify-self-end">
               <Plus size={18} /> Добавить
             </button>
           </form>
