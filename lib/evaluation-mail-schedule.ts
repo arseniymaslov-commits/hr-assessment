@@ -1,8 +1,10 @@
 import { EmailDeliveryStatus, Role } from "@prisma/client";
 import { departmentOptionLabel } from "@/lib/department-decodings";
+import { resolveEvaluateeDepartmentId } from "@/lib/department-matching";
 import { emailActionLink } from "@/lib/email";
 import { sendTrackedMail } from "@/lib/email-delivery";
-import { isMandatoryEvaluateeDepartment } from "@/lib/evaluation-scope";
+import { isEvaluatableDepartment } from "@/lib/evaluation-scope";
+import { isMissingEvaluation } from "@/lib/evaluation-status";
 import { periodLabel } from "@/lib/format";
 import { createNoInteractionToken } from "@/lib/no-interaction-token";
 import { ensureScheduledAssessmentPeriod } from "@/lib/period-automation";
@@ -81,7 +83,7 @@ async function activeAdminEmails() {
   return admins.map((admin) => admin.email);
 }
 
-async function getRecipientsAndTargets(periodId: string) {
+export async function getEvaluationMailRecipients(periodId: string) {
   const [departments, leaders, criterion] = await Promise.all([
     prisma.department.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
     prisma.user.findMany({
@@ -100,34 +102,44 @@ async function getRecipientsAndTargets(periodId: string) {
 
   if (!criterion) return [];
 
-  const evaluateeDepartments = departments.filter(isMandatoryEvaluateeDepartment);
+  const evaluateeDepartments = departments.filter(isEvaluatableDepartment);
+  const recipients = leaders
+    .filter((leader) => leader.departmentId && leader.department?.isActive)
+    .map((leader) => ({
+      leader,
+      evaluatorDepartmentId: resolveEvaluateeDepartmentId(leader.department, departments) || leader.departmentId!
+    }));
+  const evaluatorIds = Array.from(new Set(recipients.flatMap(({ leader, evaluatorDepartmentId }) =>
+    [leader.departmentId!, evaluatorDepartmentId]
+  )));
   const evaluations = await prisma.evaluation.findMany({
     where: {
       periodId,
       criterionId: criterion.id,
-      evaluatorDepartmentId: { in: leaders.map((leader) => leader.departmentId).filter(Boolean) as string[] }
+      evaluatorDepartmentId: { in: evaluatorIds }
     },
     select: {
       evaluatorDepartmentId: true,
       evaluateeDepartmentId: true,
       score: true,
-      noInteraction: true
+      noInteraction: true,
+      comment: true
     }
   });
   const filledKeys = new Set(
     evaluations
-      .filter((evaluation) => evaluation.evaluatorDepartmentId && (evaluation.noInteraction || evaluation.score != null))
+      .filter((evaluation) => evaluation.evaluatorDepartmentId && !isMissingEvaluation(evaluation))
       .map((evaluation) => `${evaluation.evaluatorDepartmentId}:${evaluation.evaluateeDepartmentId}`)
   );
 
-  return leaders
-    .filter((leader) => leader.departmentId && leader.department)
-    .map((leader) => {
-      const targets = evaluateeDepartments.filter((department) => department.id !== leader.departmentId);
+  return recipients
+    .map(({ leader, evaluatorDepartmentId }) => {
+      const targets = evaluateeDepartments.filter((department) => department.id !== evaluatorDepartmentId);
       const missingTargets = targets.filter(
-        (department) => !filledKeys.has(`${leader.departmentId}:${department.id}`)
+        (department) => !filledKeys.has(`${evaluatorDepartmentId}:${department.id}`) &&
+          !filledKeys.has(`${leader.departmentId}:${department.id}`)
       );
-      return { leader, targets, missingTargets, criterion };
+      return { leader, evaluatorDepartmentId, targets, missingTargets, criterion };
     });
 }
 
@@ -137,7 +149,7 @@ async function alreadyQueued(context: string, periodId: string, to: string) {
       context,
       periodId,
       to,
-      status: { in: [EmailDeliveryStatus.PENDING, EmailDeliveryStatus.SENT, EmailDeliveryStatus.FAILED] }
+      status: { in: [EmailDeliveryStatus.PENDING, EmailDeliveryStatus.SENT] }
     }
   });
   return count > 0;
@@ -168,24 +180,24 @@ export async function sendMonthlyEvaluationStart(date = new Date()) {
   if (period.status !== "OPEN") return { monthlyStartRecipients: 0 };
 
   const context = `monthly_start:${parts.dateKey}`;
-  const recipients = await getRecipientsAndTargets(period.id);
+  const recipients = await getEvaluationMailRecipients(period.id);
   const deadline = deadlineLabel(parts);
   const evaluationUrl = `${getAppUrl()}/evaluations`;
   const expiresAt = noInteractionExpiresAt(parts);
   let sent = 0;
   let adminNotices = 0;
 
-  for (const { leader, targets } of recipients) {
-    if (!leader.departmentId || !targets.length || (await alreadyQueued(context, period.id, leader.email))) continue;
-    const noInteractionLink = noInteractionUrl(period.id, leader.departmentId, leader.id, expiresAt);
-    const targetsText = targets.map((department) => departmentOptionLabel(department)).join(", ");
+  for (const { leader, evaluatorDepartmentId, missingTargets } of recipients) {
+    if (!missingTargets.length || (await alreadyQueued(context, period.id, leader.email))) continue;
+    const noInteractionLink = noInteractionUrl(period.id, evaluatorDepartmentId, leader.id, expiresAt);
+    const targetsText = missingTargets.map((department) => departmentOptionLabel(department)).join(", ");
     const subject = `Оценка взаимодействия за ${assessmentPeriodName(period)}`;
     const text = [
       "Уважаемые руководители,",
       `просим оценить ваше взаимодействие с отделами за ${assessmentPeriodName(period)}.`,
       `Дедлайн - ${deadline}. После 5 числа оценка считается просроченной, но доступ остается открытым до 19 числа.`,
       "",
-      `Доступные отделы: ${targetsText}.`,
+      `Еще не оценены отделы: ${targetsText}.`,
       "",
       `Оценить: ${evaluationUrl}`,
       `Если взаимодействия за период не было: ${noInteractionLink}`
@@ -194,7 +206,7 @@ export async function sendMonthlyEvaluationStart(date = new Date()) {
       "<p>Уважаемые руководители,</p>",
       `<p>Просим оценить ваше взаимодействие с отделами за <b>${assessmentPeriodName(period)}</b>.</p>`,
       `<p>Дедлайн - <b>${deadline}</b>. После 5 числа оценка считается просроченной, но доступ остается открытым до 19 числа.</p>`,
-      `<p style="color:#475569">Доступные отделы: ${targetsText}</p>`,
+      `<p style="color:#475569">Еще не оценены отделы: ${targetsText}</p>`,
       emailActionLink(evaluationUrl, "Оценить"),
       secondaryActionLink(noInteractionLink, "Не было взаимодействия за период")
     ].join("");
@@ -238,27 +250,33 @@ export async function sendMonthlyEvaluationStart(date = new Date()) {
 
 export async function sendMissingEvaluationReminders(date = new Date()) {
   const parts = dateParts(date);
-  const isReminderDay = parts.day >= 6 && parts.day < 20 && (parts.day - 6) % 7 === 0;
+  const isReminderDay = parts.day === 4 || parts.day === 6;
   if (!isReminderDay) return { reminderRecipients: 0, reminderDepartments: 0 };
 
   const period = await ensureScheduledAssessmentPeriod(date);
+  if (period.status !== "OPEN") return { reminderRecipients: 0, reminderDepartments: 0 };
   const context = `missing_reminder:${parts.dateKey}`;
-  const recipients = await getRecipientsAndTargets(period.id);
+  const recipients = await getEvaluationMailRecipients(period.id);
+  const deadline = deadlineLabel(parts);
+  const isOverdue = parts.day > 5;
+  const deadlineText = isOverdue
+    ? "Срок оценки до 5 числа уже прошел. Доступ для внесения оценки остается открытым до 19 числа."
+    : `Просим завершить оценку до ${deadline}. Доступ для внесения оценки остается открытым до 19 числа.`;
   const evaluationUrl = `${getAppUrl()}/evaluations`;
   const expiresAt = noInteractionExpiresAt(parts);
   let sent = 0;
   let missingDepartments = 0;
 
-  for (const { leader, missingTargets } of recipients) {
-    if (!leader.departmentId || !missingTargets.length || (await alreadyQueued(context, period.id, leader.email))) continue;
-    const noInteractionLink = noInteractionUrl(period.id, leader.departmentId, leader.id, expiresAt);
+  for (const { leader, evaluatorDepartmentId, missingTargets } of recipients) {
+    if (!missingTargets.length || (await alreadyQueued(context, period.id, leader.email))) continue;
+    const noInteractionLink = noInteractionUrl(period.id, evaluatorDepartmentId, leader.id, expiresAt);
     const missingText = missingTargets.map((department) => departmentOptionLabel(department)).join(", ");
     missingDepartments += missingTargets.length;
 
-    const subject = `Просрочено: остались неоцененные отделы за ${assessmentPeriodName(period)}`;
+    const subject = `${isOverdue ? "Просрочено" : "Напоминание"}: остались неоцененные отделы за ${assessmentPeriodName(period)}`;
     const text = [
       `Уважаемый(ая) ${leader.name},`,
-      "срок оценки до 5 числа уже прошел, но доступ для внесения оценки остается открытым до 19 числа.",
+      deadlineText,
       `по периоду ${periodLabel(period)} остались неоцененные отделы:`,
       missingText,
       "",
@@ -267,7 +285,7 @@ export async function sendMissingEvaluationReminders(date = new Date()) {
     ].join("\n");
     const html = [
       `<p>Уважаемый(ая) ${leader.name},</p>`,
-      "<p><b>Срок оценки до 5 числа уже прошел.</b> Доступ для внесения оценки остается открытым до 19 числа.</p>",
+      `<p>${deadlineText}</p>`,
       `<p>По периоду <b>${periodLabel(period)}</b> остались неоцененные отделы:</p>`,
       `<p style="color:#475569">${missingText}</p>`,
       emailActionLink(evaluationUrl, "Оценить"),

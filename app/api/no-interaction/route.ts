@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { writeAuditLog } from "@/lib/audit";
 import { departmentOptionLabel } from "@/lib/department-decodings";
-import { isMandatoryEvaluateeDepartment } from "@/lib/evaluation-scope";
+import { resolveEvaluateeDepartmentId } from "@/lib/department-matching";
+import { isEvaluatableDepartment } from "@/lib/evaluation-scope";
+import { isMissingEvaluation } from "@/lib/evaluation-status";
 import { getOverallCriterion } from "@/lib/evaluation-mail-schedule";
 import { readNoInteractionToken } from "@/lib/no-interaction-token";
 import { prisma } from "@/lib/prisma";
@@ -79,7 +81,9 @@ export async function GET(request: Request) {
     !user.isActive ||
     user.role !== Role.LEADER ||
     !user.departmentId ||
-    user.departmentId !== payload.evaluatorDepartmentId
+    !evaluatorDepartment.isActive ||
+    (user.departmentId !== payload.evaluatorDepartmentId &&
+      resolveEvaluateeDepartmentId(user.department, departments) !== payload.evaluatorDepartmentId)
   ) {
     return htmlPage(
       "Недостаточно прав",
@@ -88,36 +92,43 @@ export async function GET(request: Request) {
     );
   }
 
+  if (period.status !== "OPEN") {
+    return htmlPage("Период закрыт", "<p>Оценка за этот период уже завершена.</p>", 400);
+  }
+
   const evaluateeDepartments = departments
-    .filter(isMandatoryEvaluateeDepartment)
+    .filter(isEvaluatableDepartment)
     .filter((department) => department.id !== payload.evaluatorDepartmentId);
 
   const existingEvaluations = await prisma.evaluation.findMany({
     where: {
       periodId: payload.periodId,
       criterionId: criterion.id,
-      evaluatorDepartmentId: payload.evaluatorDepartmentId,
+      evaluatorDepartmentId: { in: Array.from(new Set([payload.evaluatorDepartmentId, user.departmentId])) },
       evaluateeDepartmentId: { in: evaluateeDepartments.map((department) => department.id) }
     },
     select: {
       id: true,
       evaluateeDepartmentId: true,
       score: true,
-      noInteraction: true
+      noInteraction: true,
+      comment: true
     }
   });
   const existingByDepartmentId = new Map(
     existingEvaluations.map((evaluation) => [evaluation.evaluateeDepartmentId, evaluation])
   );
+  const filledDepartmentIds = new Set(
+    existingEvaluations.filter((evaluation) => !isMissingEvaluation(evaluation))
+      .map((evaluation) => evaluation.evaluateeDepartmentId)
+  );
 
   let marked = 0;
-  const skipped = existingEvaluations.filter(
-    (evaluation) => evaluation.score != null || evaluation.noInteraction
-  ).length;
+  const skipped = filledDepartmentIds.size;
 
   for (const department of evaluateeDepartments) {
     const existing = existingByDepartmentId.get(department.id);
-    if (existing?.score != null || existing?.noInteraction) continue;
+    if (filledDepartmentIds.has(department.id)) continue;
 
     const data = {
       periodId: payload.periodId,
