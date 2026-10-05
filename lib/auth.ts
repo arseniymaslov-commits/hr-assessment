@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { ACTIVITY_UPDATE_INTERVAL_MS, recordUserActivity } from "@/lib/user-activity";
 
 const COOKIE_NAME = "interaction_session";
 
@@ -64,7 +65,7 @@ export async function getCurrentUser() {
   const payload = readSessionToken(cookies().get(COOKIE_NAME)?.value);
   if (!payload) return null;
 
-  return prisma.user.findUnique({
+  const user = await prisma.user.findUnique({
     where: { id: payload.userId },
     include: {
       department: true,
@@ -75,6 +76,14 @@ export async function getCurrentUser() {
       }
     }
   });
+  if (user?.isActive) {
+    const now = new Date();
+    if (!user.lastSeenAt || now.getTime() - user.lastSeenAt.getTime() > ACTIVITY_UPDATE_INTERVAL_MS) {
+      const { count } = await recordUserActivity(user.id, now);
+      if (count) user.lastSeenAt = now;
+    }
+  }
+  return user;
 }
 
 export async function requireUser(roles?: Role[]) {

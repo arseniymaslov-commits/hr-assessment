@@ -155,6 +155,7 @@ export async function getReferenceData(options: { ensurePeriod?: boolean } = {})
         mustChangePassword: true,
         isActive: true,
         receivesNotifications: true,
+        lastSeenAt: true,
         department: true,
         directorDepartments: {
           include: {

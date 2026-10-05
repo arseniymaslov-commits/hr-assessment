@@ -54,7 +54,17 @@ export default async function AdminPage({
     year,
     status
   })) || [];
-  const userOptions = referenceData?.users.map(({ id, name, email, role, position, departmentId, mustChangePassword, isActive, receivesNotifications }) => ({
+  const usersWithoutActivity = referenceData?.users.filter((entry) => !entry.lastSeenAt).map((entry) => entry.id) || [];
+  const historicalActivity = usersWithoutActivity.length ? await prisma.auditLog.groupBy({
+    by: ["userId"],
+    where: {
+      userId: { in: usersWithoutActivity },
+      action: { in: ["auth.login", "evaluation.create", "evaluation.update", "evaluation.no_interaction.email"] }
+    },
+    _max: { createdAt: true }
+  }) : [];
+  const historicalActivityByUser = new Map(historicalActivity.map((entry) => [entry.userId, entry._max.createdAt]));
+  const userOptions = referenceData?.users.map(({ id, name, email, role, position, departmentId, mustChangePassword, isActive, receivesNotifications, lastSeenAt }) => ({
     id,
     name,
     email,
@@ -63,7 +73,8 @@ export default async function AdminPage({
     departmentId,
     mustChangePassword,
     isActive,
-    receivesNotifications
+    receivesNotifications,
+    lastSeenAt: (lastSeenAt || historicalActivityByUser.get(id))?.toISOString() || null
   })) || [];
   const criterionOptions = referenceData?.criteria.map(({ id, name, description }) => ({
     id,

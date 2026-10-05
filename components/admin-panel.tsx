@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, RefreshCw, RotateCcw, Send } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Plus, RefreshCw, RotateCcw, Search, Send, X } from "lucide-react";
 import DepartmentLabel from "@/components/department-label";
 import { departmentOptionLabel } from "@/lib/department-decodings";
 import { periodLabel } from "@/lib/format";
@@ -34,6 +34,7 @@ type User = {
   mustChangePassword?: boolean;
   isActive?: boolean;
   receivesNotifications?: boolean;
+  lastSeenAt?: string | null;
 };
 
 type Criterion = {
@@ -103,6 +104,7 @@ export default function AdminPanel({
   const [userPosition, setUserPosition] = useState("Руководитель");
   const [userDepartmentId, setUserDepartmentId] = useState(departments[0]?.id || "");
   const [userReceivesNotifications, setUserReceivesNotifications] = useState(true);
+  const [userSearch, setUserSearch] = useState("");
   const [launchDepartmentId, setLaunchDepartmentId] = useState(evaluateeDepartments[0]?.id || "");
   const [launchPeriodId, setLaunchPeriodId] = useState(
     periods.find((period) => period.status === "OPEN")?.id || periods[0]?.id || ""
@@ -110,6 +112,19 @@ export default function AdminPanel({
   const [launchScheduledAt, setLaunchScheduledAt] = useState(toDateTimeLocal(new Date()));
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
+  const userRows = useMemo(() => users.map((user) => ({
+    user,
+    departments: departments.filter((department) =>
+      department.id === user.departmentId || department.leaderUserId === user.id ||
+      department.deputyUserId === user.id || department.directorUserIds?.includes(user.id)
+    )
+  })), [users, departments]);
+  const searchTerms = userSearch.trim().toLocaleLowerCase("ru-RU").replace(/ё/g, "е").split(/\s+/).filter(Boolean);
+  const visibleUserRows = userRows.filter(({ user, departments: assignedDepartments }) => {
+    const searchableText = [user.name, user.email, ...assignedDepartments.map(departmentOptionLabel)]
+      .join(" ").toLocaleLowerCase("ru-RU").replace(/ё/g, "е");
+    return searchTerms.every((term) => searchableText.includes(term));
+  });
 
   async function request(url: string, options: RequestInit) {
     if (pending) return;
@@ -317,8 +332,35 @@ export default function AdminPanel({
           <button className="focus-ring shrink-0 rounded-lg border border-brand/30 bg-white px-4 py-2 font-semibold text-brand transition hover:bg-brand/5">Сохранить</button>
         </form>
 
-        <div className="mt-5 overflow-x-auto">
-          <table className="w-full min-w-[920px] text-left text-sm">
+        <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative w-full sm:max-w-md">
+            <label className="sr-only" htmlFor="admin-user-search">Поиск по ФИО или подразделению</label>
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" aria-hidden="true" />
+            <input
+              id="admin-user-search"
+              type="search"
+              className="focus-ring w-full rounded-lg border border-line py-2 pl-9 pr-10 text-sm [&::-webkit-search-cancel-button]:appearance-none"
+              placeholder="ФИО или подразделение"
+              value={userSearch}
+              onChange={(event) => setUserSearch(event.target.value)}
+            />
+            {userSearch ? (
+              <button
+                type="button"
+                className="focus-ring absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-muted hover:bg-slate-50"
+                aria-label="Очистить поиск"
+                title="Очистить поиск"
+                onClick={() => setUserSearch("")}
+              >
+                <X size={16} />
+              </button>
+            ) : null}
+          </div>
+          <span className="text-xs text-muted" aria-live="polite">Найдено: {visibleUserRows.length} из {users.length}</span>
+        </div>
+
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[1080px] text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-muted">
               <tr>
                 <th className="px-4 py-3">Имя</th>
@@ -326,24 +368,35 @@ export default function AdminPanel({
                 <th className="px-4 py-3">Роль</th>
                 <th className="px-4 py-3">Должность</th>
                 <th className="px-4 py-3">Подразделение</th>
+                <th className="px-4 py-3">Последнее посещение<span className="mt-0.5 block font-normal normal-case">Бишкек</span></th>
                 <th className="px-4 py-3">Рассылка</th>
                 <th className="px-4 py-3">Пароль</th>
                 <th className="px-4 py-3">Действия</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {users.map((user) => (
+              {visibleUserRows.map(({ user, departments: assignedDepartments }) => (
                 <tr key={user.id} className={user.isActive === false ? "opacity-50" : ""}>
                   <td className="px-4 py-3 font-medium">{user.name}</td>
                   <td className="px-4 py-3">{user.email}</td>
                   <td className="px-4 py-3">{roles.find(([value]) => value === user.role)?.[1] || user.role}</td>
                   <td className="px-4 py-3">{user.position || "—"}</td>
                   <td className="px-4 py-3">
-                    {departments.find((department) => department.id === user.departmentId) ? (
-                      <DepartmentLabel department={departments.find((department) => department.id === user.departmentId)!} />
+                    {assignedDepartments.length ? (
+                      <div className="space-y-2">
+                        {assignedDepartments.map((department) => <DepartmentLabel key={department.id} department={department} />)}
+                      </div>
                     ) : (
                       "—"
                     )}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3">
+                    {user.lastSeenAt ? (
+                      <time dateTime={user.lastSeenAt} title="Время Бишкека">
+                        <span className="block font-medium text-ink">{new Date(user.lastSeenAt).toLocaleDateString("ru-RU", { timeZone: "Asia/Bishkek" })}</span>
+                        <span className="mt-0.5 block text-xs text-muted">{new Date(user.lastSeenAt).toLocaleTimeString("ru-RU", { timeZone: "Asia/Bishkek", hour: "2-digit", minute: "2-digit" })}</span>
+                      </time>
+                    ) : <span className="text-muted">Нет данных</span>}
                   </td>
                   <td className="px-4 py-3">
                     <button
@@ -371,6 +424,13 @@ export default function AdminPanel({
                   </td>
                 </tr>
               ))}
+              {!visibleUserRows.length ? (
+                <tr>
+                  <td colSpan={9} className="px-4 py-8 text-center text-muted">
+                    {userSearch.trim() ? "По вашему запросу пользователи не найдены" : "Пользователей пока нет"}
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { defaultPathForRole, setSessionCookie } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { hashPassword, verifyPassword } from "@/lib/password";
+import { recordUserActivity } from "@/lib/user-activity";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -57,6 +58,7 @@ export async function POST(request: Request) {
       user,
       request
     });
+    await recordUserActivity(user.id, new Date(), true);
     setSessionCookie(user.id);
     return NextResponse.json({ ok: true, redirectTo: defaultPathForRole(user.role) });
   }
@@ -79,6 +81,7 @@ export async function POST(request: Request) {
     user,
     request
   });
+  await recordUserActivity(user.id, new Date(), true);
   setSessionCookie(user.id);
   return NextResponse.json({ ok: true, redirectTo: defaultPathForRole(user.role) });
 }
