@@ -203,7 +203,8 @@ export async function getPeriodMetrics(periodId?: string) {
       missingCount: 0,
       expectedCount: 0,
       completion: [],
-      dynamics: []
+      dynamics: [],
+      departmentDynamics: []
     };
   }
 
@@ -213,7 +214,7 @@ export async function getPeriodMetrics(periodId?: string) {
       period.year < selectedPeriod.year ||
       (period.year === selectedPeriod.year && period.month < selectedPeriod.month)
   );
-  const [rawAllEvaluations, rawPreviousEvaluations, previousLowEvaluations, dynamicAverages] = await Promise.all([
+  const [rawAllEvaluations, rawPreviousEvaluations, previousLowEvaluations, rawDynamicEvaluations] = await Promise.all([
     prisma.evaluation.findMany({
       where: { periodId: selectedPeriod.id },
       select: {
@@ -278,13 +279,21 @@ export async function getPeriodMetrics(periodId?: string) {
         evaluateeDepartmentId: true
       }
     }),
-    prisma.evaluation.groupBy({
-      by: ["periodId"],
+    prisma.evaluation.findMany({
       where: {
-        noInteraction: false,
-        score: { not: null }
+        periodId: { in: periods.map((period) => period.id) }
       },
-      _avg: { score: true }
+      select: {
+        periodId: true,
+        evaluatorDepartmentId: true,
+        evaluatorUserId: true,
+        evaluateeDepartmentId: true,
+        criterionId: true,
+        score: true,
+        noInteraction: true,
+        comment: true,
+        updatedAt: true
+      }
     })
   ]);
   const allEvaluations = pickMetricEvaluations(
@@ -438,14 +447,63 @@ export async function getPeriodMetrics(periodId?: string) {
   ).length;
   const missingCount = Math.max(0, expectedCount - filledRequiredCount);
 
-  const dynamicAverageByPeriod = new Map(dynamicAverages.map((row) => [row.periodId, row._avg.score]));
-  const dynamics = periods
-    .slice()
-    .reverse()
-    .map((period) => ({
+  const pickedDynamicEvaluations = pickMetricEvaluations(rawDynamicEvaluations, criterion.id).filter(
+    (evaluation) => evaluateeDepartmentIds.has(evaluation.evaluateeDepartmentId) && !isMissingEvaluation(evaluation)
+  );
+  const dynamicStatsByPeriod = new Map<
+    string,
+    { scores: number[]; noInteractionCount: number; lowCount: number }
+  >();
+  const dynamicStatsByDepartmentPeriod = new Map<
+    string,
+    { scores: number[]; noInteractionCount: number; lowCount: number }
+  >();
+  const addDynamicStat = (
+    map: Map<string, { scores: number[]; noInteractionCount: number; lowCount: number }>,
+    key: string,
+    evaluation: (typeof pickedDynamicEvaluations)[number]
+  ) => {
+    const stats = map.get(key) || { scores: [], noInteractionCount: 0, lowCount: 0 };
+
+    if (evaluation.noInteraction) {
+      stats.noInteractionCount += 1;
+    } else if (evaluation.score != null) {
+      stats.scores.push(evaluation.score);
+      if (evaluation.score <= 9) stats.lowCount += 1;
+    }
+
+    map.set(key, stats);
+  };
+
+  for (const evaluation of pickedDynamicEvaluations) {
+    addDynamicStat(dynamicStatsByPeriod, evaluation.periodId, evaluation);
+    addDynamicStat(dynamicStatsByDepartmentPeriod, `${evaluation.periodId}:${evaluation.evaluateeDepartmentId}`, evaluation);
+  }
+
+  const chronologicalPeriods = periods.slice().reverse();
+  const dynamics = chronologicalPeriods.map((period) => {
+    const stats = dynamicStatsByPeriod.get(period.id);
+    return {
       period,
-      average: dynamicAverageByPeriod.get(period.id) ?? null
-    }));
+      average: stats ? average(stats.scores) : null,
+      count: stats?.scores.length || 0,
+      lowCount: stats?.lowCount || 0,
+      noInteractionCount: stats?.noInteractionCount || 0
+    };
+  });
+  const departmentDynamics = evaluateeDepartments.map((department) => ({
+    department,
+    points: chronologicalPeriods.map((period) => {
+      const stats = dynamicStatsByDepartmentPeriod.get(`${period.id}:${department.id}`);
+      return {
+        period,
+        average: stats ? average(stats.scores) : null,
+        count: stats?.scores.length || 0,
+        lowCount: stats?.lowCount || 0,
+        noInteractionCount: stats?.noInteractionCount || 0
+      };
+    })
+  }));
 
   return {
     periods,
@@ -462,7 +520,8 @@ export async function getPeriodMetrics(periodId?: string) {
     missingCount,
     expectedCount,
     completion,
-    dynamics
+    dynamics,
+    departmentDynamics
   };
 }
 

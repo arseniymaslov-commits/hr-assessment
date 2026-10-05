@@ -10,7 +10,7 @@ import { requireUser } from "@/lib/auth";
 import { departmentOptionLabel } from "@/lib/department-decodings";
 import { getDirectorDepartmentIds } from "@/lib/director-scope";
 import { resolveEvaluateeDepartmentId } from "@/lib/department-matching";
-import { fixed, periodLabel, scoreClass } from "@/lib/format";
+import { fixed, periodLabel, periodShortLabel, scoreClass } from "@/lib/format";
 import { getPeriodMetrics } from "@/lib/metrics";
 import { MIN_RANKING_EVALUATIONS, isRankingEligible, sortRankingCandidates } from "@/lib/ranking";
 
@@ -184,6 +184,18 @@ export default async function DashboardPage({
   const departmentOptions = metrics.evaluateeDepartments
     .filter((department) => !hasDirectorScope || directorDepartmentIdSet.has(department.id))
     .map(({ id, name, shortName }) => ({ id, name, shortName }));
+  const selectedDepartmentDynamics = selectedDepartment
+    ? metrics.departmentDynamics.find((row) => row.department.id === selectedDepartment)
+    : null;
+  const trendPoints = selectedDepartmentDynamics?.points || metrics.dynamics;
+  const trendTitle = selectedDepartmentDynamics
+    ? leaderDepartmentId
+      ? "Динамика вашего отдела"
+      : "Динамика выбранного отдела"
+    : "Динамика по месяцам";
+  const trendDescription = selectedDepartmentDynamics
+    ? "Как менялась оценка подразделения в прошлых периодах."
+    : "Общий тренд среднего балла по компании.";
 
   return (
     <AppShell user={user}>
@@ -481,25 +493,7 @@ export default async function DashboardPage({
           </div>
         </div>
 
-        <div className="rounded-lg border border-line bg-white p-5">
-          <h2 className="font-semibold text-ink">Динамика по месяцам</h2>
-          <div className="mt-5 space-y-4">
-            {metrics.dynamics.map((point) => {
-              const width = point.average ? `${Math.max(8, point.average * 10)}%` : "0%";
-              return (
-                <div key={point.period.id}>
-                  <div className="mb-1 flex items-center justify-between text-sm">
-                    <span className="text-slate-700">{periodLabel(point.period)}</span>
-                    <span className="font-semibold">{fixed(point.average)}</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-slate-100">
-                    <div className="progress-fill h-2 rounded-full" style={{ width }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <MonthlyTrendPanel description={trendDescription} points={trendPoints} title={trendTitle} />
       </section>
     </AppShell>
   );
@@ -535,4 +529,158 @@ function DeltaBadge({ value }: { value?: number | null }) {
 
 function average(scores: number[]) {
   return scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : null;
+}
+
+function MonthlyTrendPanel({
+  description,
+  points,
+  title
+}: {
+  description: string;
+  points: Array<{
+    period: { id: string; month: number; year: number };
+    average: number | null;
+    count: number;
+    lowCount: number;
+    noInteractionCount: number;
+  }>;
+  title: string;
+}) {
+  const chartWidth = 560;
+  const chartHeight = 190;
+  const paddingX = 34;
+  const paddingY = 24;
+  const scoredPoints = points.filter((point) => point.average != null);
+  const latestPoint = scoredPoints.at(-1) || null;
+  const previousPoint = scoredPoints.at(-2) || null;
+  const delta =
+    latestPoint?.average != null && previousPoint?.average != null ? latestPoint.average - previousPoint.average : null;
+  const bestPoint = scoredPoints.reduce<(typeof scoredPoints)[number] | null>(
+    (best, point) => (!best || (point.average as number) > (best.average as number) ? point : best),
+    null
+  );
+  const attentionCount = points.reduce((sum, point) => sum + point.lowCount, 0);
+  const minValue = Math.min(8, ...scoredPoints.map((point) => point.average as number));
+  const maxValue = Math.max(10, ...scoredPoints.map((point) => point.average as number));
+  const range = Math.max(0.1, maxValue - minValue);
+  const xFor = (index: number) =>
+    points.length <= 1 ? chartWidth / 2 : paddingX + (index * (chartWidth - paddingX * 2)) / (points.length - 1);
+  const yFor = (value: number) =>
+    chartHeight - paddingY - ((value - minValue) / range) * (chartHeight - paddingY * 2);
+  const firstScoredIndex = points.findIndex((point) => point.average != null);
+  const lastScoredIndex = points.findLastIndex((point) => point.average != null);
+  const path = points
+    .map((point, index) => {
+      if (point.average == null) return "";
+      return `${index === firstScoredIndex ? "M" : "L"} ${xFor(index).toFixed(1)} ${yFor(point.average).toFixed(1)}`;
+    })
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    <div className="rounded-lg border border-line bg-white p-5">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="font-semibold text-ink">{title}</h2>
+          <p className="mt-1 text-sm text-muted">{description}</p>
+        </div>
+        <div className="shrink-0 text-left sm:text-right">
+          <div className="text-xs uppercase text-muted">Текущий тренд</div>
+          <div className="mt-1 text-lg font-semibold text-ink">
+            {fixed(latestPoint?.average)}
+            <DeltaBadge value={delta} />
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-4">
+        <TrendStat label="Последний балл" value={fixed(latestPoint?.average)} />
+        <TrendStat label="Лучший месяц" value={bestPoint ? fixed(bestPoint.average) : "—"} />
+        <TrendStat label="Оценок сейчас" value={latestPoint ? String(latestPoint.count) : "0"} />
+        <TrendStat label="9 и ниже" value={String(attentionCount)} />
+      </div>
+
+      <div className="mt-5 overflow-hidden rounded-lg bg-slate-50 p-3">
+        {scoredPoints.length ? (
+          <svg className="h-auto w-full" viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-label={title}>
+            <defs>
+              <linearGradient id="dashboardTrendFill" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stopColor="#e30016" stopOpacity="0.16" />
+                <stop offset="100%" stopColor="#e30016" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            {[8, 9, 10].map((line) => (
+              <g key={line}>
+                <line
+                  stroke="#e2e6ee"
+                  strokeDasharray="4 4"
+                  x1={paddingX}
+                  x2={chartWidth - paddingX}
+                  y1={yFor(line)}
+                  y2={yFor(line)}
+                />
+                <text fill="#667085" fontSize="11" x="4" y={yFor(line) + 4}>
+                  {line}
+                </text>
+              </g>
+            ))}
+            {path ? (
+              <>
+                <path
+                  d={`${path} L ${xFor(lastScoredIndex).toFixed(1)} ${chartHeight - paddingY} L ${xFor(firstScoredIndex).toFixed(1)} ${chartHeight - paddingY} Z`}
+                  fill="url(#dashboardTrendFill)"
+                />
+                <path d={path} fill="none" stroke="#e30016" strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" />
+              </>
+            ) : null}
+            {points.map((point, index) =>
+              point.average == null ? null : (
+                <g key={point.period.id}>
+                  <circle cx={xFor(index)} cy={yFor(point.average)} fill="#fff" r="6" stroke="#e30016" strokeWidth="3" />
+                  <text fill="#18202b" fontSize="12" fontWeight="600" textAnchor="middle" x={xFor(index)} y={yFor(point.average) - 12}>
+                    {point.average.toFixed(2)}
+                  </text>
+                </g>
+              )
+            )}
+          </svg>
+        ) : (
+          <div className="rounded-lg border border-dashed border-line bg-white px-4 py-8 text-center text-sm text-muted">
+            Пока нет оценок для построения динамики.
+          </div>
+        )}
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted sm:grid-cols-3">
+        {points.map((point) => (
+          <div className="rounded-lg bg-slate-50 px-2 py-1.5" key={point.period.id}>
+            <div className="truncate">{periodShortLabel(point.period)}</div>
+            <div className="font-semibold text-ink">{fixed(point.average)}</div>
+            <div className="mt-1 flex flex-wrap gap-1">
+              <span className="rounded-full bg-white px-1.5 py-0.5 ring-1 ring-line">оценок: {point.count}</span>
+              {point.lowCount ? (
+                <span className="rounded-full bg-red-50 px-1.5 py-0.5 text-red-700 ring-1 ring-red-100">
+                  9 и ниже: {point.lowCount}
+                </span>
+              ) : null}
+              {point.noInteractionCount ? (
+                <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-slate-600">
+                  нет: {point.noInteractionCount}
+                </span>
+              ) : null}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TrendStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-slate-50 px-3 py-2">
+      <div className="text-xs text-muted">{label}</div>
+      <div className="mt-1 text-lg font-semibold text-ink">{value}</div>
+    </div>
+  );
 }
