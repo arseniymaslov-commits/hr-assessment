@@ -4,6 +4,8 @@ import { useMemo, useRef, useState } from "react";
 import { MessageSquareWarning } from "lucide-react";
 import DepartmentLabel from "@/components/department-label";
 import RankingPlace from "@/components/ranking-place";
+import EvaluationResponse from "@/components/evaluation-response";
+import type { EvaluationResponseView } from "@/lib/evaluation-response";
 import { getDepartmentDisplayParts } from "@/lib/department-decodings";
 import { isMissingEvaluation, MISSING_EVALUATION_LABEL } from "@/lib/evaluation-status";
 import { fixed, scoreClass } from "@/lib/format";
@@ -25,6 +27,8 @@ type MatrixEvaluation = {
   noInteraction: boolean;
   deviationCategories: string[];
   comment: string | null;
+  response?: EvaluationResponseView | null;
+  canRespond?: boolean;
   authorName: string;
   updatedAt: string;
 };
@@ -44,6 +48,8 @@ type LowComment = {
   score: number | null;
   deviationCategories: string[];
   comment: string | null;
+  response?: EvaluationResponseView | null;
+  canRespond?: boolean;
   authorName: string;
   updatedAt: string;
 };
@@ -63,7 +69,9 @@ export default function MatrixClient({
   lowComments: LowComment[];
   canViewComments: boolean;
 }) {
-  const [selected, setSelected] = useState<MatrixEvaluation | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = evaluations.find((evaluation) => evaluation.id === selectedId) || null;
+  const setSelected = (evaluation: MatrixEvaluation | null) => setSelectedId(evaluation?.id || null);
   const [searchQuery, setSearchQuery] = useState("");
   const [focusedColumnId, setFocusedColumnId] = useState("");
   const [viewMode, setViewMode] = useState<"all" | "low" | "missing">("all");
@@ -413,6 +421,7 @@ export default function MatrixClient({
                       : "Комментарий не указан, потому что оценка выше 9.")
                     : "Комментарии доступны руководителю оцениваемого отдела, директору и администратору."}
                 </p>
+                {canViewComments ? <EvaluationResponse key={selected.id} evaluationId={selected.id} response={selected.response} canRespond={selected.canRespond} /> : null}
               </div>
             </div>
           ) : (
@@ -444,6 +453,7 @@ export default function MatrixClient({
                     </span>
                   </div>
                   <p className="mt-2 text-sm leading-5 text-slate-700">{item.comment || "Комментарий не указан."}</p>
+                  <EvaluationResponse evaluationId={item.id} response={item.response} canRespond={item.canRespond} />
                   {item.deviationCategories.length ? (
                     <div className="mt-2 flex flex-wrap gap-1">
                       {item.deviationCategories.map((category) => (

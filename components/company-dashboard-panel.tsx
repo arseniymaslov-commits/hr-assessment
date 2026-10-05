@@ -5,6 +5,8 @@ import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import RankingPlace from "@/components/ranking-place";
+import EvaluationResponse from "@/components/evaluation-response";
+import type { EvaluationResponseView } from "@/lib/evaluation-response";
 import { MIN_RANKING_EVALUATIONS, isRankingEligible, sortRankingCandidates } from "@/lib/ranking";
 
 type LowScore = {
@@ -13,6 +15,8 @@ type LowScore = {
   comment: string | null;
   evaluatorName: string;
   evaluateeName: string;
+  response?: EvaluationResponseView | null;
+  canRespond?: boolean;
 };
 
 type RankingItem = {
@@ -114,8 +118,15 @@ export default function CompanyDashboardPanel({
   expectedCount
 }: DashboardPanelProps) {
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
-  const [rankingPage, setRankingPage] = useState(1);
-  const [commentPage, setCommentPage] = useState(1);
+  const paginationScope = `${mode}:${title || ""}:${periodLabel}`;
+  const [rankingPagination, setRankingPagination] = useState({ scope: paginationScope, page: 1 });
+  const [commentPagination, setCommentPagination] = useState({ scope: paginationScope, page: 1 });
+  if (rankingPagination.scope !== paginationScope) {
+    setRankingPagination({ scope: paginationScope, page: 1 });
+  }
+  if (commentPagination.scope !== paginationScope) {
+    setCommentPagination({ scope: paginationScope, page: 1 });
+  }
   const isDepartment = mode === "department";
   const dashboardTitle = isDepartment
     ? `Дашборд подразделения: ${title || "-"}`
@@ -161,6 +172,8 @@ export default function CompanyDashboardPanel({
 
   const rankingPages = Math.max(1, Math.ceil(rankedRows.length / rankingPageSize));
   const commentPages = Math.max(1, Math.ceil(lowScores.length / commentPageSize));
+  const rankingPage = rankingPagination.scope === paginationScope ? Math.min(rankingPagination.page, rankingPages) : 1;
+  const commentPage = commentPagination.scope === paginationScope ? Math.min(commentPagination.page, commentPages) : 1;
   const pagedRanking = rankedRows.slice((rankingPage - 1) * rankingPageSize, rankingPage * rankingPageSize);
   const pagedComments = lowScores.slice((commentPage - 1) * commentPageSize, commentPage * commentPageSize);
 
@@ -333,7 +346,7 @@ export default function CompanyDashboardPanel({
                 </tbody>
               </table>
             </div>
-            <Pager page={rankingPage} pages={rankingPages} onPageChange={setRankingPage} />
+            <Pager page={rankingPage} pages={rankingPages} onPageChange={(page) => setRankingPagination({ scope: paginationScope, page })} />
             {insufficientRows.length ? (
               <div className="mt-4 rounded-lg border border-line bg-slate-50 p-4">
                 <div className="font-semibold text-ink">Недостаточно данных для рейтинга</div>
@@ -359,7 +372,7 @@ export default function CompanyDashboardPanel({
         {activeTab === "comments" ? (
           <div>
             <div className="max-h-[620px] overflow-auto rounded-lg border border-line bg-slate-50 p-3">
-              {pagedComments.length ? (
+              {lowScores.length ? (
                 <div className="space-y-3">
                   {pagedComments.map((item) => (
                     <article className="rounded-lg border border-line bg-white p-4" key={item.id}>
@@ -374,6 +387,7 @@ export default function CompanyDashboardPanel({
                       <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">
                         {item.comment || "Комментарий не указан"}
                       </p>
+                      <EvaluationResponse evaluationId={item.id} response={item.response} canRespond={item.canRespond} />
                     </article>
                   ))}
                 </div>
@@ -383,7 +397,7 @@ export default function CompanyDashboardPanel({
                 </div>
               )}
             </div>
-            <Pager page={commentPage} pages={commentPages} onPageChange={setCommentPage} />
+            <Pager page={commentPage} pages={commentPages} onPageChange={(page) => setCommentPagination({ scope: paginationScope, page })} />
           </div>
         ) : null}
 

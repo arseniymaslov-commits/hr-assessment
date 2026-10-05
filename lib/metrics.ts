@@ -243,6 +243,7 @@ export async function getPeriodMetrics(periodId?: string) {
         deviationCategories: true,
         comment: true,
         authorId: true,
+        response: { include: { author: { select: { name: true } } } },
         author: {
           select: { id: true, name: true }
         },
@@ -655,6 +656,7 @@ export async function getMatrixMetrics(periodId?: string) {
       author: {
         select: { id: true, name: true }
       },
+      response: { include: { author: { select: { name: true } } } },
       updatedAt: true
     },
     orderBy: { updatedAt: "desc" }
@@ -758,6 +760,7 @@ export async function getEvaluationScreenMetrics(periodId?: string) {
       author: {
         select: { id: true, name: true }
       },
+      response: { include: { author: { select: { name: true } } } },
       updatedAt: true
     },
     orderBy: { updatedAt: "desc" }

@@ -2,6 +2,8 @@ import AppShell from "@/components/app-shell";
 import DepartmentLabel from "@/components/department-label";
 import EvaluationForm from "@/components/evaluation-form";
 import ScoreBadge from "@/components/score-badge";
+import EvaluationResponse from "@/components/evaluation-response";
+import { serializeEvaluationResponse } from "@/lib/evaluation-response";
 import { Role } from "@prisma/client";
 import { requireUser } from "@/lib/auth";
 import { getDepartmentFullName } from "@/lib/department-decodings";
@@ -178,6 +180,7 @@ export default async function EvaluationsPage({
                   </td>
                   <td className="max-w-md px-5 py-4 text-slate-700">
                     {isMissingEvaluation(evaluation) ? MISSING_EVALUATION_LABEL : evaluation.comment || "-"}
+                    {!isMissingEvaluation(evaluation) ? <EvaluationResponse evaluationId={evaluation.id} response={serializeEvaluationResponse(evaluation.response)} /> : null}
                   </td>
                   <td className="whitespace-nowrap px-5 py-4 text-slate-700">
                     {evaluation.updatedAt.toLocaleString("ru-RU", {

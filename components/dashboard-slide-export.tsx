@@ -6,6 +6,8 @@ import { toPng } from "html-to-image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MIN_RANKING_EVALUATIONS } from "@/lib/ranking";
 import RankingPlace from "@/components/ranking-place";
+import type { EvaluationResponseView } from "@/lib/evaluation-response";
+import { paginateComments } from "@/lib/presentation-comments";
 
 type LowScore = {
   id: string;
@@ -13,6 +15,7 @@ type LowScore = {
   comment: string | null;
   evaluatorName: string;
   evaluateeName: string;
+  response?: EvaluationResponseView | null;
 };
 
 type RankingItem = {
@@ -52,28 +55,6 @@ function scoreTone(value: number | null) {
 
 function safeName(value: string) {
   return value.replace(/[\\/:*?"<>|]+/g, "-");
-}
-
-function paginateComments(items: LowScore[]) {
-  const pages: LowScore[][] = [];
-  let page: LowScore[] = [];
-  let units = 0;
-
-  for (const item of items) {
-    const commentLength = item.comment?.length || 0;
-    const titleLength = item.evaluatorName.length + item.evaluateeName.length;
-    const itemUnits = Math.max(4, Math.ceil((commentLength + titleLength) / 95) + 2);
-    if (page.length && (page.length >= 4 || units + itemUnits > 22)) {
-      pages.push(page);
-      page = [];
-      units = 0;
-    }
-    page.push(item);
-    units += itemUnits;
-  }
-
-  if (page.length) pages.push(page);
-  return pages;
 }
 
 export default function DashboardSlideExport({
@@ -294,6 +275,14 @@ function SummarySlide({
   expectedCount: number;
   completionPercent: number;
 }) {
+  let previewLimit = 0;
+  let previewUnits = 0;
+  for (const item of lowScores.slice(0, 4)) {
+    const units = 3 + Math.min(2, Math.ceil((item.comment?.length || 1) / 85)) +
+      (item.response ? 1 + Math.ceil(item.response.text.length / 85) : 0);
+    if (previewLimit && previewUnits + units > 18) break;
+    previewLimit++; previewUnits += units;
+  }
   return (
     <SlideShell refCallback={refCallback}>
       <SlideHeader
@@ -337,7 +326,7 @@ function SummarySlide({
           </div>
           <div className="mt-4 space-y-2.5">
             {lowScores.length ? (
-              lowScores.slice(0, 4).map((item) => (
+              lowScores.slice(0, previewLimit).map((item) => (
                 <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5" key={item.id}>
                   <div className="flex items-center gap-3">
                     <span className={`rounded-full px-2.5 py-1 text-[14px] font-bold ring-1 ${scoreTone(item.score)}`}>
@@ -350,6 +339,7 @@ function SummarySlide({
                   <p className="mt-1 overflow-hidden break-words text-[13px] leading-5 text-slate-600 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
                     {item.comment || "Комментарий не указан"}
                   </p>
+                  {item.response ? <SlideResponse response={item.response} compact /> : null}
                 </article>
               ))
             ) : (
@@ -357,9 +347,9 @@ function SummarySlide({
                 Оценок 9 и ниже нет
               </div>
             )}
-            {lowScores.length > 4 ? (
+            {lowScores.length > previewLimit ? (
               <div className="rounded-lg bg-slate-100 px-3 py-2 text-[13px] font-semibold text-slate-600">
-                Еще комментариев: {lowScores.length - 4}. Полный список на следующих слайдах.
+                Еще комментариев: {lowScores.length - previewLimit}. Полный список на следующих слайдах.
               </div>
             ) : null}
           </div>
@@ -430,6 +420,7 @@ function CommentsSlide({
                 <p className="mt-2 whitespace-pre-wrap break-words text-[15px] leading-6 text-slate-700">
                   {item.comment || "Комментарий не указан"}
                 </p>
+                {item.response ? <SlideResponse response={item.response} /> : null}
               </article>
             ))
           ) : (
@@ -442,6 +433,15 @@ function CommentsSlide({
 
       <SlideFooter />
     </SlideShell>
+  );
+}
+
+function SlideResponse({ response, compact = false }: { response: EvaluationResponseView; compact?: boolean }) {
+  return (
+    <div className={`mt-2 border-l-2 border-slate-300 pl-3 ${compact ? "text-[13px] leading-5" : "text-[15px] leading-6"}`}>
+      <div className="font-semibold text-slate-700">Ответ подразделения</div>
+      <p className="whitespace-pre-wrap break-words text-slate-600">{response.text}</p>
+    </div>
   );
 }
 

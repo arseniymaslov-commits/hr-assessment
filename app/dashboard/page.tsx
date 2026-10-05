@@ -6,6 +6,9 @@ import DepartmentFilter from "@/components/department-filter";
 import PeriodFilter from "@/components/period-filter";
 import ScoreBadge from "@/components/score-badge";
 import RankingPlace from "@/components/ranking-place";
+import EvaluationResponse from "@/components/evaluation-response";
+import { canRespondToEvaluation, serializeEvaluationResponse } from "@/lib/evaluation-response";
+import { getResponseDepartmentIds } from "@/lib/evaluation-response-service";
 import { Role } from "@prisma/client";
 import { requireUser } from "@/lib/auth";
 import { departmentOptionLabel } from "@/lib/department-decodings";
@@ -22,6 +25,7 @@ export default async function DashboardPage({
 }) {
   const user = await requireUser();
   const metrics = await getPeriodMetrics(searchParams.period);
+  const responseDepartmentIds = await getResponseDepartmentIds(user);
   const leaderDepartmentId =
     user.role === Role.LEADER ? resolveEvaluateeDepartmentId(user.department, metrics.evaluateeDepartments) : null;
   const directorDepartmentIds = getDirectorDepartmentIds(user);
@@ -105,6 +109,8 @@ export default async function DashboardPage({
     id: evaluation.id,
     score: evaluation.score,
     comment: evaluation.comment,
+    response: serializeEvaluationResponse(evaluation.response),
+    canRespond: canRespondToEvaluation(user, evaluation, responseDepartmentIds),
     deviationCategories: evaluation.deviationCategories,
     evaluatorName: evaluation.evaluatorDepartment?.name || evaluation.evaluatorUser?.name || "Директор",
     evaluateeName: evaluation.evaluateeDepartment.name
@@ -113,6 +119,8 @@ export default async function DashboardPage({
     id: evaluation.id,
     score: evaluation.score,
     comment: evaluation.comment,
+    response: serializeEvaluationResponse(evaluation.response),
+    canRespond: canRespondToEvaluation(user, evaluation, responseDepartmentIds),
     deviationCategories: evaluation.deviationCategories,
     evaluatorName: evaluation.evaluatorDepartment
       ? departmentOptionLabel(evaluation.evaluatorDepartment)
@@ -483,6 +491,7 @@ export default async function DashboardPage({
                       </div>
                     ) : null}
                     <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">{evaluation.comment}</p>
+                    <EvaluationResponse evaluationId={evaluation.id} response={serializeEvaluationResponse(evaluation.response)} canRespond={canRespondToEvaluation(user, evaluation, responseDepartmentIds)} />
                   </div>
                 ))}
               </div>

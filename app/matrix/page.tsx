@@ -9,6 +9,8 @@ import { getDirectorDepartmentIds } from "@/lib/director-scope";
 import { periodLabel } from "@/lib/format";
 import { getMatrixMetrics } from "@/lib/metrics";
 import { isRankingEligible, sortRankingCandidates } from "@/lib/ranking";
+import { canRespondToEvaluation, serializeEvaluationResponse } from "@/lib/evaluation-response";
+import { getResponseDepartmentIds } from "@/lib/evaluation-response-service";
 
 export default async function MatrixPage({
   searchParams
@@ -17,6 +19,7 @@ export default async function MatrixPage({
 }) {
   const user = await requireUser([Role.ADMIN, Role.ANALYST, Role.LEADER, Role.DIRECTOR, Role.VIEWER]);
   const metrics = await getMatrixMetrics(searchParams.period);
+  const responseDepartmentIds = await getResponseDepartmentIds(user);
   const leaderDepartmentId = user.role === Role.LEADER ? user.departmentId : null;
   const directorDepartmentIds = getDirectorDepartmentIds(user);
   const directorDepartmentIdSet = new Set(directorDepartmentIds);
@@ -54,6 +57,8 @@ export default async function MatrixPage({
       noInteraction: evaluation.noInteraction,
       deviationCategories: evaluation.deviationCategories,
       comment: evaluation.comment,
+      response: canViewComments ? serializeEvaluationResponse(evaluation.response) : null,
+      canRespond: canRespondToEvaluation(user, evaluation, responseDepartmentIds),
       authorName: evaluation.author.name,
       updatedAt: evaluation.updatedAt.toISOString()
     }));
@@ -90,6 +95,8 @@ export default async function MatrixPage({
       score: evaluation.score,
       deviationCategories: evaluation.deviationCategories,
       comment: evaluation.comment,
+      response: serializeEvaluationResponse(evaluation.response),
+      canRespond: canRespondToEvaluation(user, evaluation, responseDepartmentIds),
       authorName: evaluation.author.name,
       updatedAt: evaluation.updatedAt.toISOString()
     }));
