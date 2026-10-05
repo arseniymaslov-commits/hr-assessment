@@ -5,6 +5,7 @@ import DepartmentLabel from "@/components/department-label";
 import DepartmentFilter from "@/components/department-filter";
 import PeriodFilter from "@/components/period-filter";
 import ScoreBadge from "@/components/score-badge";
+import RankingPlace from "@/components/ranking-place";
 import { Role } from "@prisma/client";
 import { requireUser } from "@/lib/auth";
 import { departmentOptionLabel } from "@/lib/department-decodings";
@@ -395,12 +396,10 @@ export default async function DashboardPage({
               .map((row) => ({ ...row, name: row.department.name }))
               .filter(isRankingEligible)
               .sort(sortRankingCandidates)
-              .map((row, index) => (
+              .map((row) => (
                 <div className="flex items-center justify-between gap-4 px-5 py-3" key={row.department.id}>
                   <div className="flex min-w-0 items-center gap-3">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-sm font-semibold text-slate-700">
-                      {index + 1}
-                    </span>
+                    <RankingPlace place={rankedDepartments.findIndex((rankedRow) => rankedRow.department.id === row.department.id) + 1} />
                     <DepartmentLabel
                       department={row.department}
                       className="truncate font-medium text-ink"

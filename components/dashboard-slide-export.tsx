@@ -5,6 +5,7 @@ import { Download } from "lucide-react";
 import { toPng } from "html-to-image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MIN_RANKING_EVALUATIONS } from "@/lib/ranking";
+import RankingPlace from "@/components/ranking-place";
 
 type LowScore = {
   id: string;
@@ -312,7 +313,12 @@ function SummarySlide({
           </div>
           <div className="mt-5 grid grid-cols-2 gap-2.5">
             <MetricTile label={mode === "company" ? "Оцениваемых отделов" : "Средний балл компании"} value={mode === "company" ? String(totalDepartments) : fixed(companyAverage)} />
-            <MetricTile label={mode === "company" ? "Заполнение" : "Место в рейтинге"} value={mode === "company" ? `${completionPercent}%` : rank ? `${rank}/${totalDepartments}` : "нет места"} />
+            <MetricTile label={mode === "company" ? "Заполнение" : "Место в рейтинге"} value={mode === "company" ? `${completionPercent}%` : rank ? (
+              <span className="inline-flex items-center gap-2">
+                <RankingPlace place={rank} crownOnly />
+                <span>{rank}/{totalDepartments}</span>
+              </span>
+            ) : "нет места"} />
             <MetricTile label="Оценок 9 и ниже" value={String(lowScoresCount)} />
             <MetricTile label="Осталось оценок" value={String(missingCount)} />
           </div>
@@ -365,7 +371,7 @@ function SummarySlide({
   );
 }
 
-function MetricTile({ label, value }: { label: string; value: string }) {
+function MetricTile({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="rounded-lg bg-slate-50 p-2.5">
       <div className="text-[12px] leading-4 text-slate-500">{label}</div>

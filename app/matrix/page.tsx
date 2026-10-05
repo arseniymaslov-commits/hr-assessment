@@ -8,6 +8,7 @@ import { departmentOptionLabel } from "@/lib/department-decodings";
 import { getDirectorDepartmentIds } from "@/lib/director-scope";
 import { periodLabel } from "@/lib/format";
 import { getMatrixMetrics } from "@/lib/metrics";
+import { isRankingEligible, sortRankingCandidates } from "@/lib/ranking";
 
 export default async function MatrixPage({
   searchParams
@@ -58,10 +59,17 @@ export default async function MatrixPage({
     }));
 
   const matrixDepartmentIds = new Set(columnDepartments.map((department) => department.id));
+  const rankedDepartments = metrics.byEvaluatee
+    .filter((row) => !hasDirectorScope || directorDepartmentIdSet.has(row.department.id))
+    .map((row) => ({ ...row, name: row.department.name }))
+    .filter(isRankingEligible)
+    .sort(sortRankingCandidates);
+  const rankByDepartment = new Map(rankedDepartments.map((row, index) => [row.department.id, index + 1]));
   const summaries = metrics.byEvaluatee
     .filter((row) => matrixDepartmentIds.has(row.department.id))
     .map((row) => ({
       departmentId: row.department.id,
+      rank: rankByDepartment.get(row.department.id) ?? null,
       average: row.average,
       count: row.count,
       lowCount: row.lowCount

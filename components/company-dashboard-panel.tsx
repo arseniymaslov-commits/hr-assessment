@@ -4,6 +4,7 @@ import { BarChart3, CheckCircle2, ChevronLeft, ChevronRight, ListChecks, Message
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
+import RankingPlace from "@/components/ranking-place";
 import { MIN_RANKING_EVALUATIONS, isRankingEligible, sortRankingCandidates } from "@/lib/ranking";
 
 type LowScore = {
@@ -206,7 +207,12 @@ export default function CompanyDashboardPanel({
               />
               <OverviewCard
                 label={isDepartment ? "Место в рейтинге" : "Заполнение"}
-                value={isDepartment ? (rank ? `${rank}/${totalDepartments}` : "не участвует") : `${completionPercent}%`}
+                value={isDepartment ? (rank ? (
+                  <span className="inline-flex items-center gap-2">
+                    <RankingPlace place={rank} crownOnly />
+                    <span>{rank}/{totalDepartments}</span>
+                  </span>
+                ) : "не участвует") : `${completionPercent}%`}
                 hint={isDepartment ? `минимум ${MIN_RANKING_EVALUATIONS} оценки для рейтинга` : `${filledCount} из ${expectedCount}`}
               />
               <OverviewCard label="Оценки 9 и ниже" value={String(lowScores.length)} hint="с комментариями" />
@@ -220,16 +226,9 @@ export default function CompanyDashboardPanel({
                 emptyText="Нет данных для рейтинга"
                 render={(row, index) => {
                   const rowIndex = rankedRows.findIndex((rankedRow) => rankedRow.id === row.id) + 1;
-                  const isCurrent = isDepartment && row.name === title;
                   return (
                     <>
-                      <span
-                        className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-semibold ${
-                          isCurrent ? "bg-brand/10 text-brand" : "bg-slate-100 text-slate-700"
-                        }`}
-                      >
-                        {rowIndex || index + 1}
-                      </span>
+                      <RankingPlace place={rowIndex || index + 1} compact />
                       <DepartmentName name={row.name} strong={false} />
                       <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${scoreTone(row.average)}`}>
                         {fixed(row.average)}
@@ -310,7 +309,7 @@ export default function CompanyDashboardPanel({
                     return (
                       <tr key={row.id} className={isCurrent ? "bg-brand/5" : undefined}>
                         <td className="px-4 py-3 font-semibold text-slate-700">
-                          {(rankingPage - 1) * rankingPageSize + index + 1}
+                          <RankingPlace place={(rankingPage - 1) * rankingPageSize + index + 1} />
                         </td>
                         <td className="px-4 py-3 font-medium text-ink"><span className="break-words">{row.name}</span></td>
                         <td className="px-4 py-3">
@@ -453,7 +452,7 @@ export default function CompanyDashboardPanel({
   );
 }
 
-function OverviewCard({ label, value, hint }: { label: string; value: string; hint: string }) {
+function OverviewCard({ label, value, hint }: { label: string; value: ReactNode; hint: string }) {
   return (
     <div className="interactive-card rounded-lg border border-line bg-slate-50 p-4 hover:bg-white">
       <div className="text-sm text-muted">{label}</div>

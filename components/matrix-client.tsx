@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { MessageSquareWarning } from "lucide-react";
 import DepartmentLabel from "@/components/department-label";
+import RankingPlace from "@/components/ranking-place";
 import { getDepartmentDisplayParts } from "@/lib/department-decodings";
 import { isMissingEvaluation, MISSING_EVALUATION_LABEL } from "@/lib/evaluation-status";
 import { fixed, scoreClass } from "@/lib/format";
@@ -30,6 +31,7 @@ type MatrixEvaluation = {
 
 type Summary = {
   departmentId: string;
+  rank: number | null;
   average: number | null;
   count: number;
   lowCount: number;
@@ -140,14 +142,17 @@ export default function MatrixClient({
         <div className="grid gap-3 md:grid-cols-3">
           {summaries
             .slice()
-            .filter((summary) => summary.average != null && summary.count >= MIN_RANKING_EVALUATIONS)
-            .sort((a, b) => (b.average ?? -1) - (a.average ?? -1))
+            .filter((summary) => summary.rank != null)
+            .sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity))
                 .slice(0, 3)
-                .map((summary, index) => {
+                .map((summary) => {
               const department = columnDepartments.find((item) => item.id === summary.departmentId);
               return (
                 <div className="interactive-card rounded-lg border border-line bg-white p-4 shadow-sm" key={summary.departmentId}>
-                  <div className="text-xs font-semibold uppercase text-muted">Рейтинг #{index + 1}</div>
+                  <div className="flex items-center gap-2">
+                    <RankingPlace place={summary.rank} compact />
+                    <span className="text-xs font-semibold uppercase text-muted">Рейтинг</span>
+                  </div>
                   {department ? (
                     <DepartmentLabel department={department} className="mt-1 font-semibold text-ink" />
                   ) : (
