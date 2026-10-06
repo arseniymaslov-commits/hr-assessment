@@ -52,7 +52,7 @@ for (const score of [8, 9]) for (const editing of [false, true]) {
   test(`${editing ? "editing" : "creating"} a response to score ${score} saves author and audit atomically without modifying score or evaluation timestamp`, async (t) => {
     replace(t, "department", { findMany: async () => departments });
     const upsert = t.mock.fn(async (args) => ({ ...args.create, updatedAt: new Date("2026-10-05T03:00:00Z"), author: { name: user.name } }));
-    const audit = t.mock.fn(async () => ({}));
+    const audit = t.mock.fn(async (_args: { data: { action: string; details: string } }) => ({}));
     replace(t, "$transaction", async (callback: (tx: unknown) => Promise<unknown>) => callback({
       evaluation: { findUnique: async () => ({ ...evaluation, score, response: editing ? { text: "Прежний ответ" } : null }) },
       evaluationResponse: { upsert }, auditLog: { create: audit }

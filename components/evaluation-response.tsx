@@ -2,11 +2,12 @@
 
 import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Reply, Save, X } from "lucide-react";
+import { Loader2, Reply, Save, X } from "lucide-react";
 import { MAX_RESPONSE_LENGTH, type EvaluationResponseView } from "@/lib/evaluation-response";
 
-export default function EvaluationResponse({ evaluationId, response, canRespond = false }: {
+export default function EvaluationResponse({ evaluationId, response, canRespond = false, onSaved }: {
   evaluationId: string; response?: EvaluationResponseView | null; canRespond?: boolean;
+  onSaved?: (response: EvaluationResponseView) => void;
 }) {
   const router = useRouter();
   const editorId = useId();
@@ -25,7 +26,7 @@ export default function EvaluationResponse({ evaluationId, response, canRespond 
       });
       const data = await result.json();
       if (!result.ok) throw new Error(data.error || "Ответ не сохранён.");
-      setSaved(data.response); setEditing(false); router.refresh();
+      setSaved(data.response); setEditing(false); onSaved?.(data.response); router.refresh();
     } catch (err) { setError(err instanceof Error ? err.message : "Не удалось сохранить ответ."); }
     finally { setSaving(false); }
   }
@@ -41,9 +42,12 @@ export default function EvaluationResponse({ evaluationId, response, canRespond 
         </div>
       ) : null}
       {canRespond && !editing ? (
-        <button type="button" className="focus-ring mt-2 inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100" onClick={() => { setText(current?.text || ""); setError(""); setEditing(true); }}>
-          <Reply size={14} />{current ? "Изменить ответ" : "Ответить"}
-        </button>
+        <div className={`flex flex-wrap items-center justify-between gap-3 ${current ? "mt-2" : "border-t border-line pt-3"}`}>
+          {!current ? <span className="text-sm font-medium text-amber-800">Без ответа</span> : null}
+          <button type="button" className={`focus-ring inline-flex min-h-10 max-w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition ${current ? "border border-line text-slate-600 hover:bg-slate-100" : "bg-brand text-white hover:bg-brand/90"}`} onClick={() => { setText(current?.text || ""); setError(""); setEditing(true); }}>
+            <Reply size={18} className="shrink-0" aria-hidden="true" />{current ? "Изменить ответ" : "Ответить на комментарий"}
+          </button>
+        </div>
       ) : null}
       {editing ? (
         <div className="space-y-2">
@@ -51,8 +55,8 @@ export default function EvaluationResponse({ evaluationId, response, canRespond 
           <textarea id={editorId} maxLength={MAX_RESPONSE_LENGTH} rows={3} value={text} disabled={saving} onChange={(event) => setText(event.target.value)} className="focus-ring block w-full min-w-0 resize-y rounded-md border border-line bg-white px-3 py-2 text-sm" autoFocus />
           <div className="flex flex-wrap items-center gap-2">
             <span className="mr-auto text-xs text-muted">{text.length}/{MAX_RESPONSE_LENGTH}</span>
-            <button type="button" onClick={() => setEditing(false)} disabled={saving} className="focus-ring inline-flex items-center gap-1 rounded border border-line px-2 py-1 text-xs text-slate-600"><X size={14} />Отмена</button>
-            <button type="button" onClick={save} disabled={saving || !text.trim()} className="focus-ring inline-flex items-center gap-1 rounded border border-brand/30 px-2 py-1 text-xs font-medium text-brand disabled:opacity-50"><Save size={14} />{saving ? "Сохраняю" : "Сохранить ответ"}</button>
+            <button type="button" onClick={() => setEditing(false)} disabled={saving} className="focus-ring inline-flex min-h-10 items-center gap-1 rounded-md border border-line px-3 py-2 text-sm text-slate-600"><X size={16} aria-hidden="true" />Отмена</button>
+            <button type="button" onClick={save} disabled={saving || !text.trim()} className="focus-ring inline-flex min-h-10 items-center gap-2 rounded-md bg-brand px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving ? <Loader2 size={16} className="motion-safe:animate-spin" aria-hidden="true" /> : <Save size={16} aria-hidden="true" />}{saving ? "Сохраняю" : "Сохранить ответ"}</button>
           </div>
         </div>
       ) : null}

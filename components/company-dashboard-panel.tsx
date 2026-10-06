@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, CheckCircle2, ChevronLeft, ChevronRight, ListChecks, MessageSquareWarning } from "lucide-react";
+import { BarChart3, CheckCircle2, ChevronLeft, ChevronRight, ListChecks, MessageSquareWarning, Reply } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
@@ -119,6 +119,8 @@ export default function CompanyDashboardPanel({
 }: DashboardPanelProps) {
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
   const paginationScope = `${mode}:${title || ""}:${periodLabel}`;
+  const [unansweredOnly, setUnansweredOnly] = useState(false);
+  const [savedResponses, setSavedResponses] = useState<{ scope: string; items: Record<string, EvaluationResponseView> }>({ scope: paginationScope, items: {} });
   const [rankingPagination, setRankingPagination] = useState({ scope: paginationScope, page: 1 });
   const [commentPagination, setCommentPagination] = useState({ scope: paginationScope, page: 1 });
   if (rankingPagination.scope !== paginationScope) {
@@ -171,11 +173,23 @@ export default function CompanyDashboardPanel({
   }, [isDepartment, rankedRows, title]);
 
   const rankingPages = Math.max(1, Math.ceil(rankedRows.length / rankingPageSize));
-  const commentPages = Math.max(1, Math.ceil(lowScores.length / commentPageSize));
+  const comments = lowScores.map((item) => {
+    const saved = savedResponses.scope === paginationScope ? savedResponses.items[item.id] : undefined;
+    return saved && (!item.response || saved.updatedAt > item.response.updatedAt) ? { ...item, response: saved } : item;
+  });
+  const unansweredComments = comments.filter((item) => item.canRespond && !item.response);
+  const responseCount = comments.filter((item) => item.canRespond).length;
+  const visibleComments = unansweredOnly ? unansweredComments : comments;
+  const commentPages = Math.max(1, Math.ceil(visibleComments.length / commentPageSize));
   const rankingPage = rankingPagination.scope === paginationScope ? Math.min(rankingPagination.page, rankingPages) : 1;
   const commentPage = commentPagination.scope === paginationScope ? Math.min(commentPagination.page, commentPages) : 1;
   const pagedRanking = rankedRows.slice((rankingPage - 1) * rankingPageSize, rankingPage * rankingPageSize);
-  const pagedComments = lowScores.slice((commentPage - 1) * commentPageSize, commentPage * commentPageSize);
+  const pagedComments = visibleComments.slice((commentPage - 1) * commentPageSize, commentPage * commentPageSize);
+
+  function selectCommentFilter(unanswered: boolean) {
+    setUnansweredOnly(unanswered);
+    setCommentPagination({ scope: paginationScope, page: 1 });
+  }
 
   return (
     <section className="animate-soft-in mt-6 rounded-lg border border-line bg-white shadow-sm">
@@ -208,6 +222,20 @@ export default function CompanyDashboardPanel({
           </div>
         </div>
       </div>
+
+      {unansweredComments.length ? (
+        <div className="flex flex-col gap-3 border-b border-amber-200 bg-amber-50 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <Reply size={20} className="shrink-0 text-amber-800" aria-hidden="true" />
+            <span className="text-sm font-semibold text-amber-900">Комментарии без ответа: {unansweredComments.length}</span>
+          </div>
+          {activeTab !== "comments" || !unansweredOnly ? (
+            <button type="button" className="focus-ring response-attention inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-brand px-3 py-2 text-sm font-semibold text-white transition hover:bg-brand/90" onClick={() => { selectCommentFilter(true); setActiveTab("comments"); }}>
+              <Reply size={18} aria-hidden="true" />Ответить на комментарии
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="p-5">
         {activeTab === "overview" ? (
@@ -371,8 +399,14 @@ export default function CompanyDashboardPanel({
 
         {activeTab === "comments" ? (
           <div>
+            {responseCount ? (
+              <div className="mb-3 flex flex-wrap gap-2" role="group" aria-label="Фильтр комментариев">
+                <button type="button" aria-pressed={!unansweredOnly} onClick={() => selectCommentFilter(false)} className={`focus-ring min-h-10 rounded-md border px-3 py-2 text-sm font-medium ${!unansweredOnly ? "border-brand/30 bg-brand/5 text-brand" : "border-line bg-white text-slate-700"}`}>Все комментарии · {comments.length}</button>
+                <button type="button" aria-pressed={unansweredOnly} onClick={() => selectCommentFilter(true)} className={`focus-ring min-h-10 rounded-md border px-3 py-2 text-sm font-medium ${unansweredOnly ? "border-brand/30 bg-brand/5 text-brand" : "border-line bg-white text-slate-700"}`}>Без ответа · {unansweredComments.length}</button>
+              </div>
+            ) : null}
             <div className="max-h-[620px] overflow-auto rounded-lg border border-line bg-slate-50 p-3">
-              {lowScores.length ? (
+              {visibleComments.length ? (
                 <div className="space-y-3">
                   {pagedComments.map((item) => (
                     <article className="rounded-lg border border-line bg-white p-4" key={item.id}>
@@ -387,13 +421,13 @@ export default function CompanyDashboardPanel({
                       <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">
                         {item.comment || "Комментарий не указан"}
                       </p>
-                      <EvaluationResponse evaluationId={item.id} response={item.response} canRespond={item.canRespond} />
+                      <EvaluationResponse evaluationId={item.id} response={item.response} canRespond={item.canRespond} onSaved={(response) => setSavedResponses((previous) => ({ scope: paginationScope, items: { ...(previous.scope === paginationScope ? previous.items : {}), [item.id]: response } }))} />
                     </article>
                   ))}
                 </div>
               ) : (
                 <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-5 py-8 text-center text-sm font-medium text-emerald-700">
-                  Оценок 9 и ниже за период нет.
+                  {unansweredOnly ? "На все доступные вам комментарии дан ответ." : "Оценок 9 и ниже за период нет."}
                 </div>
               )}
             </div>
