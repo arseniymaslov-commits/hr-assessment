@@ -8,6 +8,8 @@ import { MIN_RANKING_EVALUATIONS } from "@/lib/ranking";
 import RankingPlace from "@/components/ranking-place";
 import type { EvaluationResponseView } from "@/lib/evaluation-response";
 import { paginateComments } from "@/lib/presentation-comments";
+import { presentationTrendDelta, type PresentationTrendPoint } from "@/lib/presentation-trend";
+import { periodShortLabel } from "@/lib/format";
 
 type LowScore = {
   id: string;
@@ -40,6 +42,9 @@ type DashboardSlideExportProps = {
   filledCount: number;
   missingCount: number;
   expectedCount: number;
+  ratingCount: number;
+  noInteractionCount: number;
+  trendPoints: PresentationTrendPoint[];
 };
 
 function fixed(value: number | null) {
@@ -66,19 +71,26 @@ export default function DashboardSlideExport({
   rank,
   totalDepartments,
   lowScores,
-  ranking,
   filledCount,
   missingCount,
-  expectedCount
+  expectedCount,
+  ratingCount,
+  noInteractionCount,
+  trendPoints
 }: DashboardSlideExportProps) {
   const previewRef = useRef<HTMLDivElement>(null);
   const slideRefs = useRef<Array<HTMLDivElement | null>>([]);
   const [isExporting, setIsExporting] = useState(false);
   const [previewScale, setPreviewScale] = useState(1);
-  const commentPages = useMemo(() => paginateComments(lowScores), [lowScores]);
+  const allCommentPages = useMemo(() => paginateComments(lowScores), [lowScores]);
+  const summaryComments = allCommentPages[0] || [];
+  const commentPages = allCommentPages.slice(1);
   const slideCount = 1 + commentPages.length;
-  const topRanking = ranking.slice(0, 8);
   const completionPercent = expectedCount ? Math.round((filledCount / expectedCount) * 100) : 0;
+
+  useEffect(() => {
+    slideRefs.current.length = slideCount;
+  }, [slideCount]);
 
   useEffect(() => {
     const element = previewRef.current;
@@ -126,9 +138,6 @@ export default function DashboardSlideExport({
           <h2 className="font-semibold text-ink">
             {mode === "company" ? "Слайды по компании" : "Слайды отдела для презентации"}
           </h2>
-          <p className="mt-1 text-sm text-muted">
-            Формат 16:9. Сводка отдельно, комментарии вынесены на отдельные слайды без обрезания.
-          </p>
         </div>
         <button
           className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-brand/30 bg-white px-4 py-2 font-semibold text-brand transition hover:bg-brand/5 disabled:opacity-60"
@@ -136,7 +145,7 @@ export default function DashboardSlideExport({
           onClick={downloadPng}
           disabled={isExporting}
         >
-          <Download size={18} /> {isExporting ? "Готовлю PNG" : `Скачать PNG (${slideCount})`}
+          <Download size={18} /> {isExporting ? "Готовлю отчёт" : "Скачать для отчёта"}
         </button>
       </div>
 
@@ -156,12 +165,15 @@ export default function DashboardSlideExport({
                 rank={rank}
                 totalDepartments={totalDepartments}
                 lowScoresCount={lowScores.length}
-                lowScores={lowScores}
-                topRanking={topRanking}
+                comments={summaryComments}
+                remainingComments={commentPages.flat().length}
                 filledCount={filledCount}
                 missingCount={missingCount}
                 expectedCount={expectedCount}
                 completionPercent={completionPercent}
+                ratingCount={ratingCount}
+                noInteractionCount={noInteractionCount}
+                trendPoints={trendPoints}
               />
             </SlideFrame>
 
@@ -213,9 +225,8 @@ function SlideShell({
 }) {
   return (
     <div ref={refCallback} className="relative h-[720px] w-[1280px] overflow-hidden bg-slate-50 text-slate-950">
-      <div className="absolute inset-x-0 top-0 h-3 bg-brand" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_12%,rgba(227,6,19,0.10),transparent_28%),linear-gradient(135deg,#ffffff_0%,#f8fafc_54%,#eef2f7_100%)]" />
-      <div className="relative flex h-full flex-col p-10">{children}</div>
+      <div className="absolute inset-x-0 top-0 h-2 bg-brand" />
+      <div className="relative flex h-full flex-col p-8">{children}</div>
     </div>
   );
 }
@@ -230,13 +241,14 @@ function SlideHeader({
   periodLabel: string;
 }) {
   return (
-    <header className="flex items-start justify-between gap-8">
-      <div>
-        <div className="text-[16px] font-semibold uppercase tracking-wide text-brand">{label}</div>
-        <h1 className="mt-2 max-w-[820px] text-[42px] font-bold leading-tight text-slate-950">{title}</h1>
+    <header className="flex h-[110px] shrink-0 items-start justify-between gap-6">
+      <div className="min-w-0 flex-1">
+        <div className="text-[13px] font-semibold uppercase text-brand">{label}</div>
+        <h1 className={`mt-1 break-words font-bold leading-tight text-slate-950 ${title.length > 60 ? "text-[26px]" : "text-[34px]"}`}>{title}</h1>
+        <p className="mt-1 text-[15px] text-slate-500">{periodLabel}</p>
       </div>
-      <div className="flex h-[82px] w-[270px] items-center justify-end">
-        <Image src="/rp-logo.png" alt="Red Petroleum" width={260} height={82} className="h-auto w-[260px]" priority />
+      <div className="flex h-[70px] w-[210px] shrink-0 items-center justify-end">
+        <Image src="/rp-logo.png" alt="Red Petroleum" width={200} height={64} className="h-auto w-[200px]" priority />
       </div>
     </header>
   );
@@ -252,12 +264,15 @@ function SummarySlide({
   rank,
   totalDepartments,
   lowScoresCount,
-  lowScores,
-  topRanking,
+  comments,
+  remainingComments,
   filledCount,
   missingCount,
   expectedCount,
-  completionPercent
+  completionPercent,
+  ratingCount,
+  noInteractionCount,
+  trendPoints
 }: {
   refCallback: (node: HTMLDivElement | null) => void;
   mode: "department" | "company";
@@ -268,21 +283,16 @@ function SummarySlide({
   rank: number | null;
   totalDepartments: number;
   lowScoresCount: number;
-  lowScores: LowScore[];
-  topRanking: RankingItem[];
+  comments: LowScore[];
+  remainingComments: number;
   filledCount: number;
   missingCount: number;
   expectedCount: number;
   completionPercent: number;
+  ratingCount: number;
+  noInteractionCount: number;
+  trendPoints: PresentationTrendPoint[];
 }) {
-  let previewLimit = 0;
-  let previewUnits = 0;
-  for (const item of lowScores.slice(0, 4)) {
-    const units = 3 + Math.min(2, Math.ceil((item.comment?.length || 1) / 85)) +
-      (item.response ? 1 + Math.ceil(item.response.text.length / 85) : 0);
-    if (previewLimit && previewUnits + units > 18) break;
-    previewLimit++; previewUnits += units;
-  }
   return (
     <SlideShell refCallback={refCallback}>
       <SlideHeader
@@ -291,16 +301,16 @@ function SummarySlide({
         periodLabel={periodLabel}
       />
 
-      <main className="mt-6 grid min-h-0 flex-1 grid-cols-[390px_1fr] gap-7">
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="text-[18px] font-semibold text-slate-600">
+      <main className="mt-3 grid min-h-0 flex-1 grid-cols-[300px_1fr] gap-6">
+        <section className="min-h-0 border-r border-slate-200 pr-6">
+          <div className="text-[16px] font-semibold text-slate-600">
             {mode === "company" ? "Средний балл компании" : "Средний балл отдела"}
           </div>
-          <div className="mt-4 flex items-end gap-4">
-            <div className="text-[96px] font-bold leading-none text-brand">{fixed(average)}</div>
-            <div className="mb-3 rounded-full bg-slate-100 px-4 py-2 text-[16px] font-semibold text-slate-600">из 10</div>
+          <div className="mt-2 flex items-baseline gap-3">
+            <div className="text-[56px] font-bold leading-none text-slate-950">{fixed(average)}</div>
+            {average != null ? <span className="text-[16px] text-slate-500">из 10</span> : null}
           </div>
-          <div className="mt-5 grid grid-cols-2 gap-2.5">
+          <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3">
             <MetricTile label={mode === "company" ? "Оцениваемых отделов" : "Средний балл компании"} value={mode === "company" ? String(totalDepartments) : fixed(companyAverage)} />
             <MetricTile label={mode === "company" ? "Заполнение" : "Место в рейтинге"} value={mode === "company" ? `${completionPercent}%` : rank ? (
               <span className="inline-flex items-center gap-2">
@@ -308,48 +318,35 @@ function SummarySlide({
                 <span>{rank}/{totalDepartments}</span>
               </span>
             ) : "нет места"} />
-            <MetricTile label="Оценок 9 и ниже" value={String(lowScoresCount)} />
-            <MetricTile label="Осталось оценок" value={String(missingCount)} />
+            <MetricTile label="Получено оценок" value={String(ratingCount)} />
+            <MetricTile label="Нет взаимодействия" value={String(noInteractionCount)} />
           </div>
-          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-[13px] leading-5 text-slate-600">
-            Ожидается оценок: {expectedCount}. Заполнено: {filledCount}. Осталось: {missingCount}.
-            {mode === "department" && !rank ? ` Для рейтинга нужно минимум ${MIN_RANKING_EVALUATIONS} оценки.` : ""}
+          <SlideTrend points={trendPoints} />
+          <div className="mt-2 text-[12px] leading-4 text-slate-500">
+            {expectedCount > 0 ? <>Обязательные: {filledCount}/{expectedCount}. Осталось: {missingCount}.</> : null}
+            {mode === "department" && !rank ? <p>Для рейтинга нужно минимум {MIN_RANKING_EVALUATIONS} оценки.</p> : null}
           </div>
         </section>
 
-        <section className="min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="min-h-0">
           <div className="flex items-center justify-between gap-4">
-            <h2 className="text-[26px] font-bold text-slate-950">Комментарии 9 и ниже</h2>
-            <span className="rounded-full bg-red-50 px-3 py-1.5 text-[16px] font-semibold text-red-700 ring-1 ring-red-100">
-              {lowScores.length}
+            <h2 className="text-[22px] font-bold text-slate-950">Комментарии и ответы</h2>
+            <span className="text-[14px] font-medium text-slate-500">
+              Оценок 9 и ниже: {lowScoresCount}
             </span>
           </div>
-          <div className="mt-4 space-y-2.5">
-            {lowScores.length ? (
-              lowScores.slice(0, previewLimit).map((item) => (
-                <article className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5" key={item.id}>
-                  <div className="flex items-center gap-3">
-                    <span className={`rounded-full px-2.5 py-1 text-[14px] font-bold ring-1 ${scoreTone(item.score)}`}>
-                      {item.score ?? "-"}
-                    </span>
-                    <div className="min-w-0 flex-1 truncate text-[15px] font-bold text-slate-900">
-                      {mode === "company" ? `${item.evaluatorName} -> ${item.evaluateeName}` : item.evaluatorName}
-                    </div>
-                  </div>
-                  <p className="mt-1 overflow-hidden break-words text-[13px] leading-5 text-slate-600 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
-                    {item.comment || "Комментарий не указан"}
-                  </p>
-                  {item.response ? <SlideResponse response={item.response} compact /> : null}
-                </article>
-              ))
+          <div className="mt-3 space-y-2">
+            {comments.length ? (
+              comments.map((item) => <SlideComment key={item.id} item={item} mode={mode} />)
             ) : (
-              <div className="flex h-[340px] items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50 text-[22px] font-semibold text-emerald-700">
-                Оценок 9 и ниже нет
+              <div className={`flex h-[300px] flex-col items-center justify-center gap-2 border-y text-[20px] font-semibold ${ratingCount ? "border-emerald-200 text-emerald-700" : "border-slate-200 text-slate-500"}`}>
+                {ratingCount ? "Оценок 9 и ниже нет" : "Пока нет оценок"}
+                {!ratingCount ? <span className="text-[14px] font-normal">Недостаточно данных для выводов</span> : null}
               </div>
             )}
-            {lowScores.length > previewLimit ? (
-              <div className="rounded-lg bg-slate-100 px-3 py-2 text-[13px] font-semibold text-slate-600">
-                Еще комментариев: {lowScores.length - previewLimit}. Полный список на следующих слайдах.
+            {remainingComments ? (
+              <div className="text-[12px] text-slate-500">
+                Продолжение комментариев и ответов на следующих слайдах.
               </div>
             ) : null}
           </div>
@@ -363,9 +360,56 @@ function SummarySlide({
 
 function MetricTile({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="rounded-lg bg-slate-50 p-2.5">
+    <div>
       <div className="text-[12px] leading-4 text-slate-500">{label}</div>
-      <div className="mt-1.5 text-[24px] font-bold leading-tight text-slate-950">{value}</div>
+      <div className="mt-1 text-[20px] font-bold leading-tight text-slate-950">{value}</div>
+    </div>
+  );
+}
+
+function SlideTrend({ points }: { points: PresentationTrendPoint[] }) {
+  const delta = presentationTrendDelta(points);
+  const values = points.flatMap((point) => point.average == null ? [] : [point.average]);
+  const minimum = Math.max(1, Math.min(9, Math.floor(Math.min(...values) * 2) / 2 - 0.5));
+  const width = 274;
+  const height = 140;
+  const xFor = (index: number) => points.length <= 1 ? width / 2 : 32 + index * 222 / (points.length - 1);
+  const yFor = (value: number) => 114 - (value - minimum) / (10 - minimum) * 84;
+  const roundedDelta = delta == null ? null : Math.round(delta * 100) / 100;
+  const deltaText = roundedDelta == null ? "Нет сравнения" : `${roundedDelta > 0 ? "+" : ""}${roundedDelta.toFixed(2)} к прошлому периоду`;
+  return (
+    <div className="mt-4 border-t border-slate-200 pt-3">
+      <h2 className="text-[15px] font-semibold text-slate-900">Динамика по месяцам</h2>
+      <div className={`mt-1 text-[12px] font-medium ${delta == null || Math.abs(delta) < 0.005 ? "text-slate-500" : delta > 0 ? "text-emerald-700" : "text-red-700"}`}>{deltaText}</div>
+      {values.length ? (
+        <svg className="mt-1 h-[140px] w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Динамика среднего балла. ${points.map((point) => `${periodShortLabel(point.period)}: ${fixed(point.average)}, оценок ${point.count}`).join("; ")}`}>
+          {[minimum, (minimum + 10) / 2, 10].map((value) => (
+            <g key={value}>
+              <line x1="32" x2="266" y1={yFor(value)} y2={yFor(value)} stroke="#e2e8f0" strokeDasharray="3 3" />
+              <text x="0" y={yFor(value) + 4} fill="#64748b" fontSize="10">{value.toFixed(1)}</text>
+            </g>
+          ))}
+          {points.map((point, index) => {
+            if (point.average == null) return null;
+            const previous = points[index - 1];
+            return (
+              <g key={point.period.id}>
+                {previous?.average != null ? <line x1={xFor(index - 1)} x2={xFor(index)} y1={yFor(previous.average)} y2={yFor(point.average)} stroke="#e30613" strokeWidth="2.5" /> : null}
+                <circle cx={xFor(index)} cy={yFor(point.average)} r="4" fill="#fff" stroke="#e30613" strokeWidth="2" />
+                <text x={xFor(index)} y={yFor(point.average) - 10} textAnchor="middle" fontSize="11" fontWeight="600" fill="#0f172a">{point.average.toFixed(2)}</text>
+              </g>
+            );
+          })}
+        </svg>
+      ) : <div className="flex h-[140px] items-center text-[14px] text-slate-500">Пока нет оценок для динамики</div>}
+      <div className="grid gap-1 text-center text-[10px] leading-4 text-slate-500" style={{ gridTemplateColumns: `repeat(${Math.max(1, points.length)}, minmax(0, 1fr))` }}>
+        {points.map((point) => (
+          <div key={point.period.id}>
+            <div>{String(point.period.month).padStart(2, "0")}.{String(point.period.year).slice(-2)}</div>
+            <div className="whitespace-nowrap" title={`Оценок: ${point.count}`}>{point.average == null ? "-" : `${point.count} оц.`}</div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -397,32 +441,17 @@ function CommentsSlide({
         periodLabel={periodLabel}
       />
 
-      <main className="mt-7 min-h-0 flex-1 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+      <main className="mt-3 min-h-0 flex-1">
         <div className="flex items-center justify-between gap-4">
-          <h2 className="text-[26px] font-bold text-slate-950">Оценки 9 и ниже с комментариями</h2>
-          <span className="rounded-full bg-red-50 px-3 py-1.5 text-[16px] font-semibold text-red-700 ring-1 ring-red-100">
+          <h2 className="text-[22px] font-bold text-slate-950">Комментарии и ответы: продолжение</h2>
+          <span className="text-[14px] font-medium text-slate-500">
             {pageNumber}/{totalPages || 1} · всего {totalComments}
           </span>
         </div>
 
-        <div className="mt-5 space-y-3">
+        <div className="mt-3 space-y-2">
           {comments.length ? (
-            comments.map((item) => (
-              <article className="rounded-lg border border-slate-200 bg-slate-50 p-4" key={item.id}>
-                <div className="flex items-center gap-3">
-                  <span className={`rounded-full px-3 py-1.5 text-[16px] font-bold ring-1 ${scoreTone(item.score)}`}>
-                    {item.score ?? "-"}
-                  </span>
-                  <div className="min-w-0 flex-1 truncate text-[17px] font-bold text-slate-900">
-                    {mode === "company" ? `${item.evaluatorName} -> ${item.evaluateeName}` : item.evaluatorName}
-                  </div>
-                </div>
-                <p className="mt-2 whitespace-pre-wrap break-words text-[15px] leading-6 text-slate-700">
-                  {item.comment || "Комментарий не указан"}
-                </p>
-                {item.response ? <SlideResponse response={item.response} /> : null}
-              </article>
-            ))
+            comments.map((item) => <SlideComment key={item.id} item={item} mode={mode} />)
           ) : (
             <div className="flex h-[420px] items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50 text-[24px] font-semibold text-emerald-700">
               Оценок 9 и ниже нет
@@ -436,18 +465,31 @@ function CommentsSlide({
   );
 }
 
-function SlideResponse({ response, compact = false }: { response: EvaluationResponseView; compact?: boolean }) {
+function SlideComment({ item, mode }: { item: LowScore; mode: "department" | "company" }) {
   return (
-    <div className={`mt-2 border-l-2 border-slate-300 pl-3 ${compact ? "text-[13px] leading-5" : "text-[15px] leading-6"}`}>
-      <div className="font-semibold text-slate-700">Ответ подразделения</div>
-      <p className="whitespace-pre-wrap break-words text-slate-600">{response.text}</p>
-    </div>
+    <article className="rounded-md border border-slate-200 bg-white px-3 py-2">
+      <div className="flex items-start gap-2">
+        <span className={`shrink-0 rounded-md px-2 py-0.5 text-[14px] font-bold ring-1 ${scoreTone(item.score)}`}>{item.score ?? "-"}</span>
+        <div className="min-w-0 flex-1 break-words text-[14px] font-semibold leading-5 text-slate-900">
+          {mode === "company" ? `${item.evaluatorName} -> ${item.evaluateeName}` : item.evaluatorName}
+        </div>
+      </div>
+      <div className={`mt-1.5 grid gap-3 text-[14px] leading-5 ${item.response ? "grid-cols-[1.2fr_1fr]" : "grid-cols-1"}`}>
+        <p className="min-w-0 whitespace-pre-wrap text-slate-700 [overflow-wrap:anywhere]">{item.comment || "Комментарий не указан"}</p>
+        {item.response ? (
+          <div className="min-w-0 border-l-2 border-slate-300 pl-3">
+            <div className="text-[12px] font-semibold text-slate-500">Ответ подразделения</div>
+            <p className="whitespace-pre-wrap text-slate-600 [overflow-wrap:anywhere]">{item.response.text}</p>
+          </div>
+        ) : null}
+      </div>
+    </article>
   );
 }
 
 function SlideFooter() {
   return (
-    <footer className="mt-5 flex items-center justify-between border-t border-slate-200 pt-4 text-[14px] text-slate-500">
+    <footer className="mt-3 flex shrink-0 items-center justify-between border-t border-slate-200 pt-3 text-[12px] text-slate-500">
       <span>Red Petroleum · Оценка взаимодействия подразделений</span>
       <span>PNG 16:9 · 1920x1080</span>
     </footer>

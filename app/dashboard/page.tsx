@@ -17,6 +17,7 @@ import { resolveEvaluateeDepartmentId } from "@/lib/department-matching";
 import { fixed, periodLabel, periodShortLabel, scoreClass } from "@/lib/format";
 import { getPeriodMetrics } from "@/lib/metrics";
 import { MIN_RANKING_EVALUATIONS, isRankingEligible, sortRankingCandidates } from "@/lib/ranking";
+import { getPresentationTrend } from "@/lib/presentation-trend";
 
 export default async function DashboardPage({
   searchParams
@@ -302,7 +303,7 @@ export default async function DashboardPage({
         />
       ) : null}
 
-      {canExportDepartmentSlide && metrics.selectedPeriod ? (
+      {canExportDepartmentSlide && slideDepartmentRow && metrics.selectedPeriod ? (
         <DashboardSlideExport
           mode="department"
           title={slideTitle}
@@ -316,6 +317,9 @@ export default async function DashboardPage({
           filledCount={slideFilledCount}
           missingCount={visibleMissingCount}
           expectedCount={visibleExpectedCount}
+          ratingCount={slideDepartmentRow.count}
+          noInteractionCount={slideDepartmentRow.noInteractionCount}
+          trendPoints={getPresentationTrend(trendPoints, metrics.selectedPeriod.id)}
         />
       ) : null}
 

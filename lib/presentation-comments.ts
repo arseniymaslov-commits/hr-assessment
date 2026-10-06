@@ -9,7 +9,7 @@ type SlideComment = {
 };
 
 // Keep complete text, splitting oversized comments before laying out fixed-size slides.
-export function paginateComments<T extends SlideComment>(items: T[]): T[][] {
+export function paginateComments<T extends SlideComment>(items: T[], lineBudget = 22): T[][] {
   const pages: T[][] = [];
   let page: T[] = [];
   let units = 0;
@@ -18,9 +18,10 @@ export function paginateComments<T extends SlideComment>(items: T[]): T[][] {
     for (let index = 0; index < chunks.length; index++) {
       const response = index === chunks.length - 1 ? item.response : null;
       const segment = { ...item, id: `${item.id}-${index}`, comment: chunks[index], response };
-      const lines = textLines(chunks[index]);
-      const itemUnits = lines + 4 + (response ? textLines(response.text) + 3 : 0);
-      if (page.length && (page.length >= 3 || units + itemUnits > 14)) {
+      // Comments and responses occupy adjacent columns, so reserve the taller one.
+      const lines = textLines(chunks[index], 55);
+      const itemUnits = Math.max(lines, response ? textLines(response.text, 40) + 1 : 0) + 3;
+      if (page.length && (page.length >= 4 || units + itemUnits > lineBudget)) {
         pages.push(page); page = []; units = 0;
       }
       page.push(segment); units += itemUnits;
@@ -30,8 +31,8 @@ export function paginateComments<T extends SlideComment>(items: T[]): T[][] {
   return pages;
 }
 
-function textLines(text: string) {
-  return text.split("\n").reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / 90)), 0);
+function textLines(text: string, width: number) {
+  return text.split("\n").reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / width)), 0);
 }
 
 function splitComment(text: string, limit: number) {
